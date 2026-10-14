@@ -5,7 +5,7 @@ import {
   TECHS, REPEAT_TECHS, CULTURE_UPGRADES, CLICK_UPGRADES, ACQUISITIONS, PERKS,
   BUBBLES, CONTRACT_CLIENTS, CONTRACT_TASKS, CONTRACT_DURATIONS, TREND_TEMPLATES,
   AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, SCALE_LEVELS, ENERGY_W_PER_USD, DECISIONS,
-  OFFICES, OFFICE_MAX_LEVEL, OFFICE_LEVEL_COST, MARKET, COMPETITORS,
+  OFFICES, OFFICE_MAX_LEVEL, OFFICE_LEVEL_COST, MARKET, COMPETITORS, BOARD, ROLES, QUIRKS, EXEC_NAMES,
 } from './data.js';
 import { fmt, money, num } from './format.js';
 import { t, noun, getLang } from './i18n.js';
@@ -35,6 +35,14 @@ export const OFFICE_MAP = Object.fromEntries(OFFICES.map((o) => [o.id, o]));
 const EARTH_OFFICES = OFFICES.filter((o) => o.kind === 'earth' && !o.hq).length;
 const SPACE_OFFICES = OFFICES.filter((o) => o.kind === 'space').length;
 export const COMP_MAP = Object.fromEntries(COMPETITORS.map((c) => [c.id, c]));
+export const ROLE_MAP = Object.fromEntries(ROLES.map((r) => [r.id, r]));
+export const QUIRK_MAP = Object.fromEntries(QUIRKS.map((q) => [q.id, q]));
+// Siła cechy po uwzględnieniu poziomu i dziwactwa (mnożniki rosną, obniżki kosztów też się pogłębiają).
+export function scaleTrait(tr, k) {
+  if (tr.x !== undefined) return { ...tr, x: tr.x >= 1 ? 1 + (tr.x - 1) * k : Math.max(0.05, 1 - (1 - tr.x) * k) };
+  if (tr.v !== undefined) return { ...tr, v: tr.v * k };
+  return tr;
+}
 
 // Decyzje i historia wykresu
 export const DECISION_FIRST = 8 * 60000;
@@ -127,6 +135,9 @@ SCALE_LEVELS.forEach((L, i) => ach(`scale${i}`, L.icon, 'scale', i, i, (g) => g.
 [1, 5, 10, EARTH_OFFICES].forEach((v, i) => ach(`off${i}`, '🌍', 'off', v, i, (g) => g.officeCount('earth') >= v));
 [1, 3, SPACE_OFFICES].forEach((v, i) => ach(`spc${i}`, '🚀', 'spc', v, i, (g) => g.officeCount('space') >= v));
 [1, 3, COMPETITORS.length].forEach((v, i) => ach(`ctl${i}`, '🦁', 'ctl', v, i, (g) => g.controlCount() >= v));
+[1, ROLES.length].forEach((v, i) => ach(`exec${i}`, '👔', 'exec', v, i, (g) => Object.keys(g.s.board).length >= v));
+ach('exec2', '🌟', 'exec', 0, 2, (g) => !!g.s.flags.legendHired);
+ach('exec3', '🎖️', 'exec', 0, 3, (g) => Object.values(g.s.board).some((e) => g.execLevel(e) >= BOARD.maxLevel));
 ach('mkt0', '📈', 'mkt', 0, 0, (g) => g.marketUnlocked() && Object.keys(g.s.market.stakes).length > 0);
 ach('mkt1', '🥇', 'mkt', 1, 1, (g) => g.marketUnlocked() && g.marketRank() === 1);
 
@@ -216,6 +227,10 @@ export function createState(now = Date.now()) {
     autopilot: { owned: {}, off: {} },
     offices: { waw: 1 },
     market: { comps: {}, stakes: {}, lastTick: 0 },
+    board: {},
+    candidates: [],
+    nextCandidateAt: 0,
+    execSeq: 0,
     challenge: null,
     challenges: {},
     decision: null,
@@ -258,6 +273,12 @@ export function sanitizeState(raw, now = Date.now()) {
     for (const [id, l] of Object.entries(raw.offices)) if (OFFICE_MAP[id] && l > 0) s.offices[id] = Math.min(OFFICE_MAX_LEVEL, Math.floor(l));
   }
   if (!OFFICE_MAP[s.settings.view] || !s.offices[s.settings.view]) s.settings.view = 'waw';
+  const validExec = (e) => isObj(e) && ROLE_MAP[e.role] && Array.isArray(e.traits) && BOARD.rarity[e.r] && e.n >= 0;
+  s.board = {};
+  if (isObj(raw.board)) for (const [role, e] of Object.entries(raw.board)) if (ROLE_MAP[role] && validExec(e)) s.board[role] = { ...e, role };
+  s.candidates = Array.isArray(raw.candidates) ? raw.candidates.filter(validExec).slice(0, BOARD.poolMax) : [];
+  s.execSeq = raw.execSeq > 0 ? raw.execSeq : 0;
+  s.nextCandidateAt = raw.nextCandidateAt > 0 ? raw.nextCandidateAt : 0;
   const mk = isObj(raw.market) ? raw.market : {};
   s.market = { comps: {}, stakes: {}, lastTick: mk.lastTick > 0 ? mk.lastTick : 0 };
   for (const c of COMPETITORS) {
@@ -388,6 +409,12 @@ export class Game {
     for (const id in s.perks) { const l = s.perks[id] || 0; if (l > 0 && PERK_MAP[id]) apply(PERK_MAP[id].fx, l); }
     for (const id in s.challenges) { const l = s.challenges[id] || 0; if (l > 0 && CHALLENGE_MAP[id]) apply(CHALLENGE_MAP[id].fx, l); }
     for (const id in s.offices) { const l = s.offices[id] || 0; if (l > 0 && OFFICE_MAP[id]) apply(OFFICE_MAP[id].fx, l); }
+    // zarząd: cechy wzmocnione doświadczeniem i dziwactwem
+    for (const role in s.board) {
+      const e = s.board[role];
+      const k = this.execPower(e);
+      apply(e.traits.map((tr) => scaleTrait(tr, k)));
+    }
     // udziały w konkurentach: premia dla ich kategorii, a przy 51% przejęcie kontroli
     for (const id in s.market.stakes) {
       const c = COMP_MAP[id];
@@ -524,6 +551,7 @@ export class Game {
     this.updateDecision(now);
     this.updatePending(now);
     this.updateMarket(now);
+    this.updateCandidates(now);
 
     this.apTimer = (this.apTimer || 0) + dt;
     if (this.apTimer >= 1) { this.apTimer = 0; this.autopilotStep(now); }
@@ -531,6 +559,9 @@ export class Game {
     this.achTimer += dt;
     if (this.achTimer >= 1) {
       this.achTimer = 0;
+      // poziomy zarządu i dziwactwa zależne od godziny zmieniają się powoli — sprawdzamy raz na sekundę
+      const bs = this.boardSignature();
+      if (bs !== this.lastBoardSig) { this.lastBoardSig = bs; this.recalc(); }
       this.updateChallenge(now);
       this.updateScale();
       this.sampleHistory(now);
@@ -1052,6 +1083,7 @@ export class Game {
     s.boosts = kept;
     s.nextBubbleAt = now + 20000 + this.rng() * 30000;
     if (s.nextTrendAt < now) s.nextTrendAt = now + 60000;
+    if (this.boardUnlocked() && s.nextCandidateAt < now + 2 * 60000) s.nextCandidateAt = now + 2 * 60000;
     // Po dłuższej przerwie decyzja czeka chwilę po powrocie, a nie od razu.
     if (!s.decision && s.nextDecisionAt < now + 3 * 60000) s.nextDecisionAt = now + 3 * 60000;
     this.recalc();
@@ -1094,6 +1126,103 @@ export class Game {
     if (id !== 'waw') this.s.flags.viewChanged = true;
     this.emit('structure');
     return true;
+  }
+
+  // ---------- zarząd ----------
+  boardUnlocked() { return this.s.prestigeCount > 0; }
+  execLevel(e, now = this.now) {
+    const fast = e.q === 'fast' ? 2 : 1;
+    const hours = Math.max(0, (now - (e.hiredAt || now)) / 3.6e6) * fast;
+    return Math.min(BOARD.maxLevel, 1 + Math.floor(Math.log2(1 + hours)));
+  }
+  quirkActive(e, now = this.now) {
+    const q = QUIRK_MAP[e.q];
+    if (!q) return false;
+    const d = new Date(now);
+    const h = d.getHours();
+    switch (q.when) {
+      case 'night': return h >= 22 || h < 6;
+      case 'morning': return h >= 5 && h < 10;
+      case 'weekend': return d.getDay() === 0 || d.getDay() === 6;
+      case 'rain': return this.weather === 'rain' || this.weather === 'snow';
+      case 'winter': return d.getMonth() === 11 || d.getMonth() <= 1;
+      case 'always': return true;
+      default: return false;
+    }
+  }
+  execPower(e, now = this.now) {
+    const q = QUIRK_MAP[e.q];
+    const lvl = 1 + BOARD.levelStep * (this.execLevel(e, now) - 1);
+    return lvl * (q && q.when !== 'xp' && this.quirkActive(e, now) ? q.x : 1);
+  }
+  boardSignature() {
+    let sig = '';
+    for (const role in this.s.board) { const e = this.s.board[role]; sig += `${role}${this.execLevel(e)}${this.quirkActive(e) ? 1 : 0}`; }
+    return sig;
+  }
+  candidateCost(c) { return Math.ceil(BOARD.rarity[c.r].cost * (1 + this.s.investors * BOARD.costPerInvestor)); }
+  makeCandidate(now = this.now) {
+    const s = this.s;
+    const empty = ROLES.filter((r) => !s.board[r.id] && !s.candidates.some((c) => c.role === r.id));
+    const pool = empty.length && this.rng() < 0.7 ? empty : ROLES;
+    const role = pool[Math.floor(this.rng() * pool.length)];
+    let roll = this.rng() * BOARD.rarity.reduce((a, b) => a + b.w, 0);
+    let r = 0;
+    for (let i = 0; i < BOARD.rarity.length; i++) { roll -= BOARD.rarity[i].w; if (roll < 0) { r = i; break; } }
+    const R = BOARD.rarity[r];
+    const left = [...role.traits];
+    const traits = [];
+    for (let i = 0; i < R.traits && left.length; i++) {
+      const tr = left.splice(Math.floor(this.rng() * left.length), 1)[0];
+      traits.push(scaleTrait(tr, R.mult));
+    }
+    const used = new Set([...Object.values(s.board), ...s.candidates].map((e) => e.n));
+    const free = EXEC_NAMES.map((_, i) => i).filter((i) => !used.has(i));
+    const n = free[Math.floor(this.rng() * free.length)] ?? 0;
+    const q = this.rng() < 0.75 ? QUIRKS[Math.floor(this.rng() * QUIRKS.length)].id : null;
+    s.execSeq = (s.execSeq || 0) + 1;
+    return { id: s.execSeq, role: role.id, r, traits, q, n, seed: Math.floor(this.rng() * 1e9), at: now };
+  }
+  updateCandidates(now) {
+    const s = this.s;
+    if (!this.boardUnlocked()) return false;
+    if (!s.nextCandidateAt) s.nextCandidateAt = now + BOARD.firstAfter;
+    if (now < s.nextCandidateAt) return false;
+    s.nextCandidateAt = now + (BOARD.everyMin + this.rng() * (BOARD.everyMax - BOARD.everyMin)) * 60000;
+    if (s.candidates.length >= BOARD.poolMax) return false;
+    const c = this.makeCandidate(now);
+    s.candidates.push(c);
+    this.emit('candidate', c);
+    return true;
+  }
+  hireExec(cid, now = this.now) {
+    const s = this.s;
+    const i = s.candidates.findIndex((c) => c.id === cid);
+    if (i < 0 || !this.boardUnlocked()) return false;
+    const c = s.candidates[i];
+    const cost = this.candidateCost(c);
+    if (s.shares < cost) return false;
+    s.shares -= cost;
+    s.candidates.splice(i, 1);
+    s.board[c.role] = { ...c, hiredAt: now };
+    if (c.r === BOARD.rarity.length - 1) s.flags.legendHired = true;
+    this.recalc();
+    this.emit('buy', { kind: 'exec', id: c.role });
+    this.emit('structure');
+    return true;
+  }
+  fireExec(role) {
+    if (!this.s.board[role]) return false;
+    delete this.s.board[role];
+    this.recalc();
+    this.emit('structure');
+    return true;
+  }
+  dismissCandidate(cid) {
+    const s = this.s;
+    const n = s.candidates.length;
+    s.candidates = s.candidates.filter((c) => c.id !== cid);
+    return s.candidates.length < n;
   }
 
   // ---------- giełda ----------

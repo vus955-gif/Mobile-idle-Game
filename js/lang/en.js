@@ -304,6 +304,17 @@ export const EN = {
     down: ['{n} shares −{p}% after a server outage', 'Disappointing earnings at {n}: −{p}%', '{n} drops {p}% after a data scandal'],
   },
 
+  roles: { cto: 'technology', cfo: 'finance', cmo: 'marketing', coo: 'operations', cpo: 'product' },
+  quirks: {
+    night: { name: 'Night Owl', desc: 'Traits work twice as hard between 10 p.m. and 6 a.m.' },
+    morning: { name: 'Early Bird', desc: 'Traits work twice as hard between 5 and 10 a.m.' },
+    weekend: { name: 'Weekend Energy', desc: 'Traits ×1.75 on Saturdays and Sundays.' },
+    rain: { name: 'Rainy-Day Muse', desc: 'Traits work twice as hard while it rains or snows over the office.' },
+    winter: { name: 'Winter Form', desc: 'Traits work twice as hard from December to February.' },
+    coffee: { name: 'Coffee First', desc: 'Traits always ×1.15.' },
+    fast: { name: 'Fast Learner', desc: 'Gains experience twice as fast.' },
+  },
+
   bubbles: { viral: 'Viral!', angel: 'Angel Investor', hackathon: 'Hackathon!', eureka: 'Eureka!' },
 
   rounds: ['Pre-seed', 'Seed', 'Series A', 'Series B', 'Series C', 'Series D', 'Series E', 'IPO',

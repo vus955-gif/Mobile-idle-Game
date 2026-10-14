@@ -475,6 +475,22 @@ textarea.text-input { min-height: 90px; font-family: ui-monospace, Menlo, monosp
 .spark.big { height: 46px; margin: 8px 0 2px; }
 .card.comp .card-foot .btn-small { min-width: 64px; }
 
+/* ---------- Zarząd ---------- */
+.card.exec { grid-template-columns: 56px 1fr; }
+.avatar-wrap { grid-row: span 3; width: 56px; height: 56px; }
+.avatar-wrap svg { display: block; }
+.card.exec.empty { opacity: .6; }
+.card.exec.r1 { border-color: rgba(124, 92, 255, .45); }
+.card.exec.r2 { border-color: rgba(251, 191, 36, .55); box-shadow: 0 0 18px rgba(251, 191, 36, .12); }
+.role-badge { font-weight: 900; }
+.rarity { font-weight: 800; }
+.rarity.r1 { color: #c4b5fd; }
+.rarity.r2 { color: var(--gold); }
+.fx-line { display: block; color: var(--text); font-weight: 700; margin-bottom: 3px; }
+.quirk { font-size: 12px; color: var(--muted); }
+.quirk b { color: var(--text); }
+.quirk.on b, .q-on { color: var(--money); }
+
 /* ---------- Świat: mapa biur ---------- */
 .map-card { position: relative; padding: 10px 8px 8px; border-radius: 20px; background: radial-gradient(120% 90% at 50% 0%, #1b2257, #0d1030 70%); border: 1px solid rgba(124, 92, 255, .3); overflow: hidden; }
 .map-card svg { display: block; width: 100%; height: auto; }

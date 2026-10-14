@@ -331,3 +331,54 @@ test('giełda: po IPO, udziały dają premię, 51% to kontrola, rynek nie pompuj
   g.doPrestige(t);
   assert.deepEqual(g.s.market.stakes, {});
 });
+
+test('zarząd: kandydaci, zatrudnianie za udziały, poziomy i dziwactwa', async () => {
+  const { BOARD, ROLES, QUIRKS } = await import('../js/data.js');
+  const g = veteran();
+  g.s.shares = 1000;
+  g.s.products.landing = 20;
+  g.recalc();
+  let t = T0;
+  while (!g.s.candidates.length && t < T0 + 3600e3) { t += 1000; g.tick(t); }
+  assert.ok(g.s.candidates.length > 0, 'headhunter przysyła kandydatów');
+  // pula ma limit, nowi nie wypierają starych
+  for (let i = 0; i < 10; i++) g.s.candidates.length < BOARD.poolMax && g.s.candidates.push(g.makeCandidate(t));
+  assert.equal(g.s.candidates.length, BOARD.poolMax);
+  g.s.nextCandidateAt = t;
+  g.updateCandidates(t + 1);
+  assert.equal(g.s.candidates.length, BOARD.poolMax);
+  // zatrudnienie kosztuje udziały i działa
+  const c = { id: 999, role: 'cpo', r: 0, traits: [{ t: 'all', x: 1.2 }], q: null, n: 1, seed: 5, at: t };
+  g.s.candidates.push(c);
+  const before = g.income;
+  const shares = g.s.shares;
+  assert.ok(g.hireExec(999, t));
+  assert.equal(g.s.shares, shares - g.candidateCost(c));
+  assert.ok(Math.abs(g.income / before - 1.2) < 1e-6, 'cecha działa');
+  // doświadczenie rośnie z czasem (także offline)
+  assert.equal(g.execLevel(g.s.board.cpo, t), 1);
+  assert.equal(g.execLevel(g.s.board.cpo, t + 3 * 3.6e6), 3);
+  assert.equal(g.execLevel(g.s.board.cpo, t + 1e4 * 3.6e6), BOARD.maxLevel);
+  // dziwactwo nocne działa tylko w nocy
+  const e = { ...g.s.board.cpo, q: 'night' };
+  const night = new Date(2026, 9, 14, 23, 0).getTime();
+  const noon = new Date(2026, 9, 14, 12, 0).getTime();
+  assert.ok(g.quirkActive(e, night));
+  assert.ok(!g.quirkActive(e, noon));
+  g.weather = 'rain';
+  assert.ok(g.quirkActive({ ...e, q: 'rain' }));
+  // zarząd zostaje po rundzie finansowania
+  g.s.totalEarned = 1e20;
+  g.doPrestige(t);
+  assert.ok(g.s.board.cpo);
+  assert.ok(g.fireExec('cpo'));
+  assert.equal(g.s.board.cpo, undefined);
+  // każda rola i dziwactwo mają tłumaczenie
+  for (const lang of ['pl', 'en']) {
+    setLang(lang);
+    for (const r of ROLES) assert.ok(TX.roleArea(r.id).length > 2);
+    for (const q of QUIRKS) assert.ok(TX.quirkName(q.id).length > 2 && TX.quirkDesc(q.id).length > 5);
+    for (const r of ROLES) for (const tr of r.traits) assert.ok(TX.describeFx([tr]).length > 3, `${lang} ${r.id} ${tr.t}`);
+  }
+  setLang('pl');
+});

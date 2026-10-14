@@ -626,6 +626,50 @@ export const MARKET_NEWS = {
 };
 
 // ---------------------------------------------------------------------------
+// ZARZĄD — pięć foteli (C-suite). Kandydaci przychodzą od headhuntera, płacisz udziałami (💎).
+// Członkowie zarządu zostają na zawsze i nabierają doświadczenia z czasem (także offline).
+// Cechy: efekty jak w reszcie gry; „x” to mnożnik, „v” dodatek. Dziwactwa wzmacniają cechy w określonych warunkach.
+// ---------------------------------------------------------------------------
+export const BOARD = {
+  poolMax: 3, everyMin: 20, everyMax: 40, firstAfter: 60000, maxLevel: 10, levelStep: 0.1, costPerInvestor: 0.002,
+  rarity: [
+    { id: 'common', w: 70, mult: 1, traits: 1, cost: 3 },
+    { id: 'rare', w: 25, mult: 1.6, traits: 2, cost: 10 },
+    { id: 'legend', w: 5, mult: 2.5, traits: 2, cost: 30 },
+  ],
+};
+export const ROLES = [
+  { id: 'cto', icon: '🧑‍💻', color: '#6c8cff', name: 'CTO', area: 'technologia',
+    traits: [{ t: 'click', x: 1.5 }, { t: 'rp', x: 1.15 }, { t: 'dept', id: 'dev', x: 1.3 }, { t: 'auto', v: 2 }] },
+  { id: 'cfo', icon: '💼', color: '#ffd54f', name: 'CFO', area: 'finanse',
+    traits: [{ t: 'prodCost', x: 0.93 }, { t: 'offlineEff', v: 0.05 }, { t: 'offlineCap', v: 3600 }, { t: 'valMult', v: 0.3 }] },
+  { id: 'cmo', icon: '📣', color: '#ffb74d', name: 'CMO', area: 'marketing',
+    traits: [{ t: 'eventFreq', x: 1.1 }, { t: 'eventPower', x: 1.15 }, { t: 'dept', id: 'marketing', x: 1.3 }, { t: 'cat', cat: 'social', x: 1.3 }] },
+  { id: 'coo', icon: '⚙️', color: '#4dd0a1', name: 'COO', area: 'operacje',
+    traits: [{ t: 'hireCost', x: 0.93 }, { t: 'contract', x: 1.2 }, { t: 'deptAll', x: 1.08 }, { t: 'offlineEff', v: 0.04 }] },
+  { id: 'cpo', icon: '🧩', color: '#f472b6', name: 'CPO', area: 'produkt',
+    traits: [{ t: 'all', x: 1.12 }, { t: 'cat', cat: 'web', x: 1.3 }, { t: 'cat', cat: 'mobile', x: 1.3 }, { t: 'cat', cat: 'ai', x: 1.3 }, { t: 'cat', cat: 'biz', x: 1.3 }] },
+];
+// Dziwactwa: when = warunek, x = siła cech, gdy warunek jest spełniony (xp = szybsza nauka).
+export const QUIRKS = [
+  { id: 'night', icon: '🦉', when: 'night', x: 2, name: 'Nocna zmiana', desc: 'Cechy działają podwójnie między 22:00 a 6:00.' },
+  { id: 'morning', icon: '🐦', when: 'morning', x: 2, name: 'Poranny rytm', desc: 'Cechy działają podwójnie między 5:00 a 10:00.' },
+  { id: 'weekend', icon: '🏖️', when: 'weekend', x: 1.75, name: 'Weekendowa energia', desc: 'Cechy ×1,75 w soboty i niedziele.' },
+  { id: 'rain', icon: '🌧️', when: 'rain', x: 2, name: 'Deszczowe natchnienie', desc: 'Cechy działają podwójnie, gdy nad biurem pada deszcz albo śnieg.' },
+  { id: 'winter', icon: '❄️', when: 'winter', x: 2, name: 'Zimowa forma', desc: 'Cechy działają podwójnie od grudnia do lutego.' },
+  { id: 'coffee', icon: '☕', when: 'always', x: 1.15, name: 'Kawa przede wszystkim', desc: 'Cechy zawsze ×1,15.' },
+  { id: 'fast', icon: '📚', when: 'xp', x: 2, name: 'Szybka nauka', desc: 'Zdobywa doświadczenie dwa razy szybciej.' },
+];
+// Imiona i nazwiska międzynarodowego zespołu (takie same w obu językach).
+export const EXEC_NAMES = [
+  'Anna Nowak', 'Kenji Watanabe', 'Priya Sharma', 'Lucas Martin', 'Zofia Wiśniewska', 'Diego Álvarez', 'Amara Okafor',
+  'Ingrid Larsen', 'Tomasz Kowalczyk', 'Mei Chen', 'Oliver Brown', 'Fatima Haddad', 'Jakub Lewandowski', 'Sofia Rossi',
+  'Noah Fischer', 'Aiko Tanaka', 'Mateusz Wójcik', 'Leila Moradi', 'Ethan Walker', 'Olga Petrova', 'Kwame Mensah',
+  'Julia Mazur', 'Rafael Costa', 'Hanna Berg', 'Arjun Patel', 'Maja Kaczmarek', 'Lars Johansson', 'Chloé Dubois',
+  'Piotr Zając', 'Nadia Rahman', 'Mateo García', 'Ewa Lis', 'Samuel Adeyemi', 'Yuna Park', 'Elena Popescu', 'Wiktor Krawczyk',
+];
+
+// ---------------------------------------------------------------------------
 // SKALA CYWILIZACJI — roczny przychód porównany ze światem, potem skala Kardaszowa.
 // Progi z „v” są w dolarach rocznie; progi z „k” to stopień w skali Kardaszowa.
 // ---------------------------------------------------------------------------

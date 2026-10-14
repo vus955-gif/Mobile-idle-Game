@@ -3,6 +3,7 @@ import {
   PRODUCTS, DEPTS, TECHS, REPEAT_TECHS, CULTURE_UPGRADES, CLICK_UPGRADES, ACQUISITIONS, PERKS, ERAS,
   CATEGORIES, BUBBLES, ROUND_NAMES, COMPANY_STAGES, NEWS, TREND_TEMPLATES, CONTRACT_CLIENTS, CONTRACT_TASKS,
   PRODUCT_UP_NAMED, AUTOPILOT, CHALLENGES, SCALE_LEVELS, DECISIONS, OFFICES, COMPETITORS, MARKET_NEWS,
+  ROLES, QUIRKS, EXEC_NAMES,
 } from './data.js';
 import { EN } from './lang/en.js';
 import { getLang, t, noun } from './i18n.js';
@@ -22,6 +23,8 @@ const AP = byId(AUTOPILOT);
 const CH = byId(CHALLENGES);
 const OF = byId(OFFICES);
 const CO = byId(COMPETITORS);
+const RO = byId(ROLES);
+const QU = byId(QUIRKS);
 
 export const prodName = (id) => (en() ? EN.products[id].name : P[id].name);
 export const prodDesc = (id) => (en() ? EN.products[id].desc : P[id].desc);
@@ -39,6 +42,10 @@ export const catName = (cat) => (en() ? EN.categories[cat] : CATEGORIES[cat].nam
 export const bubbleName = (type) => (en() ? EN.bubbles[type] : BUBBLES[type].name);
 export const eraName = (id) => (en() ? EN.eras[id] : ERAS.find((e) => e.id === id).name);
 export const newsList = () => (en() ? EN.news : NEWS);
+export const roleArea = (id) => (en() ? EN.roles[id] : RO[id].area);
+export const quirkName = (id) => (en() ? EN.quirks[id].name : QU[id].name);
+export const quirkDesc = (id) => (en() ? EN.quirks[id].desc : QU[id].desc);
+export const execName = (n) => EXEC_NAMES[n] || EXEC_NAMES[0];
 export const compName = (id) => (en() ? EN.competitors[id].name : CO[id].name);
 export const compTicker = (id) => (en() ? EN.competitors[id].ticker : CO[id].ticker);
 export function marketNewsText(n, seed = 0) {
@@ -172,6 +179,7 @@ export function achDesc(a) {
     case 'spc': return t('ach.spc', { n: v, noun: noun('offices', v) });
     case 'ctl': return t('ach.ctl', { n: v, noun: noun('companies', v) });
     case 'mkt': return t('ach.mktDesc')[a.i];
+    case 'exec': return a.i < 2 ? t('ach.exec', { n: v, noun: noun('seats', v) }) : t('ach.execDesc')[a.i - 2];
     case 'scale': return t('ach.scale', { name: scaleName(a.i) });
     default: return '';
   }

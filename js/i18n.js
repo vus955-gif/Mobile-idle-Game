@@ -270,6 +270,20 @@ const PL = {
   'achNames.ctl': ['Wrogie przejęcie', 'Konglomerat', 'Monopol na giełdzie'], 'ach.ctl': 'Przejmij kontrolę nad {n} {noun}',
   'achNames.mkt': ['Pierwsza inwestycja', 'Najcenniejsza spółka świata'], 'ach.mktDesc': ['Kup udziały w konkurencie', 'Bądź najcenniejszą spółką na giełdzie'],
 
+  'team.board': 'Zarząd',
+  'bd.locked': '👔 Zarząd odblokujesz po pierwszej rundzie finansowania. Członków zarządu opłacasz udziałami 💎.',
+  'bd.lead': 'Pięć foteli w zarządzie. Headhunter przysyła nowe osoby co 20–40 minut gry. Każda ma swoje mocne strony, a czasem jakieś dziwactwo. Członkowie zarządu zostają na zawsze i z czasem nabierają doświadczenia, także gdy gra jest zamknięta.',
+  'bd.empty': 'Wolny fotel', 'bd.emptyHint': 'Czekaj na kandydatów na to stanowisko.', 'bd.level': 'Poz. {n}/{m}',
+  'bd.next': 'Kolejny poziom za {t}', 'bd.maxLevel': 'Pełne doświadczenie', 'bd.candidates': 'Kandydaci od headhuntera',
+  'bd.waiting': 'Headhunter szuka kolejnych osób… Następna za ok. {t}.', 'bd.poolFull': 'Lista jest pełna. Zatrudnij albo odrzuć kogoś, a pojawią się nowe osoby.',
+  'bd.hire': 'Zatrudnij', 'bd.replace': 'Zastąp', 'bd.dismiss': 'Odrzuć', 'bd.fire': 'Pożegnaj', 'bd.quirkOn': 'działa teraz',
+  'bd.rarity': ['Talent', 'Rzadki talent', 'Legenda branży'], 'bd.seat': 'Fotel {role}: {name}',
+  'bd.hired': 'Nowa osoba w zarządzie: {name}', 'bd.news': '📇 <b>Headhunter</b> ma nową osobę na stanowisko {role}',
+  'bd.fireTitle': 'Pożegnać {name}?', 'bd.fireText': 'Fotel {role} zostanie wolny, a udziały nie wrócą.', 'bd.fireOk': 'Tak, pożegnaj',
+  'achNames.exec': ['Pierwszy fotel', 'Pełny zarząd', 'Legenda w zespole', 'Weteran zarządu'],
+  'ach.exec': 'Obsadź {n} {noun} w zarządzie', 'ach.execDesc': ['Zatrudnij legendę branży', 'Rozwiń członka zarządu do 10. poziomu'],
+  'noun.seats': { one: 'fotel', few: 'fotele', many: 'foteli' },
+
   'time.d': 'd', 'time.h': 'h', 'time.m': 'min', 'time.s': 's', 'time.y': 'rok',
 };
 
@@ -523,6 +537,20 @@ const EN = {
   'mk.controlToast': 'Control acquired: {name}', 'mk.controlText': '51% stake: full bonus for the {c} category',
   'achNames.ctl': ['Hostile Takeover', 'Conglomerate', 'Market Monopoly'], 'ach.ctl': 'Take control of {n} {noun}',
   'achNames.mkt': ['First Investment', 'The World’s Most Valuable Company'], 'ach.mktDesc': ['Buy a stake in a competitor', 'Be the most valuable company on the market'],
+
+  'team.board': 'Board',
+  'bd.locked': '👔 The executive board unlocks after your first funding round. Executives are paid in shares 💎.',
+  'bd.lead': 'Five seats at the top table. The headhunter sends new candidates every 20–40 minutes of play. Each one has strengths, and sometimes a quirk. Executives stay forever and gain experience over time, even while the game is closed.',
+  'bd.empty': 'Empty seat', 'bd.emptyHint': 'Wait for candidates for this role.', 'bd.level': 'Lvl {n}/{m}',
+  'bd.next': 'Next level in {t}', 'bd.maxLevel': 'Fully experienced', 'bd.candidates': 'Candidates from the headhunter',
+  'bd.waiting': 'The headhunter is searching… next candidate in about {t}.', 'bd.poolFull': 'The list is full. Hire or decline someone and new candidates will arrive.',
+  'bd.hire': 'Hire', 'bd.replace': 'Replace', 'bd.dismiss': 'Decline', 'bd.fire': 'Let go', 'bd.quirkOn': 'active now',
+  'bd.rarity': ['Talent', 'Rare Talent', 'Industry Legend'], 'bd.seat': '{role} seat: {name}',
+  'bd.hired': 'New board member: {name}', 'bd.news': '📇 <b>Headhunter</b>: a new candidate for {role}',
+  'bd.fireTitle': 'Let {name} go?', 'bd.fireText': 'The {role} seat will be empty and the shares won’t come back.', 'bd.fireOk': 'Yes, let them go',
+  'achNames.exec': ['First Seat', 'A Full Board', 'A Legend on the Team', 'Board Veteran'],
+  'ach.exec': 'Fill {n} board {noun}', 'ach.execDesc': ['Hire an industry legend', 'Grow a board member to level 10'],
+  'noun.seats': { one: 'seat', other: 'seats' },
 
   'time.d': 'd', 'time.h': 'h', 'time.m': 'm', 'time.s': 's', 'time.y': 'yr',
 };

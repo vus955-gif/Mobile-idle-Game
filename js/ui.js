@@ -2,12 +2,14 @@
 import {
   PRODUCTS, DEPTS, TECHS, REPEAT_TECHS, ERAS, ACQUISITIONS, PERKS, CATEGORIES, BUBBLES, DEPT_MILESTONE_X, DEPT_MILESTONES,
   AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, SCALE_LEVELS, DECISIONS, OFFICES, OFFICE_MAX_LEVEL, COMPETITORS, MARKET,
+  ROLES, BOARD,
 } from './data.js';
 import {
   ACHIEVEMENTS, UPGRADES, UPGRADE_MAP, PRODUCT_MAP, DEPT_MAP, TECH_MAP, ACH_BONUS, INVESTOR_BONUS,
   nextMilestone, prevMilestone, nextDeptMilestone, deptMilestoneMult, MAX_SLOTS,
-  CHALLENGE_MAP, SCALE_THRESHOLDS, kardashev, scaleIndex, OFFICE_MAP,
+  CHALLENGE_MAP, SCALE_THRESHOLDS, kardashev, scaleIndex, OFFICE_MAP, ROLE_MAP, QUIRK_MAP, scaleTrait,
 } from './engine.js';
+import { avatar, emptyAvatar } from './avatar.js';
 import { WORLD } from './worldmap.js';
 import { fmt, money, fmtInt, fmtTime, fmtClock, fmtPct, num, decimal } from './format.js';
 import { t, noun, getLang, setLang, LANGS, DICT } from './i18n.js';
@@ -35,7 +37,7 @@ function spark(values, w = 120, h = 30, color = '#4ade80') {
   const pts = v.map((x, i) => `${((i / (v.length - 1)) * w).toFixed(1)},${(h - 2 - ((x - lo) / span) * (h - 4)).toFixed(1)}`).join(' ');
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
 }
-const TEAM_TABS = ['depts', 'world'];
+const TEAM_TABS = ['depts', 'world', 'board'];
 // Kropki lądu jako jedna ścieżka (lżej niż tysiące kółek). Mapa: 1 jednostka = 1° długości.
 let LAND_PATH = null;
 function landPath() {
@@ -191,6 +193,7 @@ export class UI {
       this.toast(c.icon, t('mk.controlToast', { name: TX.compName(id) }), t('mk.controlText', { c: TX.catName(c.cat) }), 'achievement');
       play('achievement');
     });
+    g.on('candidate', (c) => { this.pendingNews.push(t('bd.news', { role: ROLE_MAP[c.role].name })); });
     g.on('decision', () => { this.pendingNews.push(t('dec.news')); this.syncDecision(); });
     g.on('decided', (d) => { this.toast(d.d.icon, t('dec.made'), TX.decisionEffectText(d.e), 'event'); this.syncDecision(); });
   }
@@ -218,6 +221,10 @@ export class UI {
       case 'team-sub': this.teamSub = el.dataset.sub; this.renderTeamTabs(); this.updateAll(true); $('view-team').scrollTop = 0; break;
       case 'open-office': if (g.openOffice(id)) { play('unlock'); this.scene.render(g); } this.updateAll(true); break;
       case 'set-view': if (g.setView(id)) { this.scene.render(g, true); this.toast(OFFICE_MAP[id].icon, t('off.viewing'), TX.officeName(id), 'info'); } this.updateAll(true); break;
+      case 'hire-exec': if (g.hireExec(Number(id), Date.now())) { play('unlock'); const e = Object.values(s.board).find((x) => x.id === Number(id)); if (e) this.toast(ROLE_MAP[e.role].icon, t('bd.hired', { name: TX.execName(e.n) }), TX.describeFx(e.traits), 'achievement'); } this.updateAll(true); break;
+      case 'dismiss-cand': g.dismissCandidate(Number(id)); this.updateAll(true); break;
+      case 'fire-exec': this.confirmFire(id); break;
+      case 'fire-confirm': this.closeModal(); g.fireExec(id); this.updateAll(true); break;
       case 'office-focus': {
         this.focusOffice = id;
         const card = $(`office-${id}`);
@@ -448,6 +455,8 @@ export class UI {
     }
     if (musicAudible()) s.stats.musicTime += dt;
     const env = this.scene.env;
+    // pogoda ze sceny wpływa na dziwactwo „deszczowe natchnienie” w zarządzie
+    if (env && this.g.weather !== env.weather) { this.g.weather = env.weather; this.g.recalc(); }
     if (env && this.tab === 'office') {
       const d = new Date();
       if (env.weather === 'snow') s.flags.snow = true;
@@ -765,11 +774,12 @@ export class UI {
   }
 
   updateTeam() {
-    const world = this.teamSub === 'world';
-    $('team-list').hidden = world;
-    $('world-body').hidden = !world;
-    $('team-buy-seg').style.visibility = world ? 'hidden' : '';
-    if (world) { this.updateWorld(); return; }
+    const other = this.teamSub !== 'depts';
+    $('team-list').hidden = other;
+    $('world-body').hidden = !other;
+    $('team-buy-seg').style.visibility = other ? 'hidden' : '';
+    if (this.teamSub === 'world') { this.updateWorld(); return; }
+    if (this.teamSub === 'board') { this.updateBoard(); return; }
     const g = this.g;
     const s = g.s;
     const unlocked = DEPTS.filter((d) => s.deptUnlocked[d.id]);
@@ -871,6 +881,90 @@ export class UI {
       vals[`of-${o.id}`] = { off: !(cost <= s.cash) };
     }
     this.patch(vals, root);
+  }
+
+  // ---------------------------------------------------------------------
+  // Zarząd
+  // ---------------------------------------------------------------------
+  updateBoard() {
+    const g = this.g;
+    const s = g.s;
+    const root = $('world-body');
+    if (!g.boardUnlocked()) {
+      if (this.sigs.world !== `bd-locked|${getLang()}`) { this.sigs.world = `bd-locked|${getLang()}`; root.innerHTML = `<div class="hint">${t('bd.locked')}</div>`; }
+      return;
+    }
+    const sig = `bd|${getLang()}|${Object.values(s.board).map((e) => e.id).join(',')}|${s.candidates.map((c) => c.id).join(',')}|${g.boardSignature()}`;
+    if (this.sigs.world !== sig) {
+      this.sigs.world = sig;
+      const seats = ROLES.map((r) => {
+        const e = s.board[r.id];
+        if (!e) {
+          return `<div class="card exec empty"><div class="avatar-wrap">${emptyAvatar()}</div>
+            <div class="card-title"><h3>${t('bd.empty')}</h3><span class="lvl role-badge" style="color:${r.color}">${r.name}</span></div>
+            <div class="card-sub">${esc(TX.roleArea(r.id))} · ${t('bd.emptyHint')}</div></div>`;
+        }
+        return this.execCard(e, true);
+      }).join('');
+      const cands = s.candidates.map((c) => this.execCard(c, false)).join('');
+      root.innerHTML = `
+        <p class="card-sub" style="margin:0 2px 10px">${t('bd.lead')}</p>
+        <div class="list">${seats}</div>
+        <div class="section-title">📇 ${t('bd.candidates')} <span style="color:var(--gold)" data-v="bdshares"></span></div>
+        <div class="list">${cands}</div>
+        <div class="hint" data-v="bdwait" style="margin-top:${cands ? 10 : 0}px"></div>`;
+    }
+    const vals = {
+      bdshares: t('inv.shares', { n: fmt(s.shares) }),
+      bdwait: s.candidates.length >= BOARD.poolMax ? t('bd.poolFull') : t('bd.waiting', { t: fmtTime(Math.max(0, (s.nextCandidateAt - Date.now()) / 1000)) }),
+    };
+    for (const c of s.candidates) vals[`hire-${c.id}`] = { off: s.shares < g.candidateCost(c) };
+    for (const e of Object.values(s.board)) {
+      const lvl = g.execLevel(e);
+      if (lvl < BOARD.maxLevel) {
+        const fast = e.q === 'fast' ? 2 : 1;
+        const nextAt = e.hiredAt + ((Math.pow(2, lvl) - 1) / fast) * 3.6e6;
+        vals[`lvl-${e.id}`] = t('bd.next', { t: fmtTime((nextAt - Date.now()) / 1000) });
+      } else vals[`lvl-${e.id}`] = t('bd.maxLevel');
+    }
+    this.patch(vals, root);
+  }
+
+  execCard(e, hired) {
+    const g = this.g;
+    const role = ROLE_MAP[e.role];
+    const q = e.q ? QUIRK_MAP[e.q] : null;
+    const lvl = hired ? g.execLevel(e) : 1;
+    const k = hired ? g.execPower(e) : 1;
+    const fx = TX.describeFx(e.traits.map((tr) => scaleTrait(tr, k)));
+    const qOn = hired && q && q.when !== 'xp' && g.quirkActive(e);
+    const current = !hired ? g.s.board[e.role] : null;
+    const quirk = q ? `<div class="quirk ${qOn ? 'on' : ''}">${q.icon} <b>${esc(TX.quirkName(q.id))}</b>: ${esc(TX.quirkDesc(q.id))}${qOn ? ` <span class="q-on">· ${t('bd.quirkOn')}</span>` : ''}</div>` : '';
+    const foot = hired
+      ? `<div class="prog"><div class="prog-label" data-v="lvl-${e.id}"></div></div><button class="btn btn-small ghost" data-act="fire-exec" data-id="${e.role}">${t('bd.fire')}</button>`
+      : `<div class="prog"><div class="prog-label">${current ? esc(t('bd.seat', { role: role.name, name: TX.execName(current.n) })) : ''}</div></div>
+         <button class="btn btn-small ghost" data-act="dismiss-cand" data-id="${e.id}">${t('bd.dismiss')}</button>
+         <button class="btn gold btn-small" data-act="hire-exec" data-id="${e.id}" data-v="hire-${e.id}"><span>${current ? t('bd.replace') : t('bd.hire')}</span><small>${fmt(g.candidateCost(e))} 💎</small></button>`;
+    return `<div class="card exec r${e.r}">
+      <div class="avatar-wrap">${avatar(e.seed, role.color, e.r)}</div>
+      <div class="card-title"><h3>${esc(TX.execName(e.n))}</h3><span class="lvl role-badge" style="color:${role.color}">${role.name}${hired ? ` · ${t('bd.level', { n: lvl, m: BOARD.maxLevel })}` : ''}</span></div>
+      <div class="card-sub"><span class="rarity r${e.r}">${t('bd.rarity')[e.r]}</span> · ${esc(TX.roleArea(e.role))}</div>
+      <div class="card-desc"><b class="fx-line">${esc(fx)}</b>${quirk}</div>
+      <div class="card-foot">${foot}</div>
+    </div>`;
+  }
+
+  confirmFire(role) {
+    const e = this.g.s.board[role];
+    if (!e) return;
+    this.openModal(`
+      <div class="hero" style="display:flex;justify-content:center">${avatar(e.seed, ROLE_MAP[role].color, e.r, 72)}</div>
+      <h2>${esc(t('bd.fireTitle', { name: TX.execName(e.n) }))}</h2>
+      <p style="text-align:center">${esc(t('bd.fireText', { role: ROLE_MAP[role].name }))}</p>
+      <div class="actions">
+        <button class="btn danger btn-wide" data-act="fire-confirm" data-id="${role}">${t('bd.fireOk')}</button>
+        <button class="btn ghost btn-wide" data-act="modal-close">${t('cancel')}</button>
+      </div>`);
   }
 
   officeCard(o) {
@@ -1584,7 +1678,9 @@ export class UI {
       b.hidden = !show;
       if (show) this.setText(b, n > 9 ? '9+' : String(n));
     }
-    const dots = { investors: prestigeReady || perkReady, contracts: offers > 0, 't-world': officesReady > 0 };
+    const candReady = g.boardUnlocked() && s.candidates.some((c) => s.shares >= g.candidateCost(c));
+    if (candReady) counts.team += 1;
+    const dots = { investors: prestigeReady || perkReady, contracts: offers > 0, 't-world': officesReady > 0, 't-board': candReady };
     for (const d of document.querySelectorAll('[data-dot]')) d.hidden = !dots[d.dataset.dot];
   }
 
