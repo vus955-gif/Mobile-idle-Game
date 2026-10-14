@@ -5,6 +5,7 @@ import {
   TECHS, REPEAT_TECHS, CULTURE_UPGRADES, CLICK_UPGRADES, ACQUISITIONS, PERKS,
   BUBBLES, CONTRACT_CLIENTS, CONTRACT_TASKS, CONTRACT_DURATIONS, TREND_TEMPLATES,
   AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, SCALE_LEVELS, ENERGY_W_PER_USD, DECISIONS,
+  OFFICES, OFFICE_MAX_LEVEL, OFFICE_LEVEL_COST,
 } from './data.js';
 import { fmt, money, num } from './format.js';
 import { t, noun, getLang } from './i18n.js';
@@ -30,6 +31,9 @@ export const ACQ_MAP = Object.fromEntries(ACQUISITIONS.map((a) => [a.id, a]));
 export const PERK_MAP = Object.fromEntries(PERKS.map((p) => [p.id, p]));
 export const AP_MAP = Object.fromEntries(AUTOPILOT.map((a) => [a.id, a]));
 export const CHALLENGE_MAP = Object.fromEntries(CHALLENGES.map((c) => [c.id, c]));
+export const OFFICE_MAP = Object.fromEntries(OFFICES.map((o) => [o.id, o]));
+const EARTH_OFFICES = OFFICES.filter((o) => o.kind === 'earth' && !o.hq).length;
+const SPACE_OFFICES = OFFICES.filter((o) => o.kind === 'space').length;
 
 // Decyzje i historia wykresu
 export const DECISION_FIRST = 8 * 60000;
@@ -119,6 +123,8 @@ for (const p of PRODUCTS) {
 [1, 10, 50, 150].forEach((v, i) => ach(`dec${i}`, '📨', 'dec', v, i, (g) => g.s.stats.decisions >= v));
 [1, AUTOPILOT.length].forEach((v, i) => ach(`ap${i}`, '🤖', 'ap', v, i, (g) => g.apCount() >= v));
 SCALE_LEVELS.forEach((L, i) => ach(`scale${i}`, L.icon, 'scale', i, i, (g) => g.s.scaleMax >= i));
+[1, 5, 10, EARTH_OFFICES].forEach((v, i) => ach(`off${i}`, '🌍', 'off', v, i, (g) => g.officeCount('earth') >= v));
+[1, 3, SPACE_OFFICES].forEach((v, i) => ach(`spc${i}`, '🚀', 'spc', v, i, (g) => g.officeCount('space') >= v));
 
 const fun = (id, icon, check) => ach(id, icon, 'fun', 0, 0, check, { hidden: true });
 fun('f_night', '🦉', (g) => { const h = new Date(g.now).getHours(); return h >= 0 && h < 4 && g.s.stats.playTime > 60; });
@@ -133,6 +139,8 @@ fun('f_snow', '☃️', (g) => !!g.s.flags.snow);
 fun('f_halloween', '🎃', (g) => !!g.s.flags.halloween);
 fun('f_xmas', '🎄', (g) => !!g.s.flags.xmas);
 fun('f_master', '🥋', (g) => Object.values(g.s.challenges).some((v) => v >= CHALLENGE_GOALS.length));
+fun('f_hq', '🏰', (g) => (g.s.offices.waw || 0) >= OFFICE_MAX_LEVEL);
+fun('f_view', '🪟', (g) => !!g.s.flags.viewChanged);
 
 export const ACH_MAP = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a]));
 
@@ -202,6 +210,7 @@ export function createState(now = Date.now()) {
     nextTrendAt: now + 150000,
     contracts: { offers: [], active: [], nextOfferAt: 0, seq: 0 },
     autopilot: { owned: {}, off: {} },
+    offices: { waw: 1 },
     challenge: null,
     challenges: {},
     decision: null,
@@ -216,7 +225,7 @@ export function createState(now = Date.now()) {
       hired: 0, upgradesBought: 0, rpTotal: 0, bestRun: 0, startedAt: now, runStartedAt: now,
       decisions: 0, autoBuys: 0, zenTime: 0, musicTime: 0, bestValuation: 0,
     },
-    settings: { sound: false, music: false, buyAmount: 1, lang: getLang() },
+    settings: { sound: false, music: false, buyAmount: 1, lang: getLang(), view: 'waw' },
     lastTick: now,
   };
 }
@@ -239,6 +248,11 @@ export function sanitizeState(raw, now = Date.now()) {
   const ap = isObj(raw.autopilot) ? raw.autopilot : {};
   s.autopilot = { owned: isObj(ap.owned) ? { ...ap.owned } : {}, off: isObj(ap.off) ? { ...ap.off } : {} };
   s.challenges = isObj(raw.challenges) ? { ...raw.challenges } : {};
+  s.offices = { waw: 1 };
+  if (isObj(raw.offices)) {
+    for (const [id, l] of Object.entries(raw.offices)) if (OFFICE_MAP[id] && l > 0) s.offices[id] = Math.min(OFFICE_MAX_LEVEL, Math.floor(l));
+  }
+  if (!OFFICE_MAP[s.settings.view] || !s.offices[s.settings.view]) s.settings.view = 'waw';
   s.challenge = isObj(raw.challenge) && CHALLENGE_MAP[raw.challenge.id] ? { ...raw.challenge } : null;
   s.decision = isObj(raw.decision) && DECISIONS[raw.decision.i] ? { ...raw.decision } : null;
   s.recentDecisions = Array.isArray(raw.recentDecisions) ? raw.recentDecisions.filter((i) => Number.isInteger(i)) : [];
@@ -316,7 +330,7 @@ export class Game {
       hireCost: 1, prodCost: 1, acqCost: 1,
       offlineCap: BASE_OFFLINE_CAP, offlineEff: BASE_OFFLINE_EFF,
       eventFreq: 1, eventPower: 1, contract: 1, slots: 1, auto: 0,
-      prestige: 1, investorPct: 0, startCash: 0, startLevels: 0,
+      prestige: 1, investorPct: 0, startCash: 0, startLevels: 0, valMult: 0,
       unlockProduct: {}, unlockDept: {},
     };
     const apply = (fx, times = 1) => {
@@ -347,6 +361,7 @@ export class Game {
           case 'investorPct': m.investorPct += add; break;
           case 'startCash': m.startCash += add; break;
           case 'startLevels': m.startLevels += add; break;
+          case 'valMult': m.valMult += add; break;
           case 'unlockProduct': m.unlockProduct[e.id] = true; break;
           case 'unlockDept': m.unlockDept[e.id] = true; break;
           default: break;
@@ -359,6 +374,7 @@ export class Game {
     for (const id in s.acquisitions) if (s.acquisitions[id] && ACQ_MAP[id]) apply(ACQ_MAP[id].fx);
     for (const id in s.perks) { const l = s.perks[id] || 0; if (l > 0 && PERK_MAP[id]) apply(PERK_MAP[id].fx, l); }
     for (const id in s.challenges) { const l = s.challenges[id] || 0; if (l > 0 && CHALLENGE_MAP[id]) apply(CHALLENGE_MAP[id].fx, l); }
+    for (const id in s.offices) { const l = s.offices[id] || 0; if (l > 0 && OFFICE_MAP[id]) apply(OFFICE_MAP[id].fx, l); }
     const ch = this.rule();
 
     let eventAdd = 0; let contractAdd = 0; let hireRed = 0; let prodRed = 0; let offAdd = 0; let acqRed = 0; let presAdd = 0;
@@ -759,7 +775,8 @@ export class Game {
   }
   valuationMultiple() {
     const V = VALUATION;
-    return Math.min(V.maxMultiple, V.baseMultiple + V.perTech * this.techCount() + V.perRound * this.s.prestigeCount);
+    const extra = this.m.valMult || 0;
+    return Math.min(V.maxMultiple + extra, V.baseMultiple + extra + V.perTech * this.techCount() + V.perRound * this.s.prestigeCount);
   }
   valuationParts() {
     const assets = this.assetValue();
@@ -1018,6 +1035,39 @@ export class Game {
     this.emit('offline', res);
     this.autopilotStep(now);
     return res;
+  }
+
+  // ---------- ekspansja: biura na świecie ----------
+  officeLevel(id) { return this.s.offices[id] || 0; }
+  officeCount(kind) { return OFFICES.filter((o) => o.kind === kind && !o.hq && this.officeLevel(o.id) > 0).length; }
+  officeAvailable(id) { const o = OFFICE_MAP[id]; return !o.req || !!this.s.techs[o.req]; }
+  officeCost(id) {
+    const o = OFFICE_MAP[id];
+    const l = this.officeLevel(id);
+    if (l >= OFFICE_MAX_LEVEL) return Infinity;
+    return o.cost * Math.pow(OFFICE_LEVEL_COST, l - (o.hq ? 1 : 0));
+  }
+  openOffice(id) {
+    const o = OFFICE_MAP[id];
+    const s = this.s;
+    if (!o || !this.officeAvailable(id)) return false;
+    const cost = this.officeCost(id);
+    if (!(cost <= s.cash)) return false;
+    s.cash -= cost;
+    const l = this.officeLevel(id) + 1;
+    s.offices[id] = l;
+    this.recalc();
+    this.toast(o.icon, t(l === 1 ? 'off.opened' : 'off.upgraded', { name: TX.officeName(id), n: l }), TX.describeFx(o.fx), 'unlock');
+    this.emit('buy', { kind: 'office', id });
+    this.emit('structure');
+    return true;
+  }
+  setView(id) {
+    if (!this.officeLevel(id)) return false;
+    this.s.settings.view = id;
+    if (id !== 'waw') this.s.flags.viewChanged = true;
+    this.emit('structure');
+    return true;
   }
 
   // ---------- autopilot ----------

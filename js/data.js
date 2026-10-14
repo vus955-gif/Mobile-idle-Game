@@ -539,6 +539,66 @@ export const CHALLENGES = [
 ];
 
 // ---------------------------------------------------------------------------
+// EKSPANSJA — biura na świecie i w kosmosie. Zostają na zawsze (także po rundach).
+// Każdy kolejny poziom kosztuje ×OFFICE_LEVEL_COST więcej, a efekt działa tyle razy, ile jest poziomów.
+// ---------------------------------------------------------------------------
+export const OFFICE_MAX_LEVEL = 3;
+export const OFFICE_LEVEL_COST = 1e4;
+export const OFFICES = [
+  { id: 'waw', icon: '🇵🇱', kind: 'earth', lat: 52.23, lon: 21.01, cost: 5e5, hq: true, fx: [{ t: 'dept', id: 'dev', x: 1.25 }],
+    name: 'Warszawa', desc: 'Tu wszystko się zaczęło. Świetni programiści i najlepsze pierogi w promieniu tysiąca kilometrów.' },
+  { id: 'ber', icon: '🇩🇪', kind: 'earth', lat: 52.52, lon: 13.4, cost: 2e6, req: 'agile', fx: [{ t: 'dept', id: 'design', x: 1.5 }, { t: 'all', x: 1.05 }],
+    name: 'Berlin', desc: 'Startupy, galerie i kawa z owsianym mlekiem.' },
+  { id: 'tyo', icon: '🇯🇵', kind: 'earth', lat: 35.68, lon: 139.69, cost: 5e8, req: 'game2d', fx: [{ t: 'cat', cat: 'mobile', x: 1.5 }],
+    name: 'Tokio', desc: 'Stolica gier mobilnych i pociągów, które nigdy się nie spóźniają.' },
+  { id: 'sfo', icon: '🌉', kind: 'earth', lat: 37.77, lon: -122.42, cost: 3e9, req: 'saasModel', fx: [{ t: 'cat', cat: 'biz', x: 1.5 }, { t: 'investorPct', v: 0.001 }],
+    name: 'San Francisco', desc: 'Dolina Krzemowa za rogiem. Inwestorzy na każdej kawie.' },
+  { id: 'sel', icon: '🇰🇷', kind: 'earth', lat: 37.57, lon: 126.98, cost: 2e10, req: 'socialGraph', fx: [{ t: 'cat', cat: 'social', x: 1.5 }],
+    name: 'Seul', desc: 'Najszybszy internet świata i fani, którzy zrobią z Twojej aplikacji hit.' },
+  { id: 'blr', icon: '🇮🇳', kind: 'earth', lat: 12.97, lon: 77.59, cost: 3e10, req: 'microservices', fx: [{ t: 'hireCost', x: 0.9 }],
+    name: 'Bengaluru', desc: 'Indyjska Dolina Krzemowa. Ogromna pula talentów.' },
+  { id: 'sao', icon: '🇧🇷', kind: 'earth', lat: -23.55, lon: -46.63, cost: 1e11, req: 'socialGraph', fx: [{ t: 'eventFreq', x: 1.1 }, { t: 'dept', id: 'marketing', x: 1.25 }],
+    name: 'São Paulo', desc: 'Największy rynek Ameryki Południowej. Kampanie roznoszą się tu jak samba.' },
+  { id: 'lon', icon: '🇬🇧', kind: 'earth', lat: 51.51, lon: -0.13, cost: 5e11, req: 'payments', fx: [{ t: 'prod', id: 'fintech', x: 2 }, { t: 'contract', x: 1.1 }],
+    name: 'Londyn', desc: 'Finansowe serce Europy. Herbata o piątej, przelewy natychmiast.' },
+  { id: 'nyc', icon: '🗽', kind: 'earth', lat: 40.71, lon: -74.0, cost: 2e12, req: 'payments', fx: [{ t: 'valMult', v: 0.5 }, { t: 'acqCost', x: 0.9 }],
+    name: 'Nowy Jork', desc: 'Wall Street wycenia Cię wyżej, kiedy masz biuro na Manhattanie.' },
+  { id: 'lag', icon: '🇳🇬', kind: 'earth', lat: 6.52, lon: 3.38, cost: 3e12, req: 'payments', fx: [{ t: 'cat', cat: 'mobile', x: 1.25 }, { t: 'prod', id: 'fintech', x: 1.5 }],
+    name: 'Lagos', desc: 'Najszybciej rosnący rynek mobilnych płatności na świecie.' },
+  { id: 'syd', icon: '🇦🇺', kind: 'earth', lat: -33.87, lon: 151.21, cost: 1e13, req: 'video', fx: [{ t: 'offlineCap', v: 3600 }, { t: 'offlineEff', v: 0.04 }],
+    name: 'Sydney', desc: 'Gdy Europa śpi, Sydney pracuje. Firma działa całą dobę.' },
+  { id: 'sto', icon: '🇸🇪', kind: 'earth', lat: 59.33, lon: 18.07, cost: 3e13, req: 'video', fx: [{ t: 'prod', id: 'streaming', x: 2 }, { t: 'prod', id: 'game', x: 1.5 }],
+    name: 'Sztokholm', desc: 'Muzyka w streamingu, gry i bardzo długie zimowe wieczory na kodowanie.' },
+  { id: 'sin', icon: '🇸🇬', kind: 'earth', lat: 1.35, lon: 103.82, cost: 5e13, req: 'virtualization', fx: [{ t: 'prod', id: 'cloud', x: 2 }, { t: 'offlineEff', v: 0.03 }],
+    name: 'Singapur', desc: 'Węzeł chmury dla całej Azji.' },
+  { id: 'rkv', icon: '🇮🇸', kind: 'earth', lat: 64.15, lon: -21.94, cost: 1e14, req: 'bigdata', fx: [{ t: 'cat', cat: 'infra', x: 1.5 }, { t: 'prodCost', x: 0.97 }],
+    name: 'Reykjavik', desc: 'Darmowe chłodzenie serwerów i zorza polarna nad parkingiem.' },
+  { id: 'dxb', icon: '🇦🇪', kind: 'earth', lat: 25.2, lon: 55.27, cost: 3e15, req: 'serverless', fx: [{ t: 'contract', x: 1.25 }, { t: 'acqCost', x: 0.95 }],
+    name: 'Dubaj', desc: 'Kontrakty podpisywane na 120. piętrze.' },
+  { id: 'yyz', icon: '🇨🇦', kind: 'earth', lat: 43.65, lon: -79.38, cost: 1e17, req: 'dl', fx: [{ t: 'cat', cat: 'ai', x: 1.5 }, { t: 'rp', x: 1.1 }],
+    name: 'Toronto', desc: 'Kolebka głębokiego uczenia. Badacze AI na każdym uniwersytecie.' },
+  { id: 'zrh', icon: '🇨🇭', kind: 'earth', lat: 47.37, lon: 8.54, cost: 1e22, req: 'qubits', fx: [{ t: 'cat', cat: 'deep', x: 1.5 }, { t: 'prestige', x: 1.05 }],
+    name: 'Zurych', desc: 'Laboratoria kwantowe, banki i widok na Alpy.' },
+  { id: 'tlv', icon: '🇮🇱', kind: 'earth', lat: 32.08, lon: 34.78, cost: 1e24, req: 'qcrypto', fx: [{ t: 'dept', id: 'security', x: 1.5 }, { t: 'rp', x: 1.1 }],
+    name: 'Tel Awiw', desc: 'Startupy cyberbezpieczeństwa na każdym rogu.' },
+  // kosmos
+  { id: 'leo', icon: '🛰️', kind: 'space', cost: 1e36, req: 'rockets', fx: [{ t: 'cat', cat: 'space', x: 1.5 }],
+    name: 'Stacja orbitalna', desc: 'Biuro z widokiem na Ziemię. Szesnaście wschodów słońca dziennie.' },
+  { id: 'moon', icon: '🌙', kind: 'space', cost: 1e38, req: 'satellites', fx: [{ t: 'all', x: 1.25 }, { t: 'rp', x: 1.1 }],
+    name: 'Baza na Księżycu', desc: 'Kampus pod kopułą, ⅙ grawitacji i zero korków.' },
+  { id: 'mars', icon: '🔴', kind: 'space', cost: 1e41, req: 'orbitalDC', fx: [{ t: 'all', x: 1.5 }],
+    name: 'Kolonia na Marsie', desc: 'Pierwsze miasto na innej planecie. Ping do Ziemi: 20 minut.' },
+  { id: 'ceres', icon: '☄️', kind: 'space', cost: 1e44, req: 'asiTech', fx: [{ t: 'prodCost', x: 0.9 }],
+    name: 'Ceres', desc: 'Kopalnia surowców w Pasie Planetoid. Serwery tanieją.' },
+  { id: 'europa', icon: '🧊', kind: 'space', cost: 1e47, req: 'dyson', fx: [{ t: 'rp', x: 1.25 }],
+    name: 'Europa', desc: 'Laboratorium pod lodem księżyca Jowisza.' },
+  { id: 'titan', icon: '🪐', kind: 'space', cost: 1e50, req: 'dyson', fx: [{ t: 'all', x: 2 }],
+    name: 'Tytan', desc: 'Pomarańczowe niebo, metanowe jeziora i Saturn nad horyzontem.' },
+  { id: 'proxima', icon: '✨', kind: 'space', cost: 1e56, req: 'dyson', fx: [{ t: 'all', x: 3 }, { t: 'prestige', x: 1.2 }],
+    name: 'Proxima b', desc: 'Pierwsze biuro poza Układem Słonecznym. 4,2 roku świetlnego od domu.' },
+];
+
+// ---------------------------------------------------------------------------
 // SKALA CYWILIZACJI — roczny przychód porównany ze światem, potem skala Kardaszowa.
 // Progi z „v” są w dolarach rocznie; progi z „k” to stopień w skali Kardaszowa.
 // ---------------------------------------------------------------------------

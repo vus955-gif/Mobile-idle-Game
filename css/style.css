@@ -461,6 +461,24 @@ textarea.text-input { min-height: 90px; font-family: ui-monospace, Menlo, monosp
 .chart .axis { font-size: 9px; fill: var(--faint); font-family: var(--font); font-weight: 700; }
 .chart-note { font-size: 11px; color: var(--faint); margin-top: 4px; }
 
+/* ---------- Świat: mapa biur ---------- */
+.map-card { position: relative; padding: 10px 8px 8px; border-radius: 20px; background: radial-gradient(120% 90% at 50% 0%, #1b2257, #0d1030 70%); border: 1px solid rgba(124, 92, 255, .3); overflow: hidden; }
+.map-card svg { display: block; width: 100%; height: auto; }
+.map-card.space { background: radial-gradient(130% 120% at 0% 60%, #142048, #07081a 70%); }
+.map-hint { font-size: 11px; color: var(--faint); text-align: center; margin-top: 4px; }
+.marker { cursor: pointer; }
+.marker .dot { stroke: #0d1030; stroke-width: .8; }
+.m-on .dot { fill: #22d3ee; }
+.m-on .ping { fill: none; stroke: #22d3ee; stroke-width: .8; transform-box: fill-box; transform-origin: center; animation: ping 2.4s ease-out infinite; }
+.m-avail .dot { fill: #fbbf24; }
+.m-lock .dot { fill: #4b5280; }
+@keyframes ping { from { transform: scale(.6); opacity: .9; } to { transform: scale(2.2); opacity: 0; } }
+.arc { stroke: rgba(34, 211, 238, .55); stroke-width: .9; stroke-dasharray: 3 3; animation: arc 1.6s linear infinite; }
+@keyframes arc { to { stroke-dashoffset: -12; } }
+.btn.on-view { border-color: rgba(34, 211, 238, .6); color: #b0f2ff; }
+.card.office .card-foot { flex-wrap: wrap; }
+
 @media (prefers-reduced-motion: reduce) {
+  .ping, .arc,
   .cloud, .person, .screen, .car, .star, .rain, .snow, .snow-sway, .leaf, .bat, .firework { animation: none !important; }
 }

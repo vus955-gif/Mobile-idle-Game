@@ -1,13 +1,14 @@
 // Interfejs: renderowanie zakładek, HUD, efekty kliknięć, modale i toasty.
 import {
   PRODUCTS, DEPTS, TECHS, REPEAT_TECHS, ERAS, ACQUISITIONS, PERKS, CATEGORIES, BUBBLES, DEPT_MILESTONE_X, DEPT_MILESTONES,
-  AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, SCALE_LEVELS, DECISIONS,
+  AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, SCALE_LEVELS, DECISIONS, OFFICES, OFFICE_MAX_LEVEL,
 } from './data.js';
 import {
   ACHIEVEMENTS, UPGRADES, UPGRADE_MAP, PRODUCT_MAP, DEPT_MAP, TECH_MAP, ACH_BONUS, INVESTOR_BONUS,
   nextMilestone, prevMilestone, nextDeptMilestone, deptMilestoneMult, MAX_SLOTS,
-  CHALLENGE_MAP, SCALE_THRESHOLDS, kardashev, scaleIndex,
+  CHALLENGE_MAP, SCALE_THRESHOLDS, kardashev, scaleIndex, OFFICE_MAP,
 } from './engine.js';
+import { WORLD } from './worldmap.js';
 import { fmt, money, fmtInt, fmtTime, fmtClock, fmtPct, num, decimal } from './format.js';
 import { t, noun, getLang, setLang, LANGS, DICT } from './i18n.js';
 import * as TX from './text.js';
@@ -24,6 +25,29 @@ const PARTICLES = ['{ }', '</>', '01', ';', '( )', '=>', '#', '[ ]', '&&', 'fn']
 const PARTICLE_COLORS = ['#a78bfa', '#22d3ee', '#4ade80', '#fbbf24', '#f472b6'];
 const BUY_OPTIONS = [[1, '×1'], [10, '×10'], [100, '×100'], ['max', 'MAX']];
 const COMPANY_TABS = ['investors', 'challenges', 'contracts', 'acq', 'ach', 'stats', 'settings'];
+const TEAM_TABS = ['depts', 'world'];
+// Kropki lądu jako jedna ścieżka (lżej niż tysiące kółek). Mapa: 1 jednostka = 1° długości.
+let LAND_PATH = null;
+function landPath() {
+  if (LAND_PATH) return LAND_PATH;
+  const r = 1.05;
+  let d = '';
+  WORLD.rows.forEach((row, y) => {
+    let bits = '';
+    for (const h of row) bits += parseInt(h, 16).toString(2).padStart(4, '0');
+    for (let x = 0; x < bits.length; x++) {
+      if (bits[x] !== '1') continue;
+      const cx = x * WORLD.step + WORLD.step / 2;
+      const cy = y * WORLD.step + WORLD.step / 2;
+      d += `M${(cx - r).toFixed(2)} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
+    }
+  });
+  LAND_PATH = d;
+  return d;
+}
+const mapX = (lon) => lon - WORLD.lon0;
+const mapY = (lat) => WORLD.lat0 - lat;
+const MAP_H = WORLD.rows.length * WORLD.step;
 const DEPT_MS_PREV = [0, ...DEPT_MILESTONES];
 // Efekt nagrody po n poziomach (mnożniki potęgujemy, dodatki mnożymy).
 const scaledFx = (fx, n) => fx.map((e) => ({ ...e, ...(e.x !== undefined ? { x: Math.pow(e.x, n) } : {}), ...(e.v !== undefined ? { v: e.v * n } : {}) }));
@@ -35,6 +59,8 @@ export class UI {
     this.hooks = hooks;
     this.tab = 'office';
     this.companySub = 'investors';
+    this.teamSub = 'depts';
+    this.focusOffice = null;
     this.sigs = {};
     this.lastSlow = 0;
     this.lastHud = 0;
@@ -62,6 +88,7 @@ export class UI {
     window.addEventListener('resize', () => this.placeToasts());
     this.renderBuySegs();
     this.renderCompanyTabs();
+    this.renderTeamTabs();
     this.bindEvents();
     this.bindGame();
     setSound(!!this.g.s.settings.sound);
@@ -171,6 +198,18 @@ export class UI {
       case 'accept-contract': if (g.acceptContract(Number(id), Date.now())) play('coin'); this.updateAll(true); break;
       case 'decline-contract': g.declineContract(Number(id)); this.updateAll(true); break;
       case 'company-sub': this.companySub = el.dataset.sub; this.renderCompanyTabs(); this.updateAll(true); break;
+      case 'team-sub': this.teamSub = el.dataset.sub; this.renderTeamTabs(); this.updateAll(true); $('view-team').scrollTop = 0; break;
+      case 'open-office': if (g.openOffice(id)) { play('unlock'); this.scene.render(g); } this.updateAll(true); break;
+      case 'set-view': if (g.setView(id)) { this.scene.render(g, true); this.toast(OFFICE_MAP[id].icon, t('off.viewing'), TX.officeName(id), 'info'); } this.updateAll(true); break;
+      case 'office-focus': {
+        this.focusOffice = id;
+        const card = $(`office-${id}`);
+        if (card) {
+          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          card.animate([{ boxShadow: '0 0 0 2px rgba(34,211,238,.9)' }, { boxShadow: '0 0 0 0 rgba(34,211,238,0)' }], { duration: 1400 });
+        }
+        break;
+      }
       case 'prestige': this.confirmPrestige(); break;
       case 'prestige-confirm': {
         const gain = g.doPrestige(Date.now());
@@ -279,6 +318,7 @@ export class UI {
     this.applyStatic();
     this.renderBuySegs();
     this.renderCompanyTabs();
+    this.renderTeamTabs();
     this.sigs = {};
     this.scene.render(this.g, true);
     this.syncBubble(true);
@@ -337,7 +377,7 @@ export class UI {
   showTab(tab, sub) {
     if (!tab) return;
     this.tab = tab;
-    if (sub) { this.companySub = sub; this.renderCompanyTabs(); }
+    if (sub && tab === 'team') { this.teamSub = sub; this.renderTeamTabs(); } else if (sub) { this.companySub = sub; this.renderCompanyTabs(); }
     document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === tab));
     document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.dataset.view === tab));
     // Scena nie jest widoczna poza Biurem — wstrzymujemy jej animacje (bateria).
@@ -352,6 +392,11 @@ export class UI {
     document.querySelectorAll('[data-seg="buy"]').forEach((seg) => {
       seg.innerHTML = BUY_OPTIONS.map(([v, l]) => `<button data-act="set-buy" data-v="${v}" class="${v === cur ? 'on' : ''}">${l}</button>`).join('');
     });
+  }
+
+  renderTeamTabs() {
+    $('team-tabs').innerHTML = TEAM_TABS.map((k) =>
+      `<button class="pill ${k === this.teamSub ? 'on' : ''}" data-act="team-sub" data-sub="${k}">${t(`team.${k}`)}<i class="dot" data-dot="t-${k}" hidden></i></button>`).join('');
   }
 
   renderCompanyTabs() {
@@ -700,6 +745,11 @@ export class UI {
   }
 
   updateTeam() {
+    const world = this.teamSub === 'world';
+    $('team-list').hidden = world;
+    $('world-body').hidden = !world;
+    $('team-buy-seg').style.visibility = world ? 'hidden' : '';
+    if (world) { this.updateWorld(); return; }
     const g = this.g;
     const s = g.s;
     const unlocked = DEPTS.filter((d) => s.deptUnlocked[d.id]);
@@ -770,6 +820,110 @@ export class UI {
       const btn = nx.querySelector('[data-act="unlock-dept"]');
       if (btn) btn.classList.toggle('off', s.cash < DEPT_MAP[nx.dataset.next].unlock);
     }
+  }
+
+  // ---------------------------------------------------------------------
+  // Świat: biura na mapie i w kosmosie
+  // ---------------------------------------------------------------------
+  updateWorld() {
+    const g = this.g;
+    const s = g.s;
+    const avail = OFFICES.map((o) => (g.officeAvailable(o.id) ? 1 : 0)).join('');
+    const sig = `world|${JSON.stringify(s.offices)}|${avail}|${s.settings.view}|${getLang()}`;
+    const root = $('world-body');
+    if (this.sigs.world !== sig) {
+      this.sigs.world = sig;
+      const earth = OFFICES.filter((o) => o.kind === 'earth');
+      const space = OFFICES.filter((o) => o.kind === 'space');
+      const opened = earth.filter((o) => !o.hq && g.officeLevel(o.id) > 0).length;
+      root.innerHTML = `
+        <div class="map-card">${this.mapSvg()}</div>
+        <div class="kv"><span>${t('off.title')}</span><b>${t('off.count', { n: opened, m: earth.length - 1 })}</b></div>
+        <p class="card-sub" style="margin:8px 2px 0">${t('off.lead')} ${t('off.viewHint')}</p>
+        <div class="list" style="margin-top:12px">${earth.map((o) => this.officeCard(o)).join('')}</div>
+        <div class="section-title">🚀 ${t('off.space')}</div>
+        <div class="map-card space">${this.spaceSvg()}</div>
+        <div class="list" style="margin-top:12px">${space.map((o) => this.officeCard(o)).join('')}</div>`;
+    }
+    const vals = {};
+    for (const o of OFFICES) {
+      const cost = g.officeCost(o.id);
+      vals[`of-${o.id}`] = { off: !(cost <= s.cash) };
+    }
+    this.patch(vals, root);
+  }
+
+  officeCard(o) {
+    const g = this.g;
+    const lvl = g.officeLevel(o.id);
+    const maxed = lvl >= OFFICE_MAX_LEVEL;
+    const avail = g.officeAvailable(o.id);
+    const tech = o.req ? TECH_MAP[o.req] : null;
+    const viewing = this.g.s.settings.view === o.id;
+    const lvlName = lvl > 0 ? `${o.hq ? t('off.hq') : t('off.levelNames')[lvl - 1]} · ` : '';
+    const fxNow = lvl > 1 ? ` · ${t('off.now', { fx: esc(TX.describeFx(scaledFx(o.fx, lvl))) })}` : '';
+    let action;
+    if (maxed) action = `<span class="lvl" style="color:var(--money)">${t('off.max')}</span>`;
+    else if (avail) action = `<button class="btn violet" data-act="open-office" data-id="${o.id}" data-v="of-${o.id}"><span>${lvl ? t('off.upgrade') : t('off.open')}</span><small>${money(g.officeCost(o.id))}</small></button>`;
+    else action = `<button class="btn violet" data-act="goto" data-tab="research">${t('goResearch')}</button>`;
+    const viewBtn = lvl > 0 ? `<button class="btn btn-small ghost ${viewing ? 'on-view' : ''}" data-act="set-view" data-id="${o.id}">${viewing ? '👁' : '🪟'} ${viewing ? t('off.viewing') : t('off.view')}</button>` : '';
+    return `<div class="card office ${lvl ? '' : avail ? '' : 'locked'}" id="office-${o.id}">
+      <div class="tile" style="${grad(o.kind === 'space' ? ['#1e1b4b', '#7c3aed'] : ['#0ea5e9', '#22c55e'])}">${o.icon}</div>
+      <div class="card-title"><h3>${esc(TX.officeName(o.id))}</h3><span class="lvl">${lvlName}${t('off.level', { n: lvl, m: OFFICE_MAX_LEVEL })}</span></div>
+      <div class="card-sub">${avail || lvl ? `${t('off.perLevel', { fx: esc(TX.describeFx(o.fx)) })}${fxNow}` : `${t('prod.requires')} <span class="rp">${tech.icon} ${esc(TX.techName(tech.id))}</span>`}</div>
+      <div class="card-desc">${esc(TX.officeDesc(o.id))}</div>
+      <div class="card-foot">${viewBtn}<div class="prog"></div>${action}</div>
+    </div>`;
+  }
+
+  mapSvg() {
+    const g = this.g;
+    const hq = OFFICE_MAP.waw;
+    const hx = mapX(hq.lon);
+    const hy = mapY(hq.lat);
+    let arcs = '';
+    let marks = '';
+    for (const o of OFFICES) {
+      if (o.kind !== 'earth') continue;
+      const x = mapX(o.lon);
+      const y = mapY(o.lat);
+      const lvl = g.officeLevel(o.id);
+      const avail = g.officeAvailable(o.id);
+      if (lvl > 0 && !o.hq) {
+        const mx = (hx + x) / 2;
+        const my = (hy + y) / 2 - Math.hypot(x - hx, y - hy) * 0.28;
+        arcs += `<path class="arc" d="M${hx} ${hy} Q${mx.toFixed(1)} ${my.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)}"/>`;
+      }
+      const cls = lvl > 0 ? 'm-on' : avail ? 'm-avail' : 'm-lock';
+      const r = lvl > 0 ? 2.4 + lvl * 0.6 : 2.3;
+      marks += `<g class="marker ${cls}" data-act="office-focus" data-id="${o.id}">
+        ${lvl > 0 ? `<circle class="ping" cx="${x}" cy="${y}" r="${r + 2}"/>` : ''}
+        <circle class="dot" cx="${x}" cy="${y}" r="${r}"/>
+        <circle cx="${x}" cy="${y}" r="9" fill="transparent"/></g>`;
+    }
+    return `<svg viewBox="0 0 360 ${MAP_H}" role="img" aria-label="${t('off.title')}">
+      <path d="${landPath()}" fill="rgba(167,139,250,.32)"/>
+      <g fill="none">${arcs}</g>${marks}
+    </svg><div class="map-hint">${t('off.mapHint')}</div>`;
+  }
+
+  spaceSvg() {
+    const g = this.g;
+    const on = (id) => g.officeLevel(id) > 0;
+    const glow = (id) => (on(id) ? 'filter="url(#spGlow)"' : 'opacity=".45"');
+    const tap = (id, x, y) => `<circle cx="${x}" cy="${y}" r="16" fill="transparent" data-act="office-focus" data-id="${id}"/>`;
+    return `<svg viewBox="0 0 360 96" role="img" aria-label="${t('off.space')}">
+      <defs><filter id="spGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+      <path d="M22 60 C 90 20, 160 90, 230 46 S 330 40, 344 30" fill="none" stroke="rgba(255,255,255,.14)" stroke-dasharray="2 4"/>
+      <circle cx="22" cy="60" r="13" fill="#3b82f6"/><path d="M14 55 q6 -4 10 2 q4 5 9 1" stroke="#4ade80" stroke-width="3" fill="none"/>
+      <g ${glow('leo')}><rect x="36" y="38" width="10" height="4" fill="#cbd5e1"/><rect x="30" y="37" width="5" height="6" fill="#60a5fa"/><rect x="47" y="37" width="5" height="6" fill="#60a5fa"/></g>${tap('leo', 41, 40)}
+      <g ${glow('moon')}><circle cx="72" cy="64" r="7" fill="#d1d5db"/><circle cx="70" cy="62" r="1.6" fill="#9ca3af"/></g>${tap('moon', 72, 64)}
+      <g ${glow('mars')}><circle cx="118" cy="50" r="9" fill="#e4572e"/><circle cx="115" cy="47" r="2" fill="#b33d1c"/></g>${tap('mars', 118, 50)}
+      <g ${glow('ceres')}><circle cx="166" cy="58" r="4.5" fill="#9ca3af"/><circle cx="156" cy="66" r="1.5" fill="#6b7280"/><circle cx="176" cy="66" r="1.2" fill="#6b7280"/><circle cx="160" cy="50" r="1" fill="#6b7280"/></g>${tap('ceres', 166, 58)}
+      <g ${glow('europa')}><circle cx="226" cy="46" r="17" fill="#d6a46b"/><path d="M210 41 h32 M209 48 h34 M212 54 h28" stroke="#b07a45" stroke-width="2.4"/><circle cx="249" cy="30" r="4" fill="#e0f2fe"/></g>${tap('europa', 236, 40)}
+      <g ${glow('titan')}><ellipse cx="288" cy="54" rx="22" ry="5" fill="none" stroke="#e7cf9b" stroke-width="2"/><circle cx="288" cy="54" r="12" fill="#e9c27b"/><circle cx="305" cy="70" r="3.6" fill="#f59e0b"/></g>${tap('titan', 292, 58)}
+      <g ${glow('proxima')}><circle cx="342" cy="28" r="8" fill="#ff7a59"/><circle cx="342" cy="28" r="12" fill="#ff7a59" opacity=".25"/><circle cx="330" cy="44" r="3" fill="#a78bfa"/></g>${tap('proxima', 338, 34)}
+    </svg>`;
   }
 
   // ---------------------------------------------------------------------
@@ -917,8 +1071,7 @@ export class UI {
   }
 
   // Podmienia teksty/HTML elementów oznaczonych data-v (bez przebudowy DOM).
-  patch(values) {
-    const root = $('company-body');
+  patch(values, root = $('company-body')) {
     for (const el of root.querySelectorAll('[data-v]')) {
       const v = values[el.dataset.v];
       if (v === undefined) continue;
@@ -1318,6 +1471,8 @@ export class UI {
     counts.products = PRODUCTS.filter((p) => g.productUnlocked(p.id) && g.productCost(p.id, 1) <= s.cash).length;
     counts.team = DEPTS.filter((d) => (s.deptUnlocked[d.id] && g.hireCost(d.id, 1) <= s.cash)
       || (!s.deptUnlocked[d.id] && g.deptAvailable(d.id) && s.cash >= d.unlock)).length;
+    const officesReady = OFFICES.filter((o) => g.officeAvailable(o.id) && g.officeCost(o.id) <= s.cash).length;
+    counts.team += officesReady;
     counts.research = TECHS.filter((t) => !s.techs[t.id] && g.techAvailable(t.id) && s.rp >= t.cost).length;
     counts.upgrades = g.availableUpgrades().filter((u) => u.cost <= s.cash).length;
     const offers = g.contractsUnlocked() && s.contracts.active.length < g.m.slots ? s.contracts.offers.length : 0;
@@ -1333,7 +1488,7 @@ export class UI {
       b.hidden = !show;
       if (show) this.setText(b, n > 9 ? '9+' : String(n));
     }
-    const dots = { investors: prestigeReady || perkReady, contracts: offers > 0 };
+    const dots = { investors: prestigeReady || perkReady, contracts: offers > 0, 't-world': officesReady > 0 };
     for (const d of document.querySelectorAll('[data-dot]')) d.hidden = !dots[d.dataset.dot];
   }
 
@@ -1525,6 +1680,7 @@ export class UI {
       this.closeModal();
       this.applyStatic();
       this.renderCompanyTabs();
+      this.renderTeamTabs();
       this.fullRender();
       this.restartTicker();
       this.toast('✅', t('toast.imported'), '', 'info');

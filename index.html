@@ -47,6 +47,7 @@
           <div class="bubble-layer" id="bubble-layer"></div>
           <div class="scene-badges" id="scene-badges"></div>
           <div class="scene-tools" id="scene-tools">
+            <button class="scene-tool" data-act="goto" data-tab="team" data-sub="world" aria-label="Świat" data-i18n-aria="team.world">🌍</button>
             <button class="scene-tool" data-act="zen" aria-label="Tryb zen" data-i18n-aria="zen.enter">🪷</button>
           </div>
         </div>
@@ -79,9 +80,11 @@
       <section class="view" id="view-team" data-view="team">
         <div class="view-head">
           <h2 data-i18n="tab.team">Zespół</h2>
-          <div class="seg buy-seg" data-seg="buy"></div>
+          <div class="seg buy-seg" data-seg="buy" id="team-buy-seg"></div>
         </div>
+        <div class="chips-scroll" id="team-tabs"></div>
         <div class="list" id="team-list"></div>
+        <div id="world-body" hidden></div>
       </section>
 
       <section class="view" id="view-research" data-view="research">

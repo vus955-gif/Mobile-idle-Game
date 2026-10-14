@@ -234,3 +234,56 @@ test('stary zapis bez nowych pól wczytuje się poprawnie', () => {
   assert.ok(g.s.nextDecisionAt > 0);
   g.tick(T0 + 1000);
 });
+
+test('ekspansja: biura wymagają technologii, kosztują coraz więcej i zostają po rundzie', async () => {
+  const { OFFICE_MAP } = await import('../js/engine.js');
+  const { OFFICES, OFFICE_MAX_LEVEL, OFFICE_LEVEL_COST } = await import('../js/data.js');
+  const g = newGame();
+  assert.equal(g.officeLevel('waw'), 1, 'siedziba od startu');
+  g.s.cash = 1e30;
+  assert.equal(g.openOffice('ber'), false, 'Berlin wymaga metodyk zwinnych');
+  g.s.techs.agile = true;
+  const c1 = g.officeCost('ber');
+  assert.equal(c1, OFFICE_MAP.ber.cost);
+  g.s.products.landing = 10;
+  g.recalc();
+  const before = g.income;
+  assert.ok(g.openOffice('ber'));
+  assert.ok(g.income > before, 'bonus z biura');
+  assert.equal(g.officeCost('ber'), c1 * OFFICE_LEVEL_COST);
+  g.openOffice('ber');
+  g.openOffice('ber');
+  assert.equal(g.officeLevel('ber'), OFFICE_MAX_LEVEL);
+  assert.equal(g.openOffice('ber'), false, 'maksymalny poziom');
+  g.s.totalEarned = 1e14;
+  g.doPrestige(T0);
+  assert.equal(g.officeLevel('ber'), OFFICE_MAX_LEVEL, 'biura zostają po rundzie');
+  assert.ok(g.setView('ber'));
+  assert.equal(g.setView('tyo'), false, 'widok tylko z otwartego biura');
+  // każde biuro ma współrzędne albo jest w kosmosie, a jego technologia istnieje
+  for (const o of OFFICES) {
+    if (o.kind === 'earth') assert.ok(Math.abs(o.lat) <= 81 && Math.abs(o.lon) <= 180, o.id);
+    if (o.req) assert.ok(g.techAvailable(o.req) !== undefined, o.id);
+  }
+  // Nowy Jork podnosi mnożnik wyceny
+  g.s.techs.payments = true;
+  const m0 = g.valuationMultiple();
+  g.s.offices.nyc = 1;
+  g.recalc();
+  assert.ok(Math.abs(g.valuationMultiple() - m0 - 0.5) < 1e-9);
+});
+
+test('mapa świata ma sensowny kształt', async () => {
+  const { WORLD } = await import('../js/worldmap.js');
+  assert.equal(WORLD.rows.length * WORLD.step, 138);
+  const bit = (lon, lat) => {
+    const x = Math.floor((lon - WORLD.lon0) / WORLD.step);
+    const y = Math.floor((WORLD.lat0 - lat) / WORLD.step);
+    const v = parseInt(WORLD.rows[y][Math.floor(x / 4)], 16);
+    return (v >> (3 - (x % 4))) & 1;
+  };
+  assert.equal(bit(21, 52), 1, 'Warszawa na lądzie');
+  assert.equal(bit(-40, 30), 0, 'środek Atlantyku to woda');
+  assert.equal(bit(135, -25), 1, 'Australia');
+  assert.equal(bit(-160, 0), 0, 'Pacyfik');
+});

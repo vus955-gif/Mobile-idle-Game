@@ -245,6 +245,21 @@ const PL = {
   'set.music': 'Muzyka', 'set.musicHint': 'Spokojne lo-fi, komponowane na bieżąco.',
   'st.decisions': 'Podjęte decyzje', 'st.autoBuys': 'Zakupy autopilota', 'st.challenges': 'Ukończone poziomy wyzwań', 'st.bestValuation': 'Najwyższa wycena',
 
+  'team.depts': 'Działy', 'team.world': 'Świat',
+  'off.title': 'Biura na świecie', 'off.lead': 'Biura zostają z Tobą na zawsze, także po rundach finansowania. Każdy poziom rozbudowy działa jak kolejne biuro.',
+  'off.space': 'Kosmos', 'off.hq': 'Siedziba', 'off.level': 'Poz. {n}/{m}', 'off.open': 'Otwórz biuro', 'off.upgrade': 'Rozbuduj',
+  'off.max': 'W pełni rozbudowane', 'off.opened': 'Nowe biuro: {name}', 'off.upgraded': '{name}: poziom {n}', 'off.view': 'Widok z okna',
+  'off.viewing': 'W widoku z okna', 'off.count': '{n}/{m} biur', 'off.perLevel': 'Za poziom: {fx}', 'off.now': 'Teraz: {fx}',
+  'off.mapHint': 'Dotknij punktu na mapie, żeby przejść do biura.', 'off.viewHint': 'Widok z okna zmienia panoramę za budynkiem w zakładce Biuro.',
+  'off.levelNames': ['Biuro', 'Kampus', 'Centrala regionu'],
+  'dfx.valMult': 'Mnożnik wyceny +{v}',
+  'achNames.off': ['Pierwsza filia', 'Firma międzynarodowa', 'Globalny gracz', 'Cały świat'],
+  'achNames.spc': ['Pierwszy krok w kosmos', 'Firma międzyplanetarna', 'Do gwiazd'],
+  'ach.off': 'Otwórz {n} {noun} na Ziemi', 'ach.spc': 'Otwórz {n} {noun} w kosmosie',
+  'achFun.f_hq': ['Centrala z rozmachem', 'Rozbuduj siedzibę w Warszawie do końca'],
+  'achFun.f_view': ['Nowy widok', 'Zmień widok z okna na inne biuro'],
+  'noun.offices': { one: 'biuro', few: 'biura', many: 'biur' },
+
   'time.d': 'd', 'time.h': 'h', 'time.m': 'min', 'time.s': 's', 'time.y': 'rok',
 };
 
@@ -473,6 +488,21 @@ const EN = {
   'zen.enter': 'Zen mode', 'zen.exit': 'Tap to return',
   'set.music': 'Music', 'set.musicHint': 'Calm lo-fi, composed on the fly.',
   'st.decisions': 'Decisions made', 'st.autoBuys': 'Autopilot purchases', 'st.challenges': 'Challenge tiers cleared', 'st.bestValuation': 'Highest valuation',
+
+  'team.depts': 'Departments', 'team.world': 'World',
+  'off.title': 'Offices Around the World', 'off.lead': 'Offices stay with you forever, even through funding rounds. Every expansion level works like another office.',
+  'off.space': 'Space', 'off.hq': 'HQ', 'off.level': 'Lvl {n}/{m}', 'off.open': 'Open office', 'off.upgrade': 'Expand',
+  'off.max': 'Fully expanded', 'off.opened': 'New office: {name}', 'off.upgraded': '{name}: level {n}', 'off.view': 'Window view',
+  'off.viewing': 'In the window view', 'off.count': '{n}/{m} offices', 'off.perLevel': 'Per level: {fx}', 'off.now': 'Now: {fx}',
+  'off.mapHint': 'Tap a dot on the map to jump to that office.', 'off.viewHint': 'The window view changes the skyline behind your building on the Office tab.',
+  'off.levelNames': ['Office', 'Campus', 'Regional HQ'],
+  'dfx.valMult': 'Valuation multiple +{v}',
+  'achNames.off': ['First Branch', 'Going International', 'Global Player', 'The Whole World'],
+  'achNames.spc': ['One Small Step', 'Interplanetary Company', 'To the Stars'],
+  'ach.off': 'Open {n} {noun} on Earth', 'ach.spc': 'Open {n} {noun} in space',
+  'achFun.f_hq': ['Grand Headquarters', 'Fully expand your Warsaw HQ'],
+  'achFun.f_view': ['A New View', 'Switch the window view to another office'],
+  'noun.offices': { one: 'office', other: 'offices' },
 
   'time.d': 'd', 'time.h': 'h', 'time.m': 'm', 'time.s': 's', 'time.y': 'yr',
 };

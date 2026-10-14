@@ -2,7 +2,7 @@
 import {
   PRODUCTS, DEPTS, TECHS, REPEAT_TECHS, CULTURE_UPGRADES, CLICK_UPGRADES, ACQUISITIONS, PERKS, ERAS,
   CATEGORIES, BUBBLES, ROUND_NAMES, COMPANY_STAGES, NEWS, TREND_TEMPLATES, CONTRACT_CLIENTS, CONTRACT_TASKS,
-  PRODUCT_UP_NAMED, AUTOPILOT, CHALLENGES, SCALE_LEVELS, DECISIONS,
+  PRODUCT_UP_NAMED, AUTOPILOT, CHALLENGES, SCALE_LEVELS, DECISIONS, OFFICES,
 } from './data.js';
 import { EN } from './lang/en.js';
 import { getLang, t, noun } from './i18n.js';
@@ -20,6 +20,7 @@ const A = byId(ACQUISITIONS);
 const PK = byId(PERKS);
 const AP = byId(AUTOPILOT);
 const CH = byId(CHALLENGES);
+const OF = byId(OFFICES);
 
 export const prodName = (id) => (en() ? EN.products[id].name : P[id].name);
 export const prodDesc = (id) => (en() ? EN.products[id].desc : P[id].desc);
@@ -37,6 +38,8 @@ export const catName = (cat) => (en() ? EN.categories[cat] : CATEGORIES[cat].nam
 export const bubbleName = (type) => (en() ? EN.bubbles[type] : BUBBLES[type].name);
 export const eraName = (id) => (en() ? EN.eras[id] : ERAS.find((e) => e.id === id).name);
 export const newsList = () => (en() ? EN.news : NEWS);
+export const officeName = (id) => (en() ? EN.offices[id].name : OF[id].name);
+export const officeDesc = (id) => (en() ? EN.offices[id].desc : OF[id].desc);
 export const apName = (id) => (en() ? EN.autopilot[id].name : AP[id].name);
 export const apDesc = (id) => (en() ? EN.autopilot[id].desc : AP[id].desc);
 export const challengeName = (id) => (en() ? EN.challenges[id].name : CH[id].name);
@@ -150,6 +153,8 @@ export function achDesc(a) {
     case 'chal': return t('ach.chal', { n: v, noun: noun('tiers', v) });
     case 'dec': return t('ach.dec', { n: v, noun: noun('decisions', v) });
     case 'ap': return t('ach.ap', { n: v, noun: noun('modules', v) });
+    case 'off': return t('ach.off', { n: v, noun: noun('offices', v) });
+    case 'spc': return t('ach.spc', { n: v, noun: noun('offices', v) });
     case 'scale': return t('ach.scale', { name: scaleName(a.i) });
     default: return '';
   }
@@ -182,6 +187,7 @@ export function describeFx(fx) {
       case 'offlineEff': parts.push(t('dfx.offlineEff', { p: num(e.v * 100) })); break;
       case 'acqCost': parts.push(t('dfx.acqCost', { n: Math.round((1 - e.x) * 100) })); break;
       case 'eventPower': parts.push(t('dfx.eventPower', { x })); break;
+      case 'valMult': parts.push(t('dfx.valMult', { v: num(e.v) })); break;
       default: break;
     }
   }

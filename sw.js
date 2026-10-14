@@ -15,6 +15,7 @@ const ASSETS = [
   './js/scene.js',
   './js/audio.js',
   './js/music.js',
+  './js/worldmap.js',
   './manifest.webmanifest',
   './icons/apple-touch-icon.png',
   './icons/icon-192.png',
