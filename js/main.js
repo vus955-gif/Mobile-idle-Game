@@ -1,8 +1,9 @@
 // Start gry: wczytanie zapisu, pętla, autozapis, service worker.
 import { Game, createState, sanitizeState } from './engine.js';
 import { UI } from './ui.js';
+import { setLang, detectLang } from './i18n.js';
 
-export const VERSION = '1.0.0';
+export const VERSION = '1.1.0';
 const SAVE_KEY = 'krzemowe-imperium-save';
 const BACKUP_KEY = 'krzemowe-imperium-backup';
 
@@ -16,6 +17,8 @@ function readSave() {
 }
 
 const saved = readSave();
+// Język: zapisany w grze, a przy pierwszym uruchomieniu — język telefonu.
+setLang(saved?.settings?.lang || detectLang());
 const game = new Game(saved, { now: Date.now() });
 let lastSaveJson = '';
 
@@ -53,6 +56,7 @@ const ui = new UI(game, {
     try {
       const data = decodeSave(text);
       if (!data || typeof data !== 'object' || typeof data.cash !== 'number') return false;
+      if (data.settings?.lang) setLang(data.settings.lang);
       game.s = sanitizeState(data, Date.now());
       game.s.lastTick = Date.now();
       game.recalc();
@@ -79,10 +83,14 @@ if (!saved) ui.showWelcome();
 // Pierwszy tick nalicza zarobki offline (UI pokaże podsumowanie).
 game.tick(Date.now());
 
-function loop() {
-  const now = Date.now();
-  game.tick(now);
-  ui.frame(performance.now());
+// Logika gry nie potrzebuje 60 klatek — 20 Hz wystarcza i oszczędza baterię.
+let lastLoop = 0;
+function loop(ts) {
+  if (ts - lastLoop >= 50) {
+    lastLoop = ts;
+    game.tick(Date.now());
+    ui.frame(performance.now());
+  }
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);

@@ -1,13 +1,14 @@
 // Interfejs: renderowanie zakładek, HUD, efekty kliknięć, modale i toasty.
 import {
-  PRODUCTS, DEPTS, TECHS, REPEAT_TECHS, ERAS, ACQUISITIONS, PERKS, CATEGORIES, NEWS, BUBBLES,
-  COMPANY_STAGES, DEPT_MILESTONE_X,
+  PRODUCTS, DEPTS, TECHS, REPEAT_TECHS, ERAS, ACQUISITIONS, PERKS, CATEGORIES, BUBBLES, DEPT_MILESTONE_X, DEPT_MILESTONES,
 } from './data.js';
 import {
-  ACHIEVEMENTS, UPGRADES, PRODUCT_MAP, DEPT_MAP, TECH_MAP, ACH_BONUS, INVESTOR_BONUS,
-  nextMilestone, prevMilestone, nextDeptMilestone, deptMilestoneMult, roundName, MAX_SLOTS,
+  ACHIEVEMENTS, UPGRADES, UPGRADE_MAP, PRODUCT_MAP, DEPT_MAP, TECH_MAP, ACH_BONUS, INVESTOR_BONUS,
+  nextMilestone, prevMilestone, nextDeptMilestone, deptMilestoneMult, MAX_SLOTS,
 } from './engine.js';
-import { fmt, money, fmtInt, fmtTime, fmtClock, fmtPct, plural } from './format.js';
+import { fmt, money, fmtInt, fmtTime, fmtClock, fmtPct, num } from './format.js';
+import { t, noun, getLang, setLang, LANGS, DICT } from './i18n.js';
+import * as TX from './text.js';
 import { Scene } from './scene.js';
 import { play, setSound, unlockAudio } from './audio.js';
 
@@ -19,10 +20,8 @@ const SOUND_OFF = '<svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><pa
 const PARTICLES = ['{ }', '</>', '01', ';', '( )', '=>', '#', '[ ]', '&&', 'fn'];
 const PARTICLE_COLORS = ['#a78bfa', '#22d3ee', '#4ade80', '#fbbf24', '#f472b6'];
 const BUY_OPTIONS = [[1, '×1'], [10, '×10'], [100, '×100'], ['max', 'MAX']];
-const COMPANY_TABS = [
-  ['investors', 'Inwestorzy'], ['contracts', 'Kontrakty'], ['acq', 'Przejęcia'],
-  ['ach', 'Osiągnięcia'], ['stats', 'Statystyki'], ['settings', 'Ustawienia'],
-];
+const COMPANY_TABS = ['investors', 'contracts', 'acq', 'ach', 'stats', 'settings'];
+const DEPT_MS_PREV = [0, ...DEPT_MILESTONES];
 
 export class UI {
   constructor(game, hooks = {}) {
@@ -41,11 +40,13 @@ export class UI {
     $('app').appendChild(this.fx);
     this.bubbleEl = null;
     this.tickerBusy = false;
-    this.newsIdx = Math.floor(Math.random() * NEWS.length);
+    this.newsIdx = Math.floor(Math.random() * TX.newsList().length);
+    this.tickerAnim = null;
     this.pendingNews = [];
   }
 
   init() {
+    this.applyStatic();
     this.placeToasts();
     window.addEventListener('resize', () => this.placeToasts());
     this.renderBuySegs();
@@ -93,10 +94,13 @@ export class UI {
   bindGame() {
     const g = this.g;
     g.on('toast', (t) => this.toast(t.icon, t.title, t.text, t.kind));
-    g.on('achievement', (a) => { this.toast(a.icon, `Osiągnięcie: ${a.name}`, `${a.desc} · +${Math.round(ACH_BONUS * 100)}% przychodu`, 'achievement'); play('achievement'); });
+    g.on('achievement', (a) => {
+      this.toast(a.icon, t('ach.toast', { name: TX.achName(a) }), t('ach.toastText', { desc: TX.achDesc(a), p: Math.round(ACH_BONUS * 100) }), 'achievement');
+      play('achievement');
+    });
     g.on('bubble', () => this.syncBubble());
-    g.on('trend', (t) => { if (t) { this.pendingNews.push(`📈 <b>${esc(t.text)}</b>`); } });
-    g.on('contractOffer', () => { if (this.tab !== 'company') this.pendingNews.push('🤝 <b>Nowe zapytanie ofertowe</b> — sprawdź Kontrakty w zakładce Firma'); });
+    g.on('trend', (tr) => { if (tr) this.pendingNews.push(`📈 <b>${esc(TX.trendText(tr))}</b>`); });
+    g.on('contractOffer', () => { if (this.tab !== 'company') this.pendingNews.push(t('news.offer')); });
     g.on('structure', () => { this.scene.render(g); });
     g.on('buy', (b) => {
       if (b.kind === 'tech' || b.kind === 'acq') play('unlock'); else play('buy');
@@ -120,7 +124,7 @@ export class UI {
       case 'research': g.research(id); this.updateAll(true); break;
       case 'research-repeat': g.researchRepeat(id); this.updateAll(true); break;
       case 'buy-upgrade': g.buyUpgrade(id); this.updateAll(true); break;
-      case 'buy-all': { const n = g.buyAllUpgrades(); if (n) this.toast('⬆️', `Kupiono ${n} ${plural(n, 'ulepszenie', 'ulepszenia', 'ulepszeń')}`, '', 'info'); this.updateAll(true); break; }
+      case 'buy-all': { const n = g.buyAllUpgrades(); if (n) this.toast('⬆️', t('up.bought', { n, noun: noun('upgrades', n) }), '', 'info'); this.updateAll(true); break; }
       case 'buy-perk': g.buyPerk(id); this.updateAll(true); break;
       case 'buy-acq': g.buyAcq(id); this.updateAll(true); break;
       case 'accept-contract': if (g.acceptContract(Number(id), Date.now())) play('coin'); this.updateAll(true); break;
@@ -133,7 +137,7 @@ export class UI {
         if (gain) {
           this.scene.render(g, true);
           this.showTab('office');
-          this.toast('🦄', `Runda zamknięta: +${fmt(gain)} kapitału`, `Przychód ×${fmt(g.m.invMult)} dzięki inwestorom`, 'achievement');
+          this.toast('🦄', t('toast.roundClosed', { n: fmt(gain) }), t('toast.roundClosedText', { x: fmt(g.m.invMult) }), 'achievement');
           this.hooks.save?.();
         }
         break;
@@ -141,6 +145,15 @@ export class UI {
       case 'toggle-sound': s.settings.sound = !s.settings.sound; setSound(s.settings.sound); this.updateSoundBtn(); if (s.settings.sound) play('buy'); this.sigs.company = ''; this.updateAll(true); break;
       case 'modal-close': this.closeModal(); break;
       case 'rename': this.rename(); break;
+      case 'set-lang': this.changeLang(el.dataset.v); break;
+      case 'welcome-lang': {
+        const input = $('welcome-name');
+        const typed = (input?.value || '').trim();
+        const wasSuggestion = DICT[getLang()].companyNames.includes(typed);
+        this.changeLang(el.dataset.v);
+        this.showWelcome(wasSuggestion ? null : typed);
+        break;
+      }
       case 'welcome-start': {
         const v = ($('welcome-name')?.value || '').trim();
         if (v) s.companyName = v.slice(0, 28);
@@ -159,8 +172,8 @@ export class UI {
         const a = ACHIEVEMENTS.find((x) => x.id === id);
         if (!a) break;
         const got = !!s.achievements[a.id];
-        if (got || !a.hidden) this.toast(got ? a.icon : '🔒', a.name, a.desc, got ? 'achievement' : 'info');
-        else this.toast('❓', 'Ukryte osiągnięcie', 'Odkryj je, grając dalej…', 'info');
+        if (got || !a.hidden) this.toast(got ? a.icon : '🔒', TX.achName(a), TX.achDesc(a), got ? 'achievement' : 'info');
+        else this.toast('❓', t('ach.hidden'), t('ach.hiddenText'), 'info');
         break;
       }
       case 'install-help': this.showInstallHelp(); break;
@@ -169,6 +182,35 @@ export class UI {
   }
 
   buyAmount() { return this.g.s.settings.buyAmount || 1; }
+
+  // Teksty zapisane na sztywno w index.html (zakładki, nagłówki, przycisk kodowania).
+  applyStatic() {
+    document.documentElement.lang = getLang();
+    document.title = t('appName');
+    for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
+    for (const el of document.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', t(el.dataset.i18nAria));
+  }
+
+  changeLang(lang) {
+    const s = this.g.s;
+    const old = getLang();
+    if (lang === old) return;
+    // Domyślna nazwa firmy podąża za językiem, własna zostaje.
+    if (s.companyName === DICT[old].defaultCompany) s.companyName = DICT[lang].defaultCompany;
+    s.settings.lang = lang;
+    setLang(lang);
+    this.applyStatic();
+    this.renderBuySegs();
+    this.renderCompanyTabs();
+    this.sigs = {};
+    this.scene.render(this.g, true);
+    this.syncBubble(true);
+    this.pendingNews = [];
+    this.restartTicker();
+    this.updateAll(true);
+    this.placeToasts();
+    this.hooks.save?.();
+  }
 
   pulse(el) {
     const card = el.closest('.card');
@@ -221,6 +263,8 @@ export class UI {
     if (sub) { this.companySub = sub; this.renderCompanyTabs(); }
     document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === tab));
     document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.dataset.view === tab));
+    // Scena nie jest widoczna poza Biurem — wstrzymujemy jej animacje (bateria).
+    $('scene-wrap').classList.toggle('paused', tab !== 'office');
     const view = document.querySelector(`.view[data-view="${tab}"]`);
     if (view && tab !== 'office') view.scrollTop = 0;
     this.updateAll(true);
@@ -234,8 +278,8 @@ export class UI {
   }
 
   renderCompanyTabs() {
-    $('company-tabs').innerHTML = COMPANY_TABS.map(([k, l]) =>
-      `<button class="pill ${k === this.companySub ? 'on' : ''}" data-act="company-sub" data-sub="${k}">${l}<i class="dot" data-dot="${k}" hidden></i></button>`).join('');
+    $('company-tabs').innerHTML = COMPANY_TABS.map((k) =>
+      `<button class="pill ${k === this.companySub ? 'on' : ''}" data-act="company-sub" data-sub="${k}">${t(`ct.${k}`)}<i class="dot" data-dot="${k}" hidden></i></button>`).join('');
   }
 
   // ---------------------------------------------------------------------
@@ -284,10 +328,8 @@ export class UI {
 
   stageName() {
     const s = this.g.s;
-    const floors = this.g.deptCount() - 1;
-    let stage = COMPANY_STAGES[0].name;
-    for (const st of COMPANY_STAGES) if (floors >= st.floors) stage = st.name;
-    return s.prestigeCount > 0 ? `${stage} · ${roundName(s.prestigeCount - 1)}` : stage;
+    const stage = TX.stageName(this.g.deptCount() - 1);
+    return s.prestigeCount > 0 ? `${stage} · ${TX.roundName(s.prestigeCount - 1)}` : stage;
   }
 
   updateSoundBtn() {
@@ -303,21 +345,21 @@ export class UI {
     const owned = PRODUCTS.reduce((a, p) => a + (s.products[p.id] || 0), 0);
     let left = '';
     if (owned === 0) {
-      left = `<div class="mini-stat">Pierwszy krok<b>Zbierz ${money(PRODUCT_MAP.landing.cost)}</b></div><button class="mini-btn" data-act="goto" data-tab="products">Produkty →</button>`;
+      left = `<div class="mini-stat">${t('off.firstStep')}<b>${t('off.collect', { v: money(PRODUCT_MAP.landing.cost) })}</b></div><button class="mini-btn" data-act="goto" data-tab="products">${t('off.toProducts')}</button>`;
     } else {
-      left = `<div class="mini-stat">Zespół<b>${fmtInt(g.totalHeads())} os.</b></div>`;
-      if (g.rpRate > 0) left += `<div class="mini-stat">Badania<b>${fmt(g.rpRate)} PB/s</b></div>`;
-      else left += `<div class="mini-stat">Produkty<b>${fmtInt(owned)} poz.</b></div>`;
+      left = `<div class="mini-stat">${t('off.team')}<b>${t('off.people', { n: fmtInt(g.totalHeads()) })}</b></div>`;
+      if (g.rpRate > 0) left += `<div class="mini-stat">${t('off.research')}<b>${fmt(g.rpRate)} ${t('unit.rp')}/s</b></div>`;
+      else left += `<div class="mini-stat">${t('off.products')}<b>${t('off.levels', { n: fmtInt(owned) })}</b></div>`;
     }
-    let right = `<div class="mini-stat">Wycena<b>${money(g.valuation())}</b></div>`;
+    let right = `<div class="mini-stat">${t('off.valuation')}<b>${money(g.valuation())}</b></div>`;
     const gain = g.prestigeGain();
     const offers = s.contracts.offers.length;
     if (gain >= 1 && gain >= Math.max(1, s.investors * 0.5)) {
       right += `<button class="mini-btn glow" data-act="goto" data-tab="company" data-sub="investors">💎 +${fmt(gain)}</button>`;
     } else if (g.contractsUnlocked() && offers > 0) {
-      right += `<button class="mini-btn" data-act="goto" data-tab="company" data-sub="contracts">🤝 Oferty: ${offers}</button>`;
+      right += `<button class="mini-btn" data-act="goto" data-tab="company" data-sub="contracts">${t('off.offers', { n: offers })}</button>`;
     } else {
-      right += `<div class="mini-stat">Kodowanie<b>${money(g.clickValue)}</b></div>`;
+      right += `<div class="mini-stat">${t('off.coding')}<b>${money(g.clickValue)}</b></div>`;
     }
     const L = $('office-left'); const R = $('office-right');
     if (L.innerHTML !== left) L.innerHTML = left;
@@ -334,19 +376,18 @@ export class UI {
     const bc = g.boostActive('click');
     if (bc) parts.push(`<span class="scene-badge click">⚡ Hackathon ×${bc.x} · ${fmtClock((bc.until - now) / 1000)}</span>`);
     if (s.trend && s.trend.until > now) {
-      const p = PRODUCT_MAP[s.trend.pid];
-      parts.push(`<span class="scene-badge trend">📈 ${esc(p.name)} ×${String(s.trend.x).replace('.', ',')} · ${fmtClock((s.trend.until - now) / 1000)}</span>`);
+      parts.push(`<span class="scene-badge trend">📈 ${esc(TX.prodName(s.trend.pid))} ×${num(s.trend.x)} · ${fmtClock((s.trend.until - now) / 1000)}</span>`);
     }
     if (s.contracts.active.length) {
       const next = Math.min(...s.contracts.active.map((a) => a.end));
-      parts.push(`<span class="scene-badge" data-act="goto" data-tab="company" data-sub="contracts">🤝 Kontrakty: ${s.contracts.active.length} · ${fmtClock((next - now) / 1000)}</span>`);
+      parts.push(`<span class="scene-badge" data-act="goto" data-tab="company" data-sub="contracts">${t('badge.contracts', { n: s.contracts.active.length, t: fmtClock((next - now) / 1000) })}</span>`);
     }
     const html = parts.join('');
     const el = $('scene-badges');
     if (el.innerHTML !== html) el.innerHTML = html;
   }
 
-  syncBubble() {
+  syncBubble(force = false) {
     const b = this.g.s.bubble;
     const layer = $('bubble-layer');
     if (!b) {
@@ -358,13 +399,13 @@ export class UI {
       }
       return;
     }
-    if (this.bubbleEl && this.bubbleEl.dataset.until === String(b.until)) return;
+    if (!force && this.bubbleEl && this.bubbleEl.dataset.until === String(b.until)) return;
     if (this.bubbleEl) this.bubbleEl.remove();
     const info = BUBBLES[b.type];
     const el = document.createElement('button');
     el.className = 'bubble';
     el.dataset.until = String(b.until);
-    el.dataset.label = info.name;
+    el.dataset.label = TX.bubbleName(b.type);
     el.textContent = info.icon;
     el.style.left = `${b.x * 100}%`;
     el.style.top = `${b.y * 100}%`;
@@ -389,13 +430,19 @@ export class UI {
     this.bubbleEl = el;
   }
 
+  restartTicker() {
+    if (this.tickerAnim) { this.tickerAnim.onfinish = null; this.tickerAnim.cancel(); }
+    this.nextTicker();
+  }
+
   nextTicker() {
     const el = $('ticker');
     let html;
     if (this.pendingNews.length) html = this.pendingNews.shift();
     else {
-      this.newsIdx = (this.newsIdx + 1 + Math.floor(Math.random() * 3)) % NEWS.length;
-      html = '📰 ' + esc(NEWS[this.newsIdx]).replace(/\{c\}/g, `<b>${esc(this.g.s.companyName)}</b>`);
+      const news = TX.newsList();
+      this.newsIdx = (this.newsIdx + 1 + Math.floor(Math.random() * 3)) % news.length;
+      html = '📰 ' + esc(news[this.newsIdx]).replace(/\{c\}/g, `<b>${esc(this.g.s.companyName)}</b>`);
     }
     el.innerHTML = html;
     const w = el.scrollWidth;
@@ -404,6 +451,7 @@ export class UI {
     const dur = Math.max(6000, (dist / 50) * 1000);
     el.style.transform = 'translateX(0)';
     const anim = el.animate([{ transform: 'translateX(0)' }, { transform: `translateX(-${dist}px)` }], { duration: dur, easing: 'linear' });
+    this.tickerAnim = anim;
     anim.onfinish = () => setTimeout(() => this.nextTicker(), 400);
     void box;
   }
@@ -433,23 +481,23 @@ export class UI {
       let html = list.map((p) => `
         <div class="card" data-pid="${p.id}">
           <div class="tile" style="${grad(CATEGORIES[p.cat].grad)}">${p.icon}</div>
-          <div class="card-title"><h3>${esc(p.name)}</h3><span class="lvl" data-f="lvl"></span></div>
+          <div class="card-title"><h3>${esc(TX.prodName(p.id))}</h3><span class="lvl" data-f="lvl"></span></div>
           <div class="card-sub" data-f="inc"></div>
-          <div class="card-desc">${esc(p.desc)}</div>
+          <div class="card-desc">${esc(TX.prodDesc(p.id))}</div>
           <div class="card-foot">
             <div class="prog"><div class="prog-bar"><i data-f="bar"></i></div><div class="prog-label" data-f="ms"></div></div>
             <button class="btn" data-act="buy-product" data-id="${p.id}"><span data-f="bn"></span><small data-f="cost"></small></button>
           </div>
         </div>`).join('');
       if (teaser) {
-        const t = TECH_MAP[teaser.tech];
+        const tech = TECH_MAP[teaser.tech];
         html += `
         <div class="card teaser locked">
           <div class="tile" style="${grad(CATEGORIES[teaser.cat].grad)}">${teaser.icon}</div>
-          <div class="card-title"><h3>${esc(teaser.name)}</h3><span class="lvl">🔒</span></div>
-          <div class="card-sub">Wymaga technologii: <span class="rp">${t.icon} ${esc(t.name)}</span></div>
-          <div class="card-desc">${esc(teaser.desc)}</div>
-          <div class="card-foot"><div class="prog"></div><button class="btn violet" data-act="goto" data-tab="research">Badania →</button></div>
+          <div class="card-title"><h3>${esc(TX.prodName(teaser.id))}</h3><span class="lvl">🔒</span></div>
+          <div class="card-sub">${t('prod.requires')} <span class="rp">${tech.icon} ${esc(TX.techName(tech.id))}</span></div>
+          <div class="card-desc">${esc(TX.prodDesc(teaser.id))}</div>
+          <div class="card-foot"><div class="prog"></div><button class="btn violet" data-act="goto" data-tab="research">${t('goResearch')}</button></div>
         </div>`;
       }
       root.innerHTML = html;
@@ -460,27 +508,27 @@ export class UI {
       const lvl = s.products[id] || 0;
       const inc = g.prodIncome[id] || 0;
       const share = g.income > 0 ? inc / g.income : 0;
-      this.setText(card.querySelector('[data-f="lvl"]'), `Poz. ${fmtInt(lvl)}`);
+      this.setText(card.querySelector('[data-f="lvl"]'), t('prod.level', { n: fmtInt(lvl) }));
       const incEl = card.querySelector('[data-f="inc"]');
       const pct = share >= 0.995 ? '100%' : share >= 0.01 ? `${Math.round(share * 100)}%` : '<1%';
-      const incHtml = lvl > 0 ? `<b>+${money(inc)}/s</b> · ${pct} przychodu` : 'Jeszcze nie wydany';
+      const incHtml = lvl > 0 ? t('prod.income', { v: money(inc), p: pct }) : t('prod.notReleased');
       if (incEl.innerHTML !== incHtml) incEl.innerHTML = incHtml;
       const next = nextMilestone(lvl);
       const prev = prevMilestone(lvl);
       const bar = card.querySelector('[data-f="bar"]');
       if (next) {
         bar.style.width = `${Math.min(100, ((lvl - prev) / (next - prev)) * 100)}%`;
-        this.setText(card.querySelector('[data-f="ms"]'), `${fmtInt(lvl)}/${next} · kamień milowy ×2`);
+        this.setText(card.querySelector('[data-f="ms"]'), t('prod.milestone', { n: fmtInt(lvl), m: next }));
       } else {
         bar.style.width = '100%';
-        this.setText(card.querySelector('[data-f="ms"]'), 'Wszystkie kamienie milowe!');
+        this.setText(card.querySelector('[data-f="ms"]'), t('prod.allMilestones'));
       }
       let n = amt === 'max' ? g.productMax(id) : amt;
       const showN = Math.max(1, n);
       const cost = g.productCost(id, showN);
       const btn = card.querySelector('.btn');
       btn.classList.toggle('off', cost > s.cash || n < 1);
-      this.setText(card.querySelector('[data-f="bn"]'), lvl === 0 && showN === 1 ? 'Wydaj' : `Kup ×${fmtInt(showN)}`);
+      this.setText(card.querySelector('[data-f="bn"]'), lvl === 0 && showN === 1 ? t('prod.release') : t('prod.buy', { n: fmtInt(showN) }));
       this.setText(card.querySelector('[data-f="cost"]'), money(cost));
     }
   }
@@ -499,21 +547,21 @@ export class UI {
       const v = e.v * k;
       const c = e.cap ? Math.min(e.cap, v) : v;
       switch (e.t) {
-        case 'income': parts.push(`${fmtPct(v)} przychodu`); break;
-        case 'clickFlat': parts.push(`+${fmt(v)} do kodowania`); break;
-        case 'clickMult': parts.push(`${fmtPct(v)} siły kodowania`); break;
-        case 'rp': parts.push(`<span class="rp">+${fmt(v * m.rp)} PB/s</span>`); break;
-        case 'eventFreq': parts.push(`${fmtPct(c)} częstsze wydarzenia`); break;
-        case 'contract': parts.push(`${fmtPct(c)} nagród z kontraktów`); break;
-        case 'slotEvery': parts.push(`${Math.min(MAX_SLOTS, 1 + Math.floor(n / e.v))} miejsc na kontrakty`); break;
-        case 'offlineEff': parts.push(`${fmtPct(c)} wydajności offline`); break;
-        case 'hireCost': parts.push(`−${Math.round(c * 100)}% kosztu rekrutacji`); break;
-        case 'prodCost': parts.push(`−${Math.round(c * 100)}% kosztu produktów`); break;
-        case 'offlineCap': parts.push(`+${fmtTime(v)} limitu offline`); break;
-        case 'auto': parts.push(`+${fmt(v)} auto-kliknięć/s`); break;
-        case 'cat': parts.push(`${fmtPct(c)} dla kategorii ${CATEGORIES[e.cat].name}`); break;
-        case 'acqCost': parts.push(`−${Math.round(c * 100)}% kosztu przejęć`); break;
-        case 'prestige': parts.push(`${fmtPct(c)} kapitału z rundy`); break;
+        case 'income': parts.push(t('fx.income', { p: fmtPct(v) })); break;
+        case 'clickFlat': parts.push(t('fx.clickFlat', { v: fmt(v) })); break;
+        case 'clickMult': parts.push(t('fx.clickMult', { p: fmtPct(v) })); break;
+        case 'rp': parts.push(`<span class="rp">${t('fx.rp', { v: fmt(v * m.rp) })}</span>`); break;
+        case 'eventFreq': parts.push(t('fx.eventFreq', { p: fmtPct(c) })); break;
+        case 'contract': parts.push(t('fx.contract', { p: fmtPct(c) })); break;
+        case 'slotEvery': { const k2 = Math.min(MAX_SLOTS, 1 + Math.floor(n / e.v)); parts.push(t('fx.slots', { n: k2, noun: noun('slots', k2) })); break; }
+        case 'offlineEff': parts.push(t('fx.offlineEff', { p: fmtPct(c) })); break;
+        case 'hireCost': parts.push(t('fx.hireCost', { n: Math.round(c * 100) })); break;
+        case 'prodCost': parts.push(t('fx.prodCost', { n: Math.round(c * 100) })); break;
+        case 'offlineCap': parts.push(t('fx.offlineCap', { t: fmtTime(v) })); break;
+        case 'auto': parts.push(t('fx.auto', { v: fmt(v) })); break;
+        case 'cat': parts.push(t('fx.cat', { p: fmtPct(c), c: TX.catName(e.cat) })); break;
+        case 'acqCost': parts.push(t('fx.acqCost', { n: Math.round(c * 100) })); break;
+        case 'prestige': parts.push(t('fx.prestige', { p: fmtPct(c) })); break;
         default: break;
       }
     }
@@ -532,9 +580,9 @@ export class UI {
       let html = unlocked.map((d) => `
         <div class="card" data-did="${d.id}">
           <div class="tile" style="${grad([d.color, '#2b2f5c'])}">${d.icon}</div>
-          <div class="card-title"><h3>${esc(d.name)}</h3><span class="lvl" data-f="lvl"></span></div>
+          <div class="card-title"><h3>${esc(TX.deptName(d.id))}</h3><span class="lvl" data-f="lvl"></span></div>
           <div class="card-sub" data-f="fx"></div>
-          <div class="card-desc">${esc(d.desc)}</div>
+          <div class="card-desc">${esc(TX.deptDesc(d.id))}</div>
           <div class="card-foot">
             <div class="prog"><div class="prog-bar"><i data-f="bar"></i></div><div class="prog-label" data-f="ms"></div></div>
             <button class="btn" data-act="hire" data-id="${d.id}"><span data-f="bn"></span><small data-f="cost"></small></button>
@@ -542,16 +590,16 @@ export class UI {
         </div>`).join('');
       if (next) {
         const avail = g.deptAvailable(next.id);
-        const t = next.tech ? TECH_MAP[next.tech] : null;
+        const tech = next.tech ? TECH_MAP[next.tech] : null;
         html += `
         <div class="card ${avail ? '' : 'locked'}" data-next="${next.id}">
           <div class="tile" style="${grad([next.color, '#2b2f5c'])}">${next.icon}</div>
-          <div class="card-title"><h3>${esc(next.name)}</h3><span class="lvl">Nowe piętro</span></div>
-          <div class="card-sub">${avail ? 'Otwórz nowy dział — w budynku pojawi się kolejne piętro.' : `Wymaga technologii: <span class="rp">${t.icon} ${esc(t.name)}</span>`}</div>
-          <div class="card-desc">${esc(next.desc)}</div>
+          <div class="card-title"><h3>${esc(TX.deptName(next.id))}</h3><span class="lvl">${t('team.newFloor')}</span></div>
+          <div class="card-sub">${avail ? t('team.openHint') : `${t('prod.requires')} <span class="rp">${tech.icon} ${esc(TX.techName(tech.id))}</span>`}</div>
+          <div class="card-desc">${esc(TX.deptDesc(next.id))}</div>
           <div class="card-foot"><div class="prog"></div>
-            ${avail ? `<button class="btn violet" data-act="unlock-dept" data-id="${next.id}"><span>Otwórz dział</span><small data-f="ucost">${money(next.unlock)}</small></button>`
-    : '<button class="btn violet" data-act="goto" data-tab="research">Badania →</button>'}
+            ${avail ? `<button class="btn violet" data-act="unlock-dept" data-id="${next.id}"><span>${t('team.open')}</span><small data-f="ucost">${money(next.unlock)}</small></button>`
+    : `<button class="btn violet" data-act="goto" data-tab="research">${t('goResearch')}</button>`}
           </div>
         </div>`;
       }
@@ -564,23 +612,23 @@ export class UI {
       const n = s.depts[id] || 0;
       this.setText(card.querySelector('[data-f="lvl"]'), `👥 ${fmtInt(n)}`);
       const fxEl = card.querySelector('[data-f="fx"]');
-      const fxHtml = n > 0 ? this.deptEffectText(d) : 'Zatrudnij pierwszą osobę!';
+      const fxHtml = n > 0 ? this.deptEffectText(d) : t('team.hireFirst');
       if (fxEl.innerHTML !== fxHtml) fxEl.innerHTML = fxHtml;
       const nm = nextDeptMilestone(n);
       const bar = card.querySelector('[data-f="bar"]');
       if (nm) {
-        const prev = [0, 25, 50, 100, 150, 200, 300, 400, 500].filter((x) => x <= n).pop() || 0;
+        const prev = DEPT_MS_PREV.filter((x) => x <= n).pop() || 0;
         bar.style.width = `${Math.min(100, ((n - prev) / (nm - prev)) * 100)}%`;
-        this.setText(card.querySelector('[data-f="ms"]'), `${fmtInt(n)}/${nm} · efekty ×${String(DEPT_MILESTONE_X).replace('.', ',')}`);
+        this.setText(card.querySelector('[data-f="ms"]'), t('team.milestone', { n: fmtInt(n), m: nm, x: num(DEPT_MILESTONE_X) }));
       } else {
         bar.style.width = '100%';
-        this.setText(card.querySelector('[data-f="ms"]'), 'Pełna obsada!');
+        this.setText(card.querySelector('[data-f="ms"]'), t('team.full'));
       }
       const k = amt === 'max' ? g.hireMax(id) : amt;
       const showN = Math.max(1, k);
       const cost = g.hireCost(id, showN);
       card.querySelector('.btn').classList.toggle('off', cost > s.cash || k < 1);
-      this.setText(card.querySelector('[data-f="bn"]'), `Zatrudnij ×${fmtInt(showN)}`);
+      this.setText(card.querySelector('[data-f="bn"]'), t('team.hire', { n: fmtInt(showN) }));
       this.setText(card.querySelector('[data-f="cost"]'), money(cost));
     }
     const nx = root.querySelector('[data-next]');
@@ -599,11 +647,11 @@ export class UI {
     const head = $('research-head');
     const headHtml = `
       <div class="rp-card">
-        <div><div class="card-sub">Punkty badań</div><div class="rp-big">${fmt(s.rp)} PB</div></div>
-        <div style="text-align:right"><div class="rp-rate">+${fmt(g.rpRate)} PB/s</div><div class="card-sub">${g.techCount()}/${TECHS.length} technologii</div></div>
+        <div><div class="card-sub">${t('rs.points')}</div><div class="rp-big">${fmt(s.rp)} ${t('unit.rp')}</div></div>
+        <div style="text-align:right"><div class="rp-rate">+${fmt(g.rpRate)} ${t('unit.rp')}/s</div><div class="card-sub">${t('rs.techCount', { n: g.techCount(), m: TECHS.length })}</div></div>
       </div>
-      ${!s.deptUnlocked.rnd ? '<div class="hint" style="margin-top:10px">Otwórz dział <b>Badania i rozwój</b> w zakładce Zespół, żeby zdobywać punkty badań. 🔬</div>'
-    : '<div class="card-sub" style="margin:8px 2px 0">Odkryte technologie zostają z Tobą także po rundzie finansowania.</div>'}`;
+      ${!s.deptUnlocked.rnd ? `<div class="hint" style="margin-top:10px">${t('rs.needRnd')}</div>`
+    : `<div class="card-sub" style="margin:8px 2px 0">${t('rs.persist')}</div>`}`;
     if (head.innerHTML !== headHtml) head.innerHTML = headHtml;
 
     const done = TECHS.filter((t) => s.techs[t.id]).map((t) => t.id);
@@ -619,32 +667,32 @@ export class UI {
         const techs = TECHS.filter((t) => t.era === era.id);
         const cnt = techs.filter((t) => s.techs[t.id]).length;
         if (era.id > maxEra + 1) {
-          html += `<div class="era-head" style="opacity:.45"><span class="era-ico">🔒</span><h3>Era ${era.id}: ${esc(era.name)}</h3><span class="era-count">${cnt}/${techs.length}</span></div>`;
+          html += `<div class="era-head" style="opacity:.45"><span class="era-ico">🔒</span><h3>${esc(t('rs.lockedEra', { n: era.id, name: TX.eraName(era.id) }))}</h3><span class="era-count">${cnt}/${techs.length}</span></div>`;
           continue;
         }
-        html += `<div class="era-head"><span class="era-ico">${era.icon}</span><h3>${esc(era.name)}</h3><span class="era-count">${cnt}/${techs.length}</span></div><div class="tech-grid">`;
-        for (const t of techs) {
-          const isDone = !!s.techs[t.id];
-          const isAvail = !isDone && g.techAvailable(t.id);
+        html += `<div class="era-head"><span class="era-ico">${era.icon}</span><h3>${esc(TX.eraName(era.id))}</h3><span class="era-count">${cnt}/${techs.length}</span></div><div class="tech-grid">`;
+        for (const tech of techs) {
+          const isDone = !!s.techs[tech.id];
+          const isAvail = !isDone && g.techAvailable(tech.id);
           const cls = isDone ? 'done' : isAvail ? '' : 'locked';
-          const req = !isDone && !isAvail ? `<div class="req">Wymaga: ${t.req.filter((r) => !s.techs[r]).map((r) => esc(TECH_MAP[r].name)).join(', ')}</div>` : '';
-          html += `<div class="tech ${cls}" data-tid="${t.id}">
+          const req = !isDone && !isAvail ? `<div class="req">${esc(t('rs.requires', { list: tech.req.filter((r) => !s.techs[r]).map((r) => TX.techName(r)).join(', ') }))}</div>` : '';
+          html += `<div class="tech ${cls}" data-tid="${tech.id}">
             ${isDone ? '<span class="check">✓</span>' : ''}
-            <div class="tech-top"><div class="tech-ico">${t.icon}</div><h4>${esc(t.name)}</h4></div>
-            <div class="fx">${esc(g.describeFx(t.fx))}</div>
+            <div class="tech-top"><div class="tech-ico">${tech.icon}</div><h4>${esc(TX.techName(tech.id))}</h4></div>
+            <div class="fx">${esc(TX.describeFx(tech.fx))}</div>
             ${req}
-            ${isAvail ? `<button class="btn violet" data-act="research" data-id="${t.id}">${fmt(t.cost)} PB</button>` : ''}
+            ${isAvail ? `<button class="btn violet" data-act="research" data-id="${tech.id}">${fmt(tech.cost)} ${t('unit.rp')}</button>` : ''}
           </div>`;
         }
         html += '</div>';
       }
       if (repeats.length) {
-        html += '<div class="era-head"><span class="era-ico">♾️</span><h3>Badania bez końca</h3></div><div class="tech-grid">';
+        html += `<div class="era-head"><span class="era-ico">♾️</span><h3>${t('rs.infinite')}</h3></div><div class="tech-grid">`;
         for (const r of repeats) {
           html += `<div class="tech" data-rid="${r.id}">
-            <div class="tech-top"><div class="tech-ico">${r.icon}</div><h4>${esc(r.name)} <span class="perk-lvl">poz. ${s.techLevels[r.id] || 0}</span></h4></div>
-            <div class="fx">${esc(r.desc)}</div>
-            <button class="btn violet" data-act="research-repeat" data-id="${r.id}">${fmt(g.repeatCost(r.id))} PB</button>
+            <div class="tech-top"><div class="tech-ico">${r.icon}</div><h4>${esc(TX.repeatName(r.id))} <span class="perk-lvl">${t('rs.level', { n: s.techLevels[r.id] || 0 })}</span></h4></div>
+            <div class="fx">${esc(TX.repeatDesc(r.id))}</div>
+            <button class="btn violet" data-act="research-repeat" data-id="${r.id}">${fmt(g.repeatCost(r.id))} ${t('unit.rp')}</button>
           </div>`;
         }
         html += '</div>';
@@ -664,7 +712,7 @@ export class UI {
   // ---------------------------------------------------------------------
   upgradeTile(u) {
     if (u.kind === 'product') return grad(CATEGORIES[u.cat].grad);
-    if (u.kind === 'dept') return grad([DEPT_MAP[u.req.dept].color, '#2b2f5c']);
+    if (u.kind === 'dept') return grad([DEPT_MAP[u.did].color, '#2b2f5c']);
     if (u.kind === 'click') return grad(['#22d3ee', '#3b5bdb']);
     return grad(['#f59e0b', '#db2777']);
   }
@@ -680,24 +728,24 @@ export class UI {
       this.sigs.upgrades = sig;
       let html = '';
       if (!avail.length) {
-        html += '<div class="hint">Brak dostępnych ulepszeń. Rozwijaj produkty i działy — nowe ulepszenia pojawią się same. ✨</div>';
+        html += `<div class="hint">${t('up.none')}</div>`;
       } else {
         html += '<div class="up-grid">' + avail.map((u) => `
           <div class="up" data-uid="${u.id}">
             <div class="tile" style="${this.upgradeTile(u)}">${u.icon}</div>
-            <div><h4>${esc(u.name)}</h4><p>${esc(u.desc)}</p></div>
+            <div><h4>${esc(TX.upgradeName(u))}</h4><p>${esc(TX.upgradeDesc(u))}</p></div>
             <button class="btn" data-act="buy-upgrade" data-id="${u.id}">${money(u.cost)}</button>
           </div>`).join('') + '</div>';
       }
       if (ownedIds.length) {
-        html += `<div class="section-title">Kupione · ${ownedIds.length}</div><div class="owned-list">`
-          + ownedIds.map((id) => UPGRADES.find((u) => u.id === id)).filter(Boolean).map((u) => `<span title="${esc(u.name)}">${u.icon}</span>`).join('') + '</div>';
+        html += `<div class="section-title">${t('up.owned', { n: ownedIds.length })}</div><div class="owned-list">`
+          + ownedIds.map((id) => UPGRADE_MAP[id]).filter(Boolean).map((u) => `<span title="${esc(TX.upgradeName(u))}">${u.icon}</span>`).join('') + '</div>';
       }
       root.innerHTML = html;
     }
     let can = 0;
     for (const el of root.querySelectorAll('[data-uid]')) {
-      const u = UPGRADES.find((x) => x.id === el.dataset.uid);
+      const u = UPGRADE_MAP[el.dataset.uid];
       const ok = s.cash >= u.cost;
       if (ok) can++;
       el.classList.toggle('can', ok);
@@ -705,7 +753,7 @@ export class UI {
     }
     const all = $('buy-all-btn');
     all.classList.toggle('off', can === 0);
-    this.setText(all, can > 0 ? `Kup wszystkie (${can})` : 'Kup wszystkie');
+    this.setText(all, can > 0 ? t('buyAllN', { n: can }) : t('buyAll'));
   }
 
   // ---------------------------------------------------------------------
@@ -751,7 +799,7 @@ export class UI {
     const s = g.s;
     const gain = g.prestigeGain();
     const per = INVESTOR_BONUS + g.m.investorPct;
-    const sig = `inv|${JSON.stringify(s.perks)}|${s.prestigeCount}`;
+    const sig = `inv|${JSON.stringify(s.perks)}|${s.prestigeCount}|${getLang()}`;
     this.setBody(sig, `
       <div class="inv-card">
         <div class="round" data-v="round"></div>
@@ -759,42 +807,52 @@ export class UI {
         <div class="sub" data-v="invsub"></div>
       </div>
       <div class="kv">
-        <span>Wycena firmy</span><b data-v="val"></b>
-        <span>Zarobione w tej rundzie</span><b data-v="run"></b>
-        <span>Zarobione łącznie</span><b data-v="total"></b>
-        <span>Kolejny punkt kapitału przy</span><b data-v="next"></b>
-        <span data-v="boardl">Bonus zarządu</span><b data-v="board"></b>
+        <span>${t('inv.valuation')}</span><b data-v="val"></b>
+        <span class="kv-sub">${t('inv.assets')}</span><b class="kv-sub" data-v="assets"></b>
+        <span class="kv-sub">${t('inv.annual')}</span><b class="kv-sub" data-v="annual"></b>
+        <span class="kv-sub">${t('inv.multiple')}</span><b class="kv-sub" data-v="mult"></b>
+      </div>
+      <p class="card-sub" style="margin:8px 2px 0">${t('inv.valNote')}</p>
+      <div class="kv">
+        <span>${t('inv.run')}</span><b data-v="run"></b>
+        <span>${t('inv.total')}</span><b data-v="total"></b>
+        <span>${t('inv.next')}</span><b data-v="next"></b>
+        <span data-v="boardl">${t('inv.board')}</span><b data-v="board"></b>
       </div>
       <div style="margin-top:12px">
-        <button class="btn gold btn-wide" data-act="prestige" data-v="pbtn">Zbierz rundę finansowania</button>
+        <button class="btn gold btn-wide" data-act="prestige" data-v="pbtn">${t('inv.raise')}</button>
       </div>
-      <p class="card-sub" style="margin:10px 2px">Runda zaczyna firmę od nowa (gotówka, produkty, działy, ulepszenia, przejęcia), ale <b style="color:var(--text)">technologie, punkty badań i osiągnięcia zostają</b>, a kapitał inwestorów trwale zwiększa przychód.</p>
-      <div class="section-title">Rada nadzorcza <span style="color:var(--gold)" data-v="shares"></span></div>
+      <p class="card-sub" style="margin:10px 2px">${t('inv.explain')}</p>
+      <div class="section-title">${t('inv.boardTitle')} <span style="color:var(--gold)" data-v="shares"></span></div>
       <div class="list">
         ${PERKS.map((p) => {
     const lvl = s.perks[p.id] || 0;
     const maxed = lvl >= p.max;
     return `<div class="card">
             <div class="tile" style="${grad(['#f59e0b', '#7c3aed'])}">${p.icon}</div>
-            <div class="card-title"><h3>${esc(p.name)}</h3><span class="perk-lvl">${lvl}/${p.max}</span></div>
-            <div class="card-sub">${esc(p.desc)}</div>
+            <div class="card-title"><h3>${esc(TX.perkName(p.id))}</h3><span class="perk-lvl">${lvl}/${p.max}</span></div>
+            <div class="card-sub">${esc(TX.perkDesc(p.id))}</div>
             <div class="card-foot"><div class="prog"><div class="prog-bar"><i style="width:${(lvl / p.max) * 100}%"></i></div></div>
-              ${maxed ? '<button class="btn off">Maks.</button>' : `<button class="btn gold" data-act="buy-perk" data-id="${p.id}" data-v="perk-${p.id}">${fmt(g.perkCost(p.id))} 💎</button>`}
+              ${maxed ? `<button class="btn off">${t('inv.max')}</button>` : `<button class="btn gold" data-act="buy-perk" data-id="${p.id}" data-v="perk-${p.id}">${fmt(g.perkCost(p.id))} 💎</button>`}
             </div></div>`;
   }).join('')}
       </div>`);
+    const vp = g.valuationParts();
     const vals = {
-      round: `Następna runda: ${roundName(s.prestigeCount)}`,
+      round: t('inv.nextRound', { r: TX.roundName(s.prestigeCount) }),
       gain: `+${fmt(gain)} 💎`,
-      invsub: { html: `Obecnie ${fmt(s.investors)} kapitału = przychód ×${fmt(g.m.invMult)}<br>Każdy punkt: +${String(Math.round(per * 1000) / 10).replace('.', ',')}% przychodu` },
-      val: money(g.valuation()),
+      invsub: { html: `${t('inv.now', { n: fmt(s.investors), x: fmt(g.m.invMult) })}<br>${t('inv.perPoint', { p: num(per * 100) })}` },
+      val: money(vp.total),
+      assets: money(vp.assets),
+      annual: money(vp.annual),
+      mult: `×${num(vp.multiple)}`,
       run: money(s.runEarned),
       total: money(s.totalEarned),
       next: money(g.nextPrestigeAt()),
       board: { text: `×${fmt(g.m.prestige)}`, hidden: !(g.m.prestige > 1) },
       boardl: { hidden: !(g.m.prestige > 1) },
       pbtn: { off: gain < 1 },
-      shares: `${fmt(s.shares)} udziałów`,
+      shares: t('inv.shares', { n: fmt(s.shares) }),
     };
     for (const p of PERKS) vals[`perk-${p.id}`] = { off: s.shares < g.perkCost(p.id) };
     this.patch(vals);
@@ -805,42 +863,43 @@ export class UI {
     const s = g.s;
     const now = Date.now();
     if (!g.contractsUnlocked()) {
-      this.setBody('con-locked', '<div class="hint">🤝 Otwórz dział <b>Sprzedaż</b> w zakładce Zespół, żeby otrzymywać zapytania ofertowe od klientów.<br><br>Kontrakty to zlecenia na określony czas — po ukończeniu dostajesz sowitą zapłatę, także gdy gra jest zamknięta.</div>');
+      this.setBody(`con-locked|${getLang()}`, `<div class="hint">${t('con.locked')}</div>`);
       return;
     }
     const c = s.contracts;
     const full = c.active.length >= g.m.slots;
-    const sig = `con|${c.offers.map((o) => o.id).join(',')}|${c.active.map((a) => a.id).join(',')}|${full}`;
-    let html = '<div class="kv"><span>Miejsca na kontrakty</span><b data-v="slots"></b><span>Mnożnik nagród</span><b data-v="cmult"></b></div>';
-    html += '<div class="section-title">W realizacji</div>';
-    if (!c.active.length) html += '<div class="hint">Brak aktywnych kontraktów.</div>';
+    const rp = t('unit.rp');
+    const sig = `con|${c.offers.map((o) => o.id).join(',')}|${c.active.map((a) => a.id).join(',')}|${full}|${getLang()}`;
+    let html = `<div class="kv"><span>${t('con.slots')}</span><b data-v="slots"></b><span>${t('con.mult')}</span><b data-v="cmult"></b></div>`;
+    html += `<div class="section-title">${t('con.active')}</div>`;
+    if (!c.active.length) html += `<div class="hint">${t('con.noActive')}</div>`;
     else {
-      html += '<div class="list">' + c.active.map((a) => `<div class="contract"><div class="ico">${a.icon}</div><h4>${esc(a.client)}</h4><p>${esc(a.task)} · <span class="reward">+${money(a.reward)}</span>${a.rpReward ? ` · <span style="color:var(--rp)">+${fmt(a.rpReward)} PB</span>` : ''}</p>
+      html += '<div class="list">' + c.active.map((a) => `<div class="contract"><div class="ico">${a.icon}</div><h4>${esc(TX.clientName(a))}</h4><p>${esc(TX.taskName(a))} · <span class="reward">+${money(a.reward)}</span>${a.rpReward ? ` · <span style="color:var(--rp)">+${fmt(a.rpReward)} ${rp}</span>` : ''}</p>
           <div class="row"><div class="prog"><div class="prog-bar"><i data-v="abar-${a.id}"></i></div><div class="prog-label" data-v="aleft-${a.id}"></div></div></div></div>`).join('') + '</div>';
     }
-    html += '<div class="section-title">Zapytania ofertowe</div>';
+    html += `<div class="section-title">${t('con.offers')}</div>`;
     if (!c.offers.length) html += '<div class="hint" data-v="nextoffer"></div>';
     else {
-      html += '<div class="list">' + c.offers.map((o) => `<div class="contract"><div class="ico">${o.icon}</div><h4>${esc(o.client)}</h4><p>Zamawia ${esc(o.task)} · czas: ${fmtTime(o.dur)}</p>
-          <div class="row"><div style="flex:1;font-size:13px">Nagroda: <span data-v="orew-${o.id}"></span><div class="prog-label" data-v="oexp-${o.id}"></div></div>
-          <button class="btn btn-small ghost" data-act="decline-contract" data-id="${o.id}" aria-label="Odrzuć">✕</button>
-          <button class="btn btn-small ${full ? 'off' : ''}" data-act="accept-contract" data-id="${o.id}">Przyjmij</button></div></div>`).join('') + '</div>';
-      if (full) html += '<p class="card-sub" style="margin:8px 2px">Wszystkie miejsca zajęte — zatrudnij więcej handlowców (co 25 osób = +1 miejsce).</p>';
+      html += '<div class="list">' + c.offers.map((o) => `<div class="contract"><div class="ico">${o.icon}</div><h4>${esc(TX.clientName(o))}</h4><p>${esc(t('con.order', { task: TX.taskName(o), t: fmtTime(o.dur) }))}</p>
+          <div class="row"><div style="flex:1;font-size:13px">${t('con.reward')} <span data-v="orew-${o.id}"></span><div class="prog-label" data-v="oexp-${o.id}"></div></div>
+          <button class="btn btn-small ghost" data-act="decline-contract" data-id="${o.id}" aria-label="${t('con.decline')}">✕</button>
+          <button class="btn btn-small ${full ? 'off' : ''}" data-act="accept-contract" data-id="${o.id}">${t('con.accept')}</button></div></div>`).join('') + '</div>';
+      if (full) html += `<p class="card-sub" style="margin:8px 2px">${t('con.full')}</p>`;
     }
     this.setBody(sig, html);
     const vals = {
       slots: `${c.active.length}/${g.m.slots}`,
       cmult: `×${fmt(g.m.contract)}`,
-      nextoffer: `Czekasz na zapytania… Kolejne za ok. ${fmtClock(Math.max(0, (c.nextOfferAt - now) / 1000))}.`,
+      nextoffer: t('con.waiting', { t: fmtClock(Math.max(0, (c.nextOfferAt - now) / 1000)) }),
     };
     for (const a of c.active) {
       vals[`abar-${a.id}`] = { width: `${Math.min(1, (now - a.start) / (a.end - a.start)) * 100}%` };
-      vals[`aleft-${a.id}`] = `Zostało ${fmtClock((a.end - now) / 1000)}`;
+      vals[`aleft-${a.id}`] = t('con.left', { t: fmtClock((a.end - now) / 1000) });
     }
     for (const o of c.offers) {
       const r = g.contractReward(o);
-      vals[`orew-${o.id}`] = { html: `<span class="reward">+${money(r.cash)}</span>${r.rp ? ` <span style="color:var(--rp);font-weight:800">+${fmt(r.rp)} PB</span>` : ''}` };
-      vals[`oexp-${o.id}`] = `Oferta wygasa za ${fmtClock((o.expires - now) / 1000)}`;
+      vals[`orew-${o.id}`] = { html: `<span class="reward">+${money(r.cash)}</span>${r.rp ? ` <span style="color:var(--rp);font-weight:800">+${fmt(r.rp)} ${rp}</span>` : ''}` };
+      vals[`oexp-${o.id}`] = t('con.expires', { t: fmtClock((o.expires - now) / 1000) });
     }
     this.patch(vals);
   }
@@ -849,17 +908,17 @@ export class UI {
     const g = this.g;
     const s = g.s;
     if (!g.acqUnlocked()) {
-      this.setBody('acq-locked', '<div class="hint">⚖️ Otwórz <b>Dział prawny</b>, żeby przejmować inne firmy. Każde przejęcie to potężny bonus do końca rundy.</div>');
+      this.setBody(`acq-locked|${getLang()}`, `<div class="hint">${t('acq.locked')}</div>`);
       return;
     }
-    this.setBody(`acq|${Object.keys(s.acquisitions).join(',')}`, '<div class="list">' + ACQUISITIONS.map((a) => {
+    this.setBody(`acq|${Object.keys(s.acquisitions).join(',')}|${getLang()}`, '<div class="list">' + ACQUISITIONS.map((a) => {
       const own = !!s.acquisitions[a.id];
       return `<div class="card">
         <div class="tile" style="${grad(['#0ea5e9', '#6d28d9'])}">${a.icon}</div>
-        <div class="card-title"><h3>${esc(a.name)}</h3>${own ? '<span class="lvl" style="color:var(--money)">✓ Twoja</span>' : ''}</div>
-        <div class="card-sub">${esc(g.describeFx(a.fx))}</div>
-        <div class="card-desc">${esc(a.desc)}</div>
-        <div class="card-foot"><div class="prog"></div>${own ? '' : `<button class="btn violet" data-act="buy-acq" data-id="${a.id}" data-v="acq-${a.id}"><span>Przejmij</span><small>${money(g.acqCost(a.id))}</small></button>`}</div>
+        <div class="card-title"><h3>${esc(TX.acqName(a.id))}</h3>${own ? `<span class="lvl" style="color:var(--money)">${t('acq.yours')}</span>` : ''}</div>
+        <div class="card-sub">${esc(TX.describeFx(a.fx))}</div>
+        <div class="card-desc">${esc(TX.acqDesc(a.id))}</div>
+        <div class="card-foot"><div class="prog"></div>${own ? '' : `<button class="btn violet" data-act="buy-acq" data-id="${a.id}" data-v="acq-${a.id}"><span>${t('acq.buy')}</span><small>${money(g.acqCost(a.id))}</small></button>`}</div>
       </div>`;
     }).join('') + '</div>');
     const vals = {};
@@ -871,60 +930,67 @@ export class UI {
     const g = this.g;
     const s = g.s;
     const count = g.achCount();
-    const html = `<div class="kv"><span>Zdobyte osiągnięcia</span><b>${count}/${ACHIEVEMENTS.length}</b><span>Bonus do przychodu</span><b>+${Math.round(count * ACH_BONUS * 100)}%</b></div>
-      <p class="card-sub" style="margin:10px 2px">Dotknij ikony, żeby zobaczyć szczegóły.</p>
+    const html = `<div class="kv"><span>${t('ach.count')}</span><b>${count}/${ACHIEVEMENTS.length}</b><span>${t('ach.bonus')}</span><b>+${Math.round(count * ACH_BONUS * 100)}%</b></div>
+      <p class="card-sub" style="margin:10px 2px">${t('ach.tap')}</p>
       <div class="ach-grid">${ACHIEVEMENTS.map((a) => {
     const got = !!s.achievements[a.id];
     return `<button class="ach ${got ? 'got' : 'locked'}" data-act="ach-info" data-id="${a.id}">${got || !a.hidden ? a.icon : '❓'}</button>`;
   }).join('')}</div>`;
-    this.setBody(`ach|${count}`, html);
+    this.setBody(`ach|${count}|${getLang()}`, html);
   }
 
   renderStats() {
     const g = this.g;
     const s = g.s;
     const st = s.stats;
+    const row = (k, v) => `<span>${t(`st.${k}`)}</span><b>${v}</b>`;
     const html = `<div class="kv">
-      <span>Przychód</span><b>${money(g.income)}/s</b>
-      <span>Rekordowy przychód</span><b>${money(st.maxIncome)}/s</b>
-      <span>Wartość kliknięcia</span><b>${money(g.clickValue)}</b>
-      <span>Auto-kliknięcia</span><b>${fmt(g.m.auto)}/s</b>
-      <span>Zarobione łącznie</span><b>${money(s.totalEarned)}</b>
-      <span>Zarobione w tej rundzie</span><b>${money(s.runEarned)}</b>
-      <span>Najlepsza runda</span><b>${money(Math.max(st.bestRun, s.runEarned))}</b>
-      <span>Kliknięcia</span><b>${fmtInt(st.clicks)}</b>
-      <span>Pracownicy</span><b>${fmtInt(g.totalHeads())}</b>
-      <span>Zatrudnieni łącznie</span><b>${fmtInt(st.hired)}</b>
-      <span>Kupione ulepszenia</span><b>${fmtInt(st.upgradesBought)}</b>
-      <span>Technologie</span><b>${g.techCount()}/${TECHS.length}</b>
-      <span>Złapane wydarzenia</span><b>${fmtInt(st.bubbles)}</b>
-      <span>Ukończone kontrakty</span><b>${fmtInt(st.contracts)}</b>
-      <span>Rundy finansowania</span><b>${s.prestigeCount}</b>
-      <span>Limit zarobku offline</span><b>${fmtTime(g.m.offlineCap)}</b>
-      <span>Wydajność offline</span><b>${Math.round(g.m.offlineEff * 100)}%</b>
-      <span>Czas gry</span><b>${fmtTime(st.playTime)}</b>
-      <span>Firma założona</span><b>${new Date(st.startedAt).toLocaleDateString('pl-PL')}</b>
+      ${row('income', `${money(g.income)}/s`)}
+      ${row('maxIncome', `${money(st.maxIncome)}/s`)}
+      ${row('click', money(g.clickValue))}
+      ${row('auto', `${fmt(g.m.auto)}/s`)}
+      ${row('total', money(s.totalEarned))}
+      ${row('run', money(s.runEarned))}
+      ${row('bestRun', money(Math.max(st.bestRun, s.runEarned)))}
+      ${row('clicks', fmtInt(st.clicks))}
+      ${row('staff', fmtInt(g.totalHeads()))}
+      ${row('hired', fmtInt(st.hired))}
+      ${row('upgrades', fmtInt(st.upgradesBought))}
+      ${row('techs', `${g.techCount()}/${TECHS.length}`)}
+      ${row('bubbles', fmtInt(st.bubbles))}
+      ${row('contracts', fmtInt(st.contracts))}
+      ${row('rounds', s.prestigeCount)}
+      ${row('offlineCap', fmtTime(g.m.offlineCap))}
+      ${row('offlineEff', `${Math.round(g.m.offlineEff * 100)}%`)}
+      ${row('playTime', fmtTime(st.playTime))}
+      ${row('founded', new Date(st.startedAt).toLocaleDateString(getLang() === 'en' ? 'en-US' : 'pl-PL'))}
     </div>`;
     this.setBody(`stats|${Math.floor(Date.now() / 1000)}`, html);
+  }
+
+  langSeg(act) {
+    const cur = getLang();
+    return `<div class="seg">${LANGS.map(([code, label]) => `<button data-act="${act}" data-v="${code}" class="${code === cur ? 'on' : ''}">${label}</button>`).join('')}</div>`;
   }
 
   renderSettings() {
     const s = this.g.s;
     const html = `
-      <div class="section-title">Firma</div>
+      <div class="section-title">${t('set.company')}</div>
       <div class="setting" style="flex-direction:column;align-items:stretch">
-        <div>Nazwa firmy<p>Widoczna na szyldzie budynku i w wiadomościach.</p></div>
-        <div style="display:flex;gap:8px"><input class="text-input" id="rename-input" maxlength="28" value="${esc(s.companyName)}" enterkeyhint="done"><button class="btn btn-small violet" data-act="rename">Zapisz</button></div>
+        <div>${t('set.name')}<p>${t('set.nameHint')}</p></div>
+        <div style="display:flex;gap:8px"><input class="text-input" id="rename-input" maxlength="28" value="${esc(s.companyName)}" enterkeyhint="done"><button class="btn btn-small violet" data-act="rename">${t('set.save')}</button></div>
       </div>
-      <div class="section-title">Gra</div>
-      <div class="setting"><div>Dźwięki<p>Delikatne efekty przy klikaniu i zakupach.</p></div><button class="switch ${s.settings.sound ? 'on' : ''}" data-act="toggle-sound" aria-label="Dźwięki"></button></div>
-      <div class="setting"><div>Instalacja na iPhonie<p>Jak dodać grę do ekranu początkowego.</p></div><button class="btn btn-small ghost" data-act="install-help">Pokaż</button></div>
-      <div class="section-title">Zapis gry</div>
-      <div class="setting"><div>Eksport zapisu<p>Kopia zapasowa jako tekst — zachowaj ją w Notatkach.</p></div><button class="btn btn-small ghost" data-act="export">Eksportuj</button></div>
-      <div class="setting"><div>Import zapisu<p>Wczytaj wcześniej wyeksportowany tekst.</p></div><button class="btn btn-small ghost" data-act="import">Importuj</button></div>
-      <div class="setting"><div>Zacznij od nowa<p>Usuwa cały postęp. Nie da się cofnąć.</p></div><button class="btn btn-small danger" data-act="reset">Resetuj</button></div>
-      <p class="card-sub" style="text-align:center;margin-top:18px">Krzemowe Imperium · wersja ${esc(this.hooks.version || '1.0')}<br>Gra zapisuje się automatycznie na tym urządzeniu.</p>`;
-    this.setBody(`settings|${s.settings.sound}`, html);
+      <div class="section-title">${t('set.game')}</div>
+      <div class="setting"><div>${t('set.lang')}<p>${t('set.langHint')}</p></div>${this.langSeg('set-lang')}</div>
+      <div class="setting"><div>${t('set.sound')}<p>${t('set.soundHint')}</p></div><button class="switch ${s.settings.sound ? 'on' : ''}" data-act="toggle-sound" aria-label="${t('set.sound')}"></button></div>
+      <div class="setting"><div>${t('set.install')}<p>${t('set.installHint')}</p></div><button class="btn btn-small ghost" data-act="install-help">${t('set.show')}</button></div>
+      <div class="section-title">${t('set.saveTitle')}</div>
+      <div class="setting"><div>${t('set.export')}<p>${t('set.exportHint')}</p></div><button class="btn btn-small ghost" data-act="export">${t('set.exportBtn')}</button></div>
+      <div class="setting"><div>${t('set.import')}<p>${t('set.importHint')}</p></div><button class="btn btn-small ghost" data-act="import">${t('set.importBtn')}</button></div>
+      <div class="setting"><div>${t('set.reset')}<p>${t('set.resetHint')}</p></div><button class="btn btn-small danger" data-act="reset">${t('set.resetBtn')}</button></div>
+      <p class="card-sub" style="text-align:center;margin-top:18px">${esc(t('appName'))} · ${t('set.footer', { v: esc(this.hooks.version || '1.0') })}</p>`;
+    this.setBody(`settings|${s.settings.sound}|${getLang()}`, html);
   }
 
   rename() {
@@ -935,7 +1001,7 @@ export class UI {
       s.companyName = v.slice(0, 28);
       s.flags.renamed = true;
       this.scene.render(this.g, true);
-      this.toast('🪪', 'Nowa nazwa firmy', s.companyName, 'info');
+      this.toast('🪪', t('toast.renamed'), s.companyName, 'info');
       this.hooks.save?.();
     }
     document.activeElement?.blur();
@@ -1013,36 +1079,31 @@ export class UI {
     $('modal-body').innerHTML = '';
   }
 
-  showWelcome() {
-    const names = ['Bajt i Synowie', 'Pixel & Spółka', 'Chmurka Software', 'Kod z Garażu', 'Nowa Dolina', 'Startup Marzeń'];
-    const name = names[Math.floor(Math.random() * names.length)];
+  showWelcome(keepName = null) {
+    const names = t('companyNames');
+    const name = keepName || names[Math.floor(Math.random() * names.length)];
     this.openModal(`
+      <div style="display:flex;justify-content:center;margin-bottom:6px">${this.langSeg('welcome-lang')}</div>
       <div class="hero">🚀</div>
-      <h2>Krzemowe Imperium</h2>
-      <p style="text-align:center">Wszystko zaczyna się w garażu: laptop, kawa i wielki pomysł.</p>
-      <ul>
-        <li><b>Koduj</b> — stukaj w fioletowy przycisk, żeby zarobić pierwsze pieniądze.</li>
-        <li><b>Produkty</b> zarabiają same, nawet gdy gra jest zamknięta.</li>
-        <li><b>Działy</b> to nowe piętra budynku i potężne bonusy.</li>
-        <li><b>Badania</b> odblokowują kolejne technologie — od HTML po superinteligencję.</li>
-        <li>Łap płonące <b>bąbelki</b> — to virale, inwestorzy i hackathony!</li>
-      </ul>
-      <p style="margin-bottom:6px">Jak nazywa się Twoja firma?</p>
+      <h2>${esc(t('appName'))}</h2>
+      <p style="text-align:center">${t('w.lead')}</p>
+      <ul>${t('w.tips').map((tip) => `<li>${tip}</li>`).join('')}</ul>
+      <p style="margin-bottom:6px">${t('w.name')}</p>
       <input class="text-input" id="welcome-name" maxlength="28" value="${esc(name)}" enterkeyhint="done">
-      <div class="actions"><button class="btn violet btn-wide" data-act="welcome-start">Zaczynamy!</button></div>`);
+      <div class="actions"><button class="btn violet btn-wide" data-act="welcome-start">${t('w.start')}</button></div>`);
   }
 
   showOffline(r) {
     if (!r || r.elapsed < 60 || !(r.cash > 0 || r.rp > 0)) return;
     this.openModal(`
       <div class="hero">🌙</div>
-      <h2>Witaj z powrotem!</h2>
-      <p style="text-align:center">Nie było Cię ${fmtTime(r.elapsed)}. W tym czasie firma zarobiła:</p>
+      <h2>${t('o.title')}</h2>
+      <p style="text-align:center">${t('o.away', { t: fmtTime(r.elapsed) })}</p>
       <div class="big-money">+${money(r.cash)}</div>
-      ${r.rp > 0 ? `<p style="text-align:center;color:var(--rp);font-weight:800;margin:6px 0">+${fmt(r.rp)} punktów badań</p>` : ''}
-      ${r.contracts ? `<p style="text-align:center">Ukończone kontrakty: <b style="color:var(--text)">${r.contracts}</b></p>` : ''}
-      <p style="text-align:center;font-size:12.5px">Zarobek offline: ${Math.round(r.eff * 100)}% wydajności, limit ${fmtTime(r.cap)}${r.elapsed > r.cap ? ' (osiągnięty)' : ''}.</p>
-      <div class="actions"><button class="btn btn-wide" data-act="modal-close">Super!</button></div>`);
+      ${r.rp > 0 ? `<p style="text-align:center;color:var(--rp);font-weight:800;margin:6px 0">${t('o.rp', { v: fmt(r.rp) })}</p>` : ''}
+      ${r.contracts ? `<p style="text-align:center">${t('o.contracts', { n: r.contracts })}</p>` : ''}
+      <p style="text-align:center;font-size:12.5px">${t('o.note', { p: Math.round(r.eff * 100), t: fmtTime(r.cap), reached: r.elapsed > r.cap ? t('o.reached') : '' })}</p>
+      <div class="actions"><button class="btn btn-wide" data-act="modal-close">${t('o.ok')}</button></div>`);
     play('coin');
   }
 
@@ -1051,35 +1112,32 @@ export class UI {
     const s = g.s;
     const gain = g.prestigeGain();
     if (gain < 1) {
-      this.toast('💎', 'Za wcześnie na rundę', `Pierwszy punkt kapitału przy łącznych zarobkach ${money(g.nextPrestigeAt())}`, 'info');
+      this.toast('💎', t('toast.tooEarly'), t('toast.tooEarlyText', { v: money(g.nextPrestigeAt()) }), 'info');
       return;
     }
     const per = INVESTOR_BONUS + g.m.investorPct;
     const after = 1 + (s.investors + gain) * per;
     this.openModal(`
       <div class="hero">🦄</div>
-      <h2>Runda: ${esc(roundName(s.prestigeCount))}</h2>
-      <p style="text-align:center">Inwestorzy są gotowi wyłożyć pieniądze. Zyskasz:</p>
+      <h2>${esc(t('p.title', { r: TX.roundName(s.prestigeCount) }))}</h2>
+      <p style="text-align:center">${t('p.lead')}</p>
       <div class="big-money" style="color:var(--gold)">+${fmt(gain)} 💎</div>
-      <p style="text-align:center">Przychód ×${fmt(g.m.invMult)} → <b style="color:var(--text)">×${fmt(after)}</b> oraz ${fmt(gain)} udziałów dla rady nadzorczej.</p>
-      <ul>
-        <li><b>Resetuje się:</b> gotówka, produkty, działy, ulepszenia, przejęcia.</li>
-        <li><b>Zostaje:</b> technologie, punkty badań, osiągnięcia, kapitał i rada nadzorcza.</li>
-      </ul>
+      <p style="text-align:center">${t('p.gain', { a: fmt(g.m.invMult), b: fmt(after), n: fmt(gain) })}</p>
+      <ul><li>${t('p.resets')}</li><li>${t('p.keeps')}</li></ul>
       <div class="actions">
-        <button class="btn gold btn-wide" data-act="prestige-confirm">Zbierz rundę</button>
-        <button class="btn ghost btn-wide" data-act="modal-close">Jeszcze nie</button>
+        <button class="btn gold btn-wide" data-act="prestige-confirm">${t('p.confirm')}</button>
+        <button class="btn ghost btn-wide" data-act="modal-close">${t('p.cancel')}</button>
       </div>`);
   }
 
   confirmReset() {
     this.openModal(`
       <div class="hero">⚠️</div>
-      <h2>Zacząć od nowa?</h2>
-      <p style="text-align:center">Cały postęp — łącznie z technologiami, kapitałem i osiągnięciami — zostanie usunięty. Tego nie da się cofnąć.</p>
+      <h2>${t('r.title')}</h2>
+      <p style="text-align:center">${t('r.text')}</p>
       <div class="actions">
-        <button class="btn danger btn-wide" data-act="reset-confirm">Tak, usuń wszystko</button>
-        <button class="btn ghost btn-wide" data-act="modal-close">Anuluj</button>
+        <button class="btn danger btn-wide" data-act="reset-confirm">${t('r.confirm')}</button>
+        <button class="btn ghost btn-wide" data-act="modal-close">${t('cancel')}</button>
       </div>`);
   }
 
@@ -1087,12 +1145,12 @@ export class UI {
     const code = this.hooks.exportSave?.() || '';
     this.openModal(`
       <div class="hero">💾</div>
-      <h2>Eksport zapisu</h2>
-      <p>Skopiuj ten tekst i zachowaj w bezpiecznym miejscu (np. w Notatkach).</p>
+      <h2>${t('e.title')}</h2>
+      <p>${t('e.text')}</p>
       <textarea class="text-input" id="export-text" readonly>${esc(code)}</textarea>
       <div class="actions">
-        <button class="btn violet btn-wide" data-act="copy-export">Kopiuj</button>
-        <button class="btn ghost btn-wide" data-act="modal-close">Zamknij</button>
+        <button class="btn violet btn-wide" data-act="copy-export">${t('e.copy')}</button>
+        <button class="btn ghost btn-wide" data-act="modal-close">${t('close')}</button>
       </div>`);
   }
 
@@ -1101,24 +1159,24 @@ export class UI {
     if (!ta) return;
     try {
       await navigator.clipboard.writeText(ta.value);
-      this.toast('📋', 'Skopiowano zapis', '', 'info');
+      this.toast('📋', t('toast.copied'), '', 'info');
     } catch {
       ta.focus();
       ta.select();
       ta.setSelectionRange(0, ta.value.length);
-      try { document.execCommand('copy'); this.toast('📋', 'Skopiowano zapis', '', 'info'); } catch { this.toast('📋', 'Zaznacz i skopiuj ręcznie', '', 'info'); }
+      try { document.execCommand('copy'); this.toast('📋', t('toast.copied'), '', 'info'); } catch { this.toast('📋', t('toast.copyManual'), '', 'info'); }
     }
   }
 
   showImport() {
     this.openModal(`
       <div class="hero">📥</div>
-      <h2>Import zapisu</h2>
-      <p>Wklej tekst z eksportu. Obecny postęp zostanie zastąpiony.</p>
-      <textarea class="text-input" id="import-text" placeholder="Wklej zapis tutaj…"></textarea>
+      <h2>${t('i.title')}</h2>
+      <p>${t('i.text')}</p>
+      <textarea class="text-input" id="import-text" placeholder="${t('i.placeholder')}"></textarea>
       <div class="actions">
-        <button class="btn violet btn-wide" data-act="import-confirm">Wczytaj</button>
-        <button class="btn ghost btn-wide" data-act="modal-close">Anuluj</button>
+        <button class="btn violet btn-wide" data-act="import-confirm">${t('i.load')}</button>
+        <button class="btn ghost btn-wide" data-act="modal-close">${t('cancel')}</button>
       </div>`);
   }
 
@@ -1128,28 +1186,23 @@ export class UI {
     const ok = this.hooks.importSave?.(text);
     if (ok) {
       this.closeModal();
-      this.scene.render(this.g, true);
-      this.syncBubble();
-      this.updateSoundBtn();
-      this.updateAll(true);
-      this.toast('✅', 'Zapis wczytany', '', 'info');
+      this.applyStatic();
+      this.renderCompanyTabs();
+      this.fullRender();
+      this.restartTicker();
+      this.toast('✅', t('toast.imported'), '', 'info');
     } else {
-      this.toast('❌', 'Nieprawidłowy zapis', 'Sprawdź, czy skopiowano cały tekst.', 'info');
+      this.toast('❌', t('toast.importBad'), t('toast.importBadText'), 'info');
     }
   }
 
   showInstallHelp() {
     this.openModal(`
       <div class="hero">📲</div>
-      <h2>Gra na ekranie początkowym</h2>
-      <ul>
-        <li>Otwórz tę stronę w <b>Safari</b>.</li>
-        <li>Stuknij <b>Udostępnij</b> (kwadrat ze strzałką).</li>
-        <li>Wybierz <b>Do ekranu początk.</b> i potwierdź <b>Dodaj</b>.</li>
-        <li>Uruchamiaj grę z ikony — działa na pełnym ekranie i bez internetu.</li>
-      </ul>
-      <p>Zapis jest przechowywany na urządzeniu. Raz na jakiś czas zrób eksport zapisu — na wszelki wypadek.</p>
-      <div class="actions"><button class="btn violet btn-wide" data-act="modal-close">Rozumiem</button></div>`);
+      <h2>${t('h.title')}</h2>
+      <ul>${t('h.steps').map((x) => `<li>${x}</li>`).join('')}</ul>
+      <p>${t('h.note')}</p>
+      <div class="actions"><button class="btn violet btn-wide" data-act="modal-close">${t('h.ok')}</button></div>`);
   }
 
   fullRender() {

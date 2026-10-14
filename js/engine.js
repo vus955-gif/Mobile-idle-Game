@@ -3,9 +3,11 @@ import {
   PRODUCTS, PRODUCT_GROWTH, MILESTONES, PRODUCT_UP_TIERS,
   DEPTS, DEPT_MILESTONES, DEPT_MILESTONE_X, DEPT_UP_TIERS,
   TECHS, REPEAT_TECHS, CULTURE_UPGRADES, CLICK_UPGRADES, ACQUISITIONS, PERKS,
-  BUBBLES, CONTRACT_CLIENTS, CONTRACT_TASKS, CONTRACT_DURATIONS, TREND_TEMPLATES, ROUND_NAMES, CATEGORIES,
+  BUBBLES, CONTRACT_CLIENTS, CONTRACT_TASKS, CONTRACT_DURATIONS, TREND_TEMPLATES,
 } from './data.js';
-import { fmt, plural } from './format.js';
+import { fmt, money, num } from './format.js';
+import { t, noun, getLang } from './i18n.js';
+import * as TX from './text.js';
 
 export const SAVE_VERSION = 1;
 export const PRESTIGE = { div: 1e10, exp: 1 / 3, k: 10 };
@@ -15,8 +17,10 @@ export const ACH_BONUS = 0.01;
 export const INVESTOR_BONUS = 0.02;
 export const MAX_SLOTS = 5;
 export const BUBBLE_LIFETIME = 13000;
+// Wycena: godzina gry ≈ rok życia firmy; mnożnik rynkowy rośnie z technologiami i rundami.
+export const SECONDS_PER_GAME_YEAR = 3600;
+export const VALUATION = { baseMultiple: 3, perTech: 0.12, perRound: 0.2, maxMultiple: 15 };
 
-export const CATEGORY_NAMES = Object.fromEntries(Object.entries(CATEGORIES).map(([k, v]) => [k, v.name]));
 export const PRODUCT_MAP = Object.fromEntries(PRODUCTS.map((p, i) => [p.id, { ...p, index: i }]));
 export const DEPT_MAP = Object.fromEntries(DEPTS.map((d, i) => [d.id, { ...d, index: i }]));
 export const TECH_MAP = Object.fromEntries(TECHS.map((t) => [t.id, t]));
@@ -31,100 +35,73 @@ export const UPGRADES = [];
 for (const p of PRODUCTS) {
   PRODUCT_UP_TIERS.forEach((t, i) => {
     UPGRADES.push({
-      id: `u_${p.id}_${i}`, kind: 'product', name: p.ups[i], icon: p.icon, cat: p.cat,
+      id: `u_${p.id}_${i}`, kind: 'product', pid: p.id, tier: i, icon: p.icon, cat: p.cat,
       cost: p.cost * t.cost, fx: [{ t: 'prod', id: p.id, x: t.x }],
       req: { product: p.id, level: t.at },
-      desc: `${p.name}: przychód ×${t.x}`,
     });
   });
 }
 for (const d of DEPTS) {
   DEPT_UP_TIERS.forEach((t, i) => {
     UPGRADES.push({
-      id: `u_${d.id}_${i}`, kind: 'dept', name: d.ups[i], icon: d.upIcons[i],
+      id: `u_${d.id}_${i}`, kind: 'dept', did: d.id, tier: i, icon: d.upIcons[i],
       cost: d.base * Math.pow(d.g, t.at) * t.costHires, fx: [{ t: 'dept', id: d.id, x: t.x }],
       req: { dept: d.id, heads: t.at },
-      desc: `Efekty działu „${d.name}” ×${t.x}`,
     });
   });
 }
 for (const c of CULTURE_UPGRADES) {
   UPGRADES.push({
-    id: c.id, kind: 'culture', name: c.name, icon: c.icon, cost: c.cost,
+    id: c.id, kind: 'culture', icon: c.icon, cost: c.cost,
     fx: [{ t: 'all', x: c.x }], req: { earned: c.cost * 0.25 },
-    desc: `${c.desc} Cały przychód ×${String(c.x).replace('.', ',')}.`,
   });
 }
 for (const c of CLICK_UPGRADES) {
   const fx = [];
-  const parts = [];
-  if (c.x > 1) { fx.push({ t: 'click', x: c.x }); parts.push(`kodowanie ×${c.x}`); }
-  if (c.pct) { fx.push({ t: 'clickPct', v: c.pct }); parts.push(`+${String(c.pct * 100).replace('.', ',')}% przychodu/s na klik`); }
-  UPGRADES.push({
-    id: c.id, kind: 'click', name: c.name, icon: c.icon, cost: c.cost, fx,
-    req: { earned: c.cost * 0.2 }, desc: `${c.desc} (${parts.join(', ')})`,
-  });
+  if (c.x > 1) fx.push({ t: 'click', x: c.x });
+  if (c.pct) fx.push({ t: 'clickPct', v: c.pct });
+  UPGRADES.push({ id: c.id, kind: 'click', icon: c.icon, cost: c.cost, fx, req: { earned: c.cost * 0.2 } });
 }
 export const UPGRADE_MAP = Object.fromEntries(UPGRADES.map((u) => [u.id, u]));
 
 // ---------------------------------------------------------------------------
 // Osiągnięcia
 // ---------------------------------------------------------------------------
+// Nazwy i opisy osiągnięć są w i18n.js / text.js — tu tylko warunki.
 export const ACHIEVEMENTS = [];
-const ach = (id, name, icon, desc, check, hidden = false) => ACHIEVEMENTS.push({ id, name, icon, desc, check, hidden });
+const ach = (id, icon, type, v, i, check, extra = {}) => ACHIEVEMENTS.push({ id, icon, type, v, i, check, hidden: false, ...extra });
 
-[
-  [1e2, 'Pierwsza stówka', '💵'], [1e4, 'Drobne na kawę', '☕'], [1e6, 'Milioner', '💰'], [1e9, 'Miliarder', '💰'],
-  [1e12, 'Bilioner', '🤑'], [1e15, 'Biliarder', '🤑'], [1e18, 'Trylioner', '🏦'], [1e21, 'Tryliarder', '🏦'],
-  [1e24, 'Kwadrylioner', '💎'], [1e27, 'Kwadryliarder', '💎'], [1e30, 'Kwintylioner', '👑'], [1e35, 'Poza skalą', '👑'],
-  [1e40, 'Kosmiczne pieniądze', '🌌'], [1e50, 'Gospodarka galaktyki', '🌌'], [1e60, 'Bank wszechświata', '♾️'],
-].forEach(([v, name, icon], i) => ach(`earn${i}`, name, icon, `Zarób łącznie $${fmt(v)}`, (g) => g.s.totalEarned >= v));
+[[1e2, '💵'], [1e4, '☕'], [1e6, '💰'], [1e9, '💰'], [1e12, '🤑'], [1e15, '🤑'], [1e18, '🏦'], [1e21, '🏦'],
+  [1e24, '💎'], [1e27, '💎'], [1e30, '👑'], [1e35, '👑'], [1e40, '🌌'], [1e50, '🌌'], [1e60, '♾️']]
+  .forEach(([v, icon], i) => ach(`earn${i}`, icon, 'earn', v, i, (g) => g.s.totalEarned >= v));
 
-[10, 1e3, 1e6, 1e9, 1e12, 1e15, 1e18, 1e21, 1e24, 1e27, 1e30, 1e35].forEach((v, i) =>
-  ach(`inc${i}`, ['Pierwszy przychód', 'Rentowność', 'Maszynka do pieniędzy', 'Złota żyła', 'Fontanna gotówki', 'Gejzer', 'Wodospad', 'Ocean', 'Supernowa', 'Kwazar', 'Wielki Wybuch', 'Osobliwość'][i],
-    '📈', `Osiągnij przychód $${fmt(v)}/s`, (g) => g.s.stats.maxIncome >= v));
+[10, 1e3, 1e6, 1e9, 1e12, 1e15, 1e18, 1e21, 1e24, 1e27, 1e30, 1e35]
+  .forEach((v, i) => ach(`inc${i}`, '📈', 'inc', v, i, (g) => g.s.stats.maxIncome >= v));
 
-[[100, 'Rozgrzewka'], [1000, 'Klawiszowiec'], [5000, 'Maratończyk'], [25000, 'Stalowe palce'], [100000, 'Legenda klawiatury']]
-  .forEach(([v, name], i) => ach(`click${i}`, name, '👆', `Kliknij ${fmt(v)} razy`, (g) => g.s.stats.clicks >= v));
+[100, 1000, 5000, 25000, 100000].forEach((v, i) => ach(`click${i}`, '👆', 'click', v, i, (g) => g.s.stats.clicks >= v));
 
 for (const p of PRODUCTS) {
-  [[1, 'Premiera'], [50, 'Wersja 50'], [100, 'Setka'], [200, 'Legenda'], [300, 'Monopol']].forEach(([v, label], i) =>
-    ach(`p_${p.id}_${i}`, `${p.name}: ${label}`, p.icon, `Osiągnij poziom ${v} produktu „${p.name}”`, (g) => (g.s.products[p.id] || 0) >= v));
+  [1, 50, 100, 200, 300].forEach((v, i) =>
+    ach(`p_${p.id}_${i}`, p.icon, 'prod', v, i, (g) => (g.s.products[p.id] || 0) >= v, { pid: p.id }));
 }
 
-[[10, 'Zespół'], [50, 'Startup'], [100, 'Scale-up'], [250, 'Korporacja'], [500, 'Gigant'], [1000, 'Armia'], [2500, 'Państwo w państwie']]
-  .forEach(([v, name], i) => ach(`emp${i}`, name, '👥', `Zatrudniaj jednocześnie ${v} ${plural(v, 'osobę', 'osoby', 'osób')}`, (g) => g.totalHeads() >= v));
+[10, 50, 100, 250, 500, 1000, 2500].forEach((v, i) => ach(`emp${i}`, '👥', 'emp', v, i, (g) => g.totalHeads() >= v));
+[3, 6, 10, 13].forEach((v, i) => ach(`dept${i}`, '🏢', 'dept', v, i, (g) => g.deptCount() >= v));
+[1, 10, 20, 35, TECHS.length].forEach((v, i) => ach(`tech${i}`, '🔬', 'tech', v, i, (g) => g.techCount() >= v));
+[10, 50, 100, 150, 200].forEach((v, i) => ach(`upg${i}`, '⬆️', 'upg', v, i, (g) => g.upgradeCount() >= v));
+[1, 3, 5, 10, 25].forEach((v, i) => ach(`pres${i}`, '🦄', 'pres', v, i, (g) => g.s.prestigeCount >= v));
+[10, 100, 1000, 10000, 100000].forEach((v, i) => ach(`inv${i}`, '💼', 'inv', v, i, (g) => g.s.investors >= v));
+[1, 10, 50, 200, 1000].forEach((v, i) => ach(`bub${i}`, '🔥', 'bub', v, i, (g) => g.s.stats.bubbles >= v));
+[1, 10, 50, 200, 1000].forEach((v, i) => ach(`con${i}`, '🤝', 'con', v, i, (g) => g.s.stats.contracts >= v));
+[1, 5, ACQUISITIONS.length].forEach((v, i) => ach(`acq${i}`, '🦈', 'acq', v, i, (g) => g.acqCount() >= v));
 
-[[3, 'Pierwsze piętra'], [6, 'Biurowiec'], [10, 'Wieżowiec'], [13, 'Kompletna firma']]
-  .forEach(([v, name], i) => ach(`dept${i}`, name, '🏢', `Otwórz ${v} ${plural(v, 'dział', 'działy', 'działów')}`, (g) => g.deptCount() >= v));
-
-[[1, 'Ciekawość'], [10, 'Innowator'], [20, 'Wizjoner'], [35, 'Pionier'], [TECHS.length, 'Koniec historii']]
-  .forEach(([v, name], i) => ach(`tech${i}`, name, '🔬', `Odkryj ${v} ${plural(v, 'technologię', 'technologie', 'technologii')}`, (g) => g.techCount() >= v));
-
-[[10, 'Zakupoholik'], [50, 'Modernizacja'], [100, 'Wszystko na bogato'], [150, 'Kolekcjoner'], [200, 'Perfekcjonista']]
-  .forEach(([v, name], i) => ach(`upg${i}`, name, '⬆️', `Kup ${v} ${plural(v, 'ulepszenie', 'ulepszenia', 'ulepszeń')} w jednej rundzie`, (g) => g.upgradeCount() >= v));
-
-[[1, 'Pierwsza runda'], [3, 'Seryjny przedsiębiorca'], [5, 'Ulubieniec funduszy'], [10, 'Jednorożec'], [25, 'Dekakorn']]
-  .forEach(([v, name], i) => ach(`pres${i}`, name, '🦄', `Zbierz ${v} ${plural(v, 'rundę', 'rundy', 'rund')} finansowania`, (g) => g.s.prestigeCount >= v));
-
-[[10, 'Kapitał'], [100, 'Fundusz'], [1000, 'Wielki fundusz'], [10000, 'Skarbiec'], [100000, 'Bank centralny']]
-  .forEach(([v, name], i) => ach(`inv${i}`, name, '💼', `Zgromadź ${fmt(v)} punktów kapitału`, (g) => g.s.investors >= v));
-
-[[1, 'Złap okazję'], [10, 'Łowca trendów'], [50, 'Wirusowy'], [200, 'Król internetu'], [1000, 'Fenomen']]
-  .forEach(([v, name], i) => ach(`bub${i}`, name, '🔥', `Złap ${v} ${plural(v, 'wydarzenie', 'wydarzenia', 'wydarzeń')}`, (g) => g.s.stats.bubbles >= v));
-
-[[1, 'Pierwszy klient'], [10, 'Portfolio'], [50, 'Zaufany partner'], [200, 'Integrator'], [1000, 'Dostawca wszystkiego']]
-  .forEach(([v, name], i) => ach(`con${i}`, name, '🤝', `Ukończ ${v} ${plural(v, 'kontrakt', 'kontrakty', 'kontraktów')}`, (g) => g.s.stats.contracts >= v));
-
-[[1, 'Pierwsze przejęcie'], [5, 'Drapieżnik'], [ACQUISITIONS.length, 'Monopolista']]
-  .forEach(([v, name], i) => ach(`acq${i}`, name, '🦈', `Przejmij ${v} ${plural(v, 'firmę', 'firmy', 'firm')}`, (g) => g.acqCount() >= v));
-
-ach('f_night', 'Nocny marek', '🦉', 'Graj między północą a czwartą rano', (g) => { const h = new Date(g.now).getHours(); return h >= 0 && h < 4 && g.s.stats.playTime > 60; }, true);
-ach('f_rename', 'Nowa tożsamość', '🪪', 'Zmień nazwę firmy', (g) => !!g.s.flags.renamed, true);
-ach('f_frenzy', 'Szał kodowania', '🌪️', 'Kliknij 12 razy w ciągu sekundy', (g) => !!g.s.flags.frenzy, true);
-ach('f_patience', 'Cierpliwość', '🧘', 'Wróć po co najmniej 8 godzinach przerwy', (g) => !!g.s.flags.patience, true);
-ach('f_combo', 'Idealny moment', '🎯', 'Miej jednocześnie aktywny Viral i Hackathon', (g) => !!(g.boostActive('income') && g.boostActive('click')), true);
-ach('f_trend', 'Na fali', '🏄', 'Złap trend rynkowy na swoim najlepszym produkcie', (g) => !!g.s.flags.trendBest, true);
+const fun = (id, icon, check) => ach(id, icon, 'fun', 0, 0, check, { hidden: true });
+fun('f_night', '🦉', (g) => { const h = new Date(g.now).getHours(); return h >= 0 && h < 4 && g.s.stats.playTime > 60; });
+fun('f_rename', '🪪', (g) => !!g.s.flags.renamed);
+fun('f_frenzy', '🌪️', (g) => !!g.s.flags.frenzy);
+fun('f_patience', '🧘', (g) => !!g.s.flags.patience);
+fun('f_combo', '🎯', (g) => !!(g.boostActive('income') && g.boostActive('click')));
+fun('f_trend', '🏄', (g) => !!g.s.flags.trendBest);
 
 export const ACH_MAP = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a]));
 
@@ -154,12 +131,9 @@ export function nextDeptMilestone(n) {
   for (const m of DEPT_MILESTONES) if (n < m) return m;
   return null;
 }
-export function roundName(count) {
-  return count < ROUND_NAMES.length ? ROUND_NAMES[count] : `Runda #${count + 1}`;
-}
 
 function geomSum(base, g, from, n) {
-  return base * Math.pow(g, from) * (Math.pow(g, n) - 1) / (g - 1);
+  return Math.min(Number.MAX_VALUE, base * Math.pow(g, from) * (Math.pow(g, n) - 1) / (g - 1));
 }
 function geomMax(base, g, from, cash) {
   const c0 = base * Math.pow(g, from);
@@ -172,7 +146,7 @@ function geomMax(base, g, from, cash) {
 export function createState(now = Date.now()) {
   return {
     v: SAVE_VERSION,
-    companyName: 'Garażowy Startup',
+    companyName: t('defaultCompany'),
     cash: 0,
     rp: 0,
     runEarned: 0,
@@ -201,7 +175,7 @@ export function createState(now = Date.now()) {
       clicks: 0, runClicks: 0, autoClicks: 0, bubbles: 0, contracts: 0, playTime: 0, maxIncome: 0,
       hired: 0, upgradesBought: 0, rpTotal: 0, bestRun: 0, startedAt: now, runStartedAt: now,
     },
-    settings: { sound: false, buyAmount: 1 },
+    settings: { sound: false, buyAmount: 1, lang: getLang() },
     lastTick: now,
   };
 }
@@ -470,7 +444,7 @@ export class Game {
     const mc = milestoneCount(before + n) - milestoneCount(before);
     if (mc > 0) {
       const p = PRODUCT_MAP[id];
-      this.toast(p.icon, `Kamień milowy: ${p.name}`, `Poziom ${prevMilestone(before + n)} — przychód ×${Math.pow(2, mc)}`, 'milestone');
+      this.toast(p.icon, t('toast.milestone', { name: TX.prodName(id) }), t('toast.milestoneText', { n: prevMilestone(before + n), x: Math.pow(2, mc) }), 'milestone');
     }
     this.emit('buy', { kind: 'product', id, n });
     if (before === 0) this.emit('structure');
@@ -490,7 +464,7 @@ export class Game {
     s.deptUnlocked[id] = true;
     s.depts[id] = 0;
     this.recalc();
-    this.toast(d.icon, `Nowy dział: ${d.name}`, 'W budynku pojawiło się nowe piętro!', 'unlock');
+    this.toast(d.icon, t('toast.newDept', { name: TX.deptName(id) }), t('toast.newDeptText'), 'unlock');
     this.emit('structure');
     return true;
   }
@@ -517,7 +491,7 @@ export class Game {
     const nm = nextDeptMilestone(before);
     if (nm && before + n >= nm) {
       const d = DEPT_MAP[id];
-      this.toast(d.icon, `${d.name}: ${nm} osób`, `Efekty działu ×${String(DEPT_MILESTONE_X).replace('.', ',')}`, 'milestone');
+      this.toast(d.icon, t('toast.deptMilestone', { name: TX.deptName(id), n: nm, noun: noun('peopleNom', nm) }), t('toast.deptMilestoneText', { x: num(DEPT_MILESTONE_X) }), 'milestone');
     }
     this.emit('buy', { kind: 'dept', id, n });
     return n;
@@ -567,17 +541,17 @@ export class Game {
 
   // ---------- technologie ----------
   techAvailable(id) {
-    const t = TECH_MAP[id] || REPEAT_MAP[id];
-    return t.req.every((r) => this.s.techs[r]);
+    const tech = TECH_MAP[id] || REPEAT_MAP[id];
+    return tech.req.every((r) => this.s.techs[r]);
   }
   research(id) {
-    const t = TECH_MAP[id];
+    const tech = TECH_MAP[id];
     const s = this.s;
-    if (!t || s.techs[id] || !this.techAvailable(id) || s.rp < t.cost) return false;
-    s.rp -= t.cost;
+    if (!tech || s.techs[id] || !this.techAvailable(id) || s.rp < tech.cost) return false;
+    s.rp -= tech.cost;
     s.techs[id] = true;
     this.recalc();
-    this.toast(t.icon, `Odkryto: ${t.name}`, this.describeFx(t.fx), 'tech');
+    this.toast(tech.icon, t('toast.researched', { name: TX.techName(id) }), TX.describeFx(tech.fx), 'tech');
     this.emit('buy', { kind: 'tech', id });
     this.emit('structure');
     return true;
@@ -612,7 +586,7 @@ export class Game {
     s.cash -= cost;
     s.acquisitions[id] = true;
     this.recalc();
-    this.toast(a.icon, `Przejęto: ${a.name}`, this.describeFx(a.fx), 'unlock');
+    this.toast(a.icon, t('acq.toast', { name: TX.acqName(id) }), TX.describeFx(a.fx), 'unlock');
     this.emit('buy', { kind: 'acq', id });
     this.emit('structure');
     return true;
@@ -649,9 +623,44 @@ export class Game {
     const target = this.s.claimedRaw + this.prestigeWhole() + 1;
     return PRESTIGE.div * Math.pow(target / PRESTIGE.k, 1 / PRESTIGE.exp);
   }
+  // Przychód bez chwilowych premii (viral, trend) — tylko on liczy się do wyceny.
+  steadyIncome() {
+    const boost = Math.max(1, this.m.boostIncome);
+    let inc = this.income / boost;
+    const tr = this.s.trend;
+    if (tr && tr.until > this.now && this.prodIncome[tr.pid]) inc -= (this.prodIncome[tr.pid] / boost) * (1 - 1 / tr.x);
+    return Math.max(0, inc);
+  }
+  // Majątek: gotówka + wartość odsprzedaży tego, w co firma zainwestowała w tej rundzie.
+  assetValue() {
+    const s = this.s;
+    let v = s.cash;
+    for (const p of PRODUCTS) {
+      const l = s.products[p.id] || 0;
+      if (l) v += geomSum(p.cost, PRODUCT_GROWTH, 0, l) * 0.5;
+    }
+    for (const d of DEPTS) {
+      if (!s.deptUnlocked[d.id]) continue;
+      v += d.unlock * 0.5;
+      const n = s.depts[d.id] || 0;
+      if (n) v += geomSum(d.base, d.g, 0, n) * 0.2;
+    }
+    for (const id in s.upgrades) if (UPGRADE_MAP[id]) v += UPGRADE_MAP[id].cost * 0.25;
+    for (const id in s.acquisitions) if (ACQ_MAP[id]) v += ACQ_MAP[id].cost * 0.75;
+    return Math.min(Number.MAX_VALUE, v);
+  }
+  valuationMultiple() {
+    const V = VALUATION;
+    return Math.min(V.maxMultiple, V.baseMultiple + V.perTech * this.techCount() + V.perRound * this.s.prestigeCount);
+  }
+  valuationParts() {
+    const assets = this.assetValue();
+    const annual = this.steadyIncome() * SECONDS_PER_GAME_YEAR;
+    const multiple = this.valuationMultiple();
+    return { assets, annual, multiple, total: Math.min(Number.MAX_VALUE, assets + annual * multiple) };
+  }
   valuation() {
-    // wycena = roczny przychód × mnożnik branżowy
-    return this.income * 3600 * 24 * 365 * 6 / Math.max(1, this.m.boostIncome);
+    return this.valuationParts().total;
   }
   doPrestige(now = this.now) {
     const whole = this.prestigeWhole();
@@ -726,26 +735,26 @@ export class Game {
       case 'viral': {
         const dur = 30 * pw;
         s.boosts.income = { x: 7, until: now + dur * 1000, dur };
-        res = { icon: '🔥', title: 'Viral!', text: `Przychód ×7 przez ${Math.round(dur)} s` };
+        res = { icon: '🔥', title: TX.bubbleName('viral'), text: t('bubble.viralText', { n: Math.round(dur) }) };
         break;
       }
       case 'angel': {
         const v = (this.income * 300 + this.clickValue * 30) * pw;
         this.earn(v);
-        res = { icon: '💰', title: 'Anioł biznesu', text: `Inwestor wpłaca $${fmt(v)}` };
+        res = { icon: '💰', title: TX.bubbleName('angel'), text: t('bubble.angelText', { v: money(v) }) };
         break;
       }
       case 'hackathon': {
         const dur = 20 * pw;
         s.boosts.click = { x: 15, until: now + dur * 1000, dur };
-        res = { icon: '⚡', title: 'Hackathon!', text: `Kodowanie ×15 przez ${Math.round(dur)} s` };
+        res = { icon: '⚡', title: TX.bubbleName('hackathon'), text: t('bubble.hackText', { n: Math.round(dur) }) };
         break;
       }
       default: {
         const v = Math.max(25, this.rpRate * 300 * pw);
         s.rp += v;
         s.stats.rpTotal += v;
-        res = { icon: '💡', title: 'Eureka!', text: `+${fmt(v)} punktów badań` };
+        res = { icon: '💡', title: TX.bubbleName('eureka'), text: t('bubble.eurekaText', { v: fmt(v) }) };
       }
     }
     this.recalc();
@@ -766,8 +775,8 @@ export class Game {
     if (owned.length) {
       const p = owned[Math.floor(this.rng() * owned.length)];
       const x = [1.5, 2, 2, 3][Math.floor(this.rng() * 4)];
-      const tpl = TREND_TEMPLATES[Math.floor(this.rng() * TREND_TEMPLATES.length)];
-      s.trend = { pid: p.id, x, until: now + dur, text: tpl.replace('{p}', p.name).replace('{x}', x) };
+      const tpl = Math.floor(this.rng() * TREND_TEMPLATES.length);
+      s.trend = { pid: p.id, x, until: now + dur, tpl };
       // czy to najlepszy produkt?
       let best = null; let bestV = -1;
       for (const q of owned) if (this.prodIncome[q.id] > bestV) { bestV = this.prodIncome[q.id]; best = q.id; }
@@ -782,13 +791,14 @@ export class Game {
   contractsUnlocked() { return !!this.s.deptUnlocked.sales; }
   makeOffer(now) {
     const c = this.s.contracts;
-    const [client, icon] = CONTRACT_CLIENTS[Math.floor(this.rng() * CONTRACT_CLIENTS.length)];
-    const task = CONTRACT_TASKS[Math.floor(this.rng() * CONTRACT_TASKS.length)];
+    const ci = Math.floor(this.rng() * CONTRACT_CLIENTS.length);
+    const icon = CONTRACT_CLIENTS[ci][1];
+    const ti = Math.floor(this.rng() * CONTRACT_TASKS.length);
     // krótsze kontrakty są częstsze
     const r = this.rng();
     const idx = Math.min(CONTRACT_DURATIONS.length - 1, Math.floor(r * r * CONTRACT_DURATIONS.length));
     const d = CONTRACT_DURATIONS[idx];
-    return { id: ++c.seq, client, icon, task, dur: d.s, f: d.f * (0.9 + this.rng() * 0.3), expires: now + 6 * 60000, rp: this.rng() < 0.4 };
+    return { id: ++c.seq, ci, ti, icon, dur: d.s, f: d.f * (0.9 + this.rng() * 0.3), expires: now + 6 * 60000, rp: this.rng() < 0.4 };
   }
   contractReward(o) {
     return {
@@ -827,7 +837,7 @@ export class Game {
       this.s.rp += a.rpReward || 0;
       this.s.stats.contracts++;
       done++;
-      this.toast(a.icon, 'Kontrakt ukończony', `${a.client}: +$${fmt(a.reward)}${a.rpReward ? ` i ${fmt(a.rpReward)} PB` : ''}`, 'contract');
+      this.toast(a.icon, t('con.done'), `${TX.clientName(a)}: +${money(a.reward)}${a.rpReward ? t('con.doneRp', { v: fmt(a.rpReward) }) : ''}`, 'contract');
       return false;
     });
     if (done) changed = true;
@@ -891,28 +901,7 @@ export class Game {
 
   // ---------- opisy efektów (dla UI) ----------
   describeFx(fx) {
-    const parts = [];
-    for (const e of fx) {
-      const x = e.x !== undefined ? `×${String(e.x).replace('.', ',')}` : '';
-      switch (e.t) {
-        case 'prod': parts.push(`${PRODUCT_MAP[e.id].name} ${x}`); break;
-        case 'cat': parts.push(`Kategoria ${CATEGORY_NAMES[e.cat]} ${x}`); break;
-        case 'dept': parts.push(`Dział ${DEPT_MAP[e.id].name} ${x}`); break;
-        case 'deptAll': parts.push(`Wszystkie działy ${x}`); break;
-        case 'all': parts.push(`Cały przychód ${x}`); break;
-        case 'click': parts.push(`Kodowanie ${x}`); break;
-        case 'clickPct': parts.push(`Klik +${String(e.v * 100).replace('.', ',')}% przychodu/s`); break;
-        case 'rp': parts.push(`Punkty badań ${x}`); break;
-        case 'hireCost': parts.push(`Rekrutacja −${Math.round((1 - e.x) * 100)}%`); break;
-        case 'prodCost': parts.push(`Produkty tańsze o ${Math.round((1 - e.x) * 100)}%`); break;
-        case 'eventFreq': parts.push(`Wydarzenia częściej ${x}`); break;
-        case 'auto': parts.push(`+${e.v} auto-klik/s`); break;
-        case 'unlockProduct': parts.push(`Odblokowuje: ${PRODUCT_MAP[e.id].name}`); break;
-        case 'unlockDept': parts.push(`Nowy dział: ${DEPT_MAP[e.id].name}`); break;
-        default: break;
-      }
-    }
-    return parts.join(' · ');
+    return TX.describeFx(fx);
   }
 
   serialize() {

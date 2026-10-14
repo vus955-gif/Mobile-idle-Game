@@ -112,7 +112,10 @@ input { font: inherit; -webkit-user-select: text; user-select: text; }
   position: relative; flex: 1 1 auto; min-height: 180px; border-radius: 22px; overflow: hidden;
   border: 1px solid var(--line); box-shadow: var(--shadow); background: #0b1030;
 }
-.scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.scene { position: absolute; inset: 0; }
+.scene svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.scene svg.anim { will-change: transform; pointer-events: none; }
+.scene-wrap.paused * { animation-play-state: paused !important; }
 .fx-layer, .bubble-layer, .scene-badges { position: absolute; inset: 0; pointer-events: none; }
 .bubble-layer > * { pointer-events: auto; }
 .scene-badges { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px; }
@@ -132,8 +135,8 @@ input { font: inherit; -webkit-user-select: text; user-select: text; }
 @keyframes twinkle { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
 .person { animation: bob 1.6s ease-in-out infinite; transform-box: fill-box; }
 @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.4px); } }
-.screen { animation: flicker 2.4s steps(2) infinite; }
-@keyframes flicker { 0%, 100% { opacity: 1; } 50% { opacity: .7; } }
+.screen { opacity: 0; animation: flicker 2.4s steps(2) infinite; }
+@keyframes flicker { 0%, 100% { opacity: 0; } 50% { opacity: .35; } }
 .blink { animation: blink 1.4s steps(2) infinite; }
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .15; } }
 .car { animation: car linear infinite; }
@@ -301,6 +304,8 @@ input { font: inherit; -webkit-user-select: text; user-select: text; }
 .kv { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; padding: 12px 14px; border-radius: var(--radius); background: var(--card); border: 1px solid var(--line); font-size: 13.5px; margin-top: 10px; }
 .kv span { color: var(--muted); }
 .kv b { text-align: right; font-variant-numeric: tabular-nums; }
+.kv .kv-sub { font-size: 12.5px; color: var(--faint); font-weight: 600; }
+span.kv-sub { padding-left: 12px; }
 .perk-lvl { font-size: 11.5px; font-weight: 800; color: var(--gold); }
 .contract { padding: 12px; border-radius: 16px; background: var(--card); border: 1px solid var(--line); display: grid; grid-template-columns: 40px 1fr; gap: 4px 10px; }
 .contract .ico { font-size: 26px; grid-row: span 2; text-align: center; }

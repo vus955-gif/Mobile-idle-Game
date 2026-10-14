@@ -5,7 +5,10 @@ import {
   Game, createState, sanitizeState, UPGRADES, ACHIEVEMENTS, PRODUCT_MAP, milestoneCount, nextMilestone,
 } from '../js/engine.js';
 import { PRODUCTS, DEPTS, TECHS, PRODUCT_GROWTH } from '../js/data.js';
-import { fmt, money, plural, fmtClock } from '../js/format.js';
+import { fmt, money, fmtClock } from '../js/format.js';
+import { setLang, pluralForm } from '../js/i18n.js';
+
+setLang('pl');
 
 const T0 = 1_700_000_000_000;
 const newGame = () => new Game(null, { now: T0, rng: () => 0.5 });
@@ -24,11 +27,12 @@ test('formatowanie liczb po polsku', () => {
 });
 
 test('polska odmiana liczebników', () => {
-  assert.equal(plural(1, 'firma', 'firmy', 'firm'), 'firma');
-  assert.equal(plural(3, 'firma', 'firmy', 'firm'), 'firmy');
-  assert.equal(plural(5, 'firma', 'firmy', 'firm'), 'firm');
-  assert.equal(plural(12, 'firma', 'firmy', 'firm'), 'firm');
-  assert.equal(plural(22, 'firma', 'firmy', 'firm'), 'firmy');
+  const f = { one: 'firma', few: 'firmy', many: 'firm' };
+  assert.equal(pluralForm(1, f), 'firma');
+  assert.equal(pluralForm(3, f), 'firmy');
+  assert.equal(pluralForm(5, f), 'firm');
+  assert.equal(pluralForm(12, f), 'firm');
+  assert.equal(pluralForm(22, f), 'firmy');
 });
 
 test('zawartość: unikalne id i poprawne powiązania', () => {

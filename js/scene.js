@@ -45,24 +45,43 @@ const SHIRTS = ['#ff6b8a', '#ffb347', '#6ee7b7', '#60a5fa', '#c084fc', '#f472b6'
 const SKIN = ['#f5d0b5', '#e8b796', '#c98e6b', '#8d5a3b', '#f1c9a5'];
 const HAIR = ['#2b1d16', '#5a3825', '#d9a441', '#1b1b1b', '#8b4a2b', '#c0c0c0'];
 
+// Animacje SVG są kosztowne na telefonie: wszystko, co się rusza, trafia do osobnej,
+// lekkiej warstwy (ANIM), a ciężki budynek rysuje się raz. Ruszamy też tylko część postaci.
+let animSeq = 0;
+let ANIM = [];
+const animate = (every) => (animSeq++ % every) === 0;
+const NS = 'http://www.w3.org/2000/svg';
+const LAYERS = ['back', 'backAnim', 'front', 'frontAnim'];
+
 function person(x, baseY, rnd, delay) {
   const shirt = SHIRTS[Math.floor(rnd() * SHIRTS.length)];
   const skin = SKIN[Math.floor(rnd() * SKIN.length)];
   const hair = HAIR[Math.floor(rnd() * HAIR.length)];
-  return `<g class="person" style="animation-delay:${delay.toFixed(2)}s">
+  const moving = animate(3);
+  const svg = `<g${moving ? ' class="person"' : ''} style="animation-delay:${delay.toFixed(2)}s">
     <rect x="${x - 5}" y="${baseY - 15}" width="10" height="11" rx="4" fill="${shirt}"/>
     <circle cx="${x}" cy="${baseY - 19}" r="3.6" fill="${skin}"/>
     <path d="M${x - 3.8} ${baseY - 19.5} a3.8 3.8 0 0 1 7.6 0 q-3.8 -1.6 -7.6 0z" fill="${hair}"/>
   </g>`;
+  if (!moving) return svg;
+  ANIM.push(svg);
+  return '';
 }
 
 function deskUnit(x, floorBottom, color, rnd, occupied, delay) {
   // biurko + monitor + (opcjonalnie) osoba
   let out = '';
-  if (occupied) out += person(x - 3, floorBottom - 2, rnd, delay);
-  out += `<rect x="${x - 12}" y="${floorBottom - 11}" width="26" height="2.4" rx="1" fill="#3b3f63"/>`;
+  const desk = `<rect x="${x - 12}" y="${floorBottom - 11}" width="26" height="2.4" rx="1" fill="#3b3f63"/>`;
+  if (occupied) {
+    const p = person(x - 3, floorBottom - 2, rnd, delay);
+    out += p;
+    // ruchoma postać jest w warstwie animacji — blat biurka musi być nad nią
+    if (!p) ANIM.push(desk);
+  }
+  out += desk;
   out += `<rect x="${x + 2}" y="${floorBottom - 19}" width="11" height="8" rx="1.2" fill="#23263f"/>`;
-  out += `<rect class="screen" style="animation-delay:${(delay * 1.7).toFixed(2)}s" x="${x + 3}" y="${floorBottom - 18}" width="9" height="6" rx=".8" fill="${color}"/>`;
+  out += `<rect x="${x + 3}" y="${floorBottom - 18}" width="9" height="6" rx=".8" fill="${color}"/>`;
+  if (occupied && animate(4)) ANIM.push(`<rect class="screen" style="animation-delay:${(delay * 1.7).toFixed(2)}s" x="${x + 3}" y="${floorBottom - 18}" width="9" height="6" rx=".8" fill="#fff"/>`);
   out += `<rect x="${x - 10}" y="${floorBottom - 9}" width="2" height="7" fill="#3b3f63"/><rect x="${x + 10}" y="${floorBottom - 9}" width="2" height="7" fill="#3b3f63"/>`;
   return out;
 }
@@ -91,8 +110,17 @@ function car(y, color, dur, delay, rev) {
 }
 
 export class Scene {
-  constructor(svg) {
-    this.svg = svg;
+  constructor(root) {
+    this.root = root;
+    this.layers = {};
+    for (const name of LAYERS) {
+      const el = document.createElementNS(NS, 'svg');
+      el.setAttribute('class', name.endsWith('Anim') ? 'anim' : 'static');
+      el.setAttribute('preserveAspectRatio', 'xMidYMax meet');
+      el.setAttribute('aria-hidden', 'true');
+      root.appendChild(el);
+      this.layers[name] = el;
+    }
     this.sig = '';
     this.knownFloors = null;
   }
@@ -122,30 +150,42 @@ export class Scene {
     const H = Math.max(330, GROUND + buildingH + 90);
     const groundY = H - GROUND;
     const rnd = seeded(42);
+    animSeq = 0;
+    ANIM = [];
+    // Cztery warstwy: tło (statyczne), chmury i gwiazdy (ruchome), miasto i budynek (statyczne), auta i ludzie (ruchome).
+    const back = [];
+    const backAnim = [];
     const parts = [];
+    const glow = (id) => `<filter id="${id}" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>`;
 
     // --- definicje ---
-    parts.push(`<defs>
+    back.push(`<defs>
       <linearGradient id="skyG" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="${groundY}">
         <stop offset="0" stop-color="${sky.stops[0]}"/><stop offset=".6" stop-color="${sky.stops[1]}"/><stop offset="1" stop-color="${sky.stops[2]}"/>
       </linearGradient>
+      <radialGradient id="sunG"><stop offset="0" stop-color="#fff7c2"/><stop offset=".55" stop-color="#ffd76a"/><stop offset="1" stop-color="#ffb347" stop-opacity="0"/></radialGradient>
+      <radialGradient id="moonG"><stop offset="0" stop-color="#ffffff"/><stop offset=".6" stop-color="#e8ecff"/><stop offset="1" stop-color="#c9d1ff" stop-opacity="0"/></radialGradient>
+    </defs>`);
+    parts.push(`<defs>
       <linearGradient id="glassG" x1="0" y1="0" x2="1" y2="1">
         <stop offset="0" stop-color="${sky.glass}" stop-opacity="${sky.glassOp}"/><stop offset="1" stop-color="${night ? '#ffc861' : '#a9d8ff'}" stop-opacity="${sky.glassOp}"/>
       </linearGradient>
-      <radialGradient id="sunG"><stop offset="0" stop-color="#fff7c2"/><stop offset=".55" stop-color="#ffd76a"/><stop offset="1" stop-color="#ffb347" stop-opacity="0"/></radialGradient>
-      <radialGradient id="moonG"><stop offset="0" stop-color="#ffffff"/><stop offset=".6" stop-color="#e8ecff"/><stop offset="1" stop-color="#c9d1ff" stop-opacity="0"/></radialGradient>
-      <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      ${glow('glow')}
     </defs>`);
+    ANIM.push(`<defs>${glow('glowA')}</defs>`);
 
     // --- niebo ---
-    parts.push(`<rect x="-700" y="-400" width="${W + 1400}" height="${groundY + 400}" fill="url(#skyG)"/>`);
+    back.push(`<rect x="-700" y="-400" width="${W + 1400}" height="${groundY + 400}" fill="url(#skyG)"/>`);
     if (night || phase === 'dusk') {
       const sr = seeded(7);
       for (let i = 0; i < (night ? 70 : 25); i++) {
         const x = -300 + sr() * (W + 600);
         const y = -300 + sr() * (groundY * 0.75 + 300);
         const r = 0.5 + sr() * 1.1;
-        parts.push(`<circle class="star" style="animation-delay:${(sr() * 3).toFixed(2)}s" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}" fill="#fff"/>`);
+        const delay = (sr() * 3).toFixed(2);
+        const dot = `cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}" fill="#fff"`;
+        if (i % 3 === 0) backAnim.push(`<circle class="star" style="animation-delay:${delay}s" ${dot}/>`);
+        else back.push(`<circle opacity=".6" ${dot}/>`);
       }
     }
     // słońce / księżyc
@@ -155,12 +195,12 @@ export class Scene {
       const t = ((hour + 24 - 21) % 24) / 8;
       const mx = 30 + t * (W - 60);
       const my = 40 + Math.pow(t - 0.5, 2) * 160;
-      parts.push(`<circle cx="${mx}" cy="${my}" r="30" fill="url(#moonG)" opacity=".5"/><circle cx="${mx}" cy="${my}" r="13" fill="#f3f5ff"/><circle cx="${mx + 5}" cy="${my - 4}" r="12" fill="${sky.stops[0]}" opacity=".9"/>`);
+      back.push(`<circle cx="${mx}" cy="${my}" r="30" fill="url(#moonG)" opacity=".5"/><circle cx="${mx}" cy="${my}" r="13" fill="#f3f5ff"/><circle cx="${mx + 5}" cy="${my - 4}" r="12" fill="${sky.stops[0]}" opacity=".9"/>`);
     } else {
       const t = Math.min(1, Math.max(0, (hour - 5) / 16));
       const sx = 30 + t * (W - 60);
       const sy = 46 + Math.pow(t - 0.5, 2) * 220;
-      parts.push(`<circle cx="${sx}" cy="${sy}" r="46" fill="url(#sunG)" opacity=".75"/><circle cx="${sx}" cy="${sy}" r="16" fill="#fff3b0"/>`);
+      back.push(`<circle cx="${sx}" cy="${sy}" r="46" fill="url(#sunG)" opacity=".75"/><circle cx="${sx}" cy="${sy}" r="16" fill="#fff3b0"/>`);
     }
     // chmury
     const cr = seeded(99);
@@ -168,7 +208,7 @@ export class Scene {
       const y = 20 + cr() * (groundY * 0.45);
       const sc = 0.6 + cr() * 0.8;
       const dur = 80 + cr() * 90;
-      parts.push(`<g class="cloud" style="animation-duration:${dur.toFixed(0)}s;animation-delay:-${(cr() * dur).toFixed(0)}s" opacity="${sky.cloud}">
+      backAnim.push(`<g class="cloud" style="animation-duration:${dur.toFixed(0)}s;animation-delay:-${(cr() * dur).toFixed(0)}s" opacity="${sky.cloud}">
         <g transform="translate(0 ${y.toFixed(0)}) scale(${sc.toFixed(2)})"><ellipse cx="0" cy="0" rx="26" ry="11" fill="#fff"/><ellipse cx="18" cy="-6" rx="17" ry="12" fill="#fff"/><ellipse cx="-14" cy="-4" rx="13" ry="9" fill="#fff"/><ellipse cx="34" cy="2" rx="14" ry="8" fill="#fff"/></g></g>`);
     }
     // panorama miasta w tle
@@ -195,9 +235,9 @@ export class Scene {
     parts.push(`<rect x="-700" y="${groundY + 10}" width="${W + 1400}" height="8" fill="${shade('#9aa3c7', sky.wall)}"/>`);
     parts.push(`<rect x="-700" y="${groundY + 18}" width="${W + 1400}" height="${GROUND + 400}" fill="${sky.ground}"/>`);
     for (let x = -700; x < W + 700; x += 30) parts.push(`<rect x="${x}" y="${groundY + 33}" width="16" height="2.4" rx="1" fill="#e9ecff" opacity=".55"/>`);
-    parts.push(car(groundY + 30, '#ff6b6b', 14, -3, false));
-    parts.push(car(groundY + 45, '#4fc3f7', 18, -9, true));
-    if (nFloors >= 6) parts.push(car(groundY + 30, '#ffd166', 22, -15, false));
+    ANIM.push(car(groundY + 30, '#ff6b6b', 14, -3, false));
+    ANIM.push(car(groundY + 45, '#4fc3f7', 18, -9, true));
+    if (nFloors >= 6) ANIM.push(car(groundY + 30, '#ffd166', 22, -15, false));
 
     // drzewa
     const tr = seeded(11);
@@ -205,11 +245,20 @@ export class Scene {
     for (const tx of treeXs) parts.push(tree(tx, groundY + 4, 0.8 + tr() * 0.4, tr));
 
     // --- budynek ---
-    if (garage) parts.push(`<g transform="translate(${W / 2} ${groundY}) scale(1.3) translate(${-W / 2} ${-groundY})">${this.garage(game, groundY, sky, night)}</g>`);
-    else parts.push(this.building(game, unlocked, groundY, sky, night));
+    if (garage) {
+      const tf = `translate(${W / 2} ${groundY}) scale(1.3) translate(${-W / 2} ${-groundY})`;
+      const before = ANIM.length;
+      parts.push(`<g transform="${tf}">${this.garage(game, groundY, sky, night)}</g>`);
+      const moving = ANIM.splice(before);
+      ANIM.push(`<g transform="${tf}">${moving.join('')}</g>`);
+    } else parts.push(this.building(game, unlocked, groundY, sky, night));
 
-    this.svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-    this.svg.innerHTML = parts.join('');
+    const content = { back, backAnim, front: parts, frontAnim: ANIM };
+    for (const name of LAYERS) {
+      const el = this.layers[name];
+      el.setAttribute('viewBox', `0 0 ${W} ${H}`);
+      el.innerHTML = content[name].join('');
+    }
     this.knownFloors = new Set(unlocked.map((d) => d.id));
   }
 
@@ -306,7 +355,7 @@ export class Scene {
     out += `<rect x="${BX - 4}" y="${rt - 6}" width="${BW + 8}" height="7" rx="2" fill="${night ? '#454b85' : '#c5cbe0'}"/>`;
     const pc = s.prestigeCount;
     out += `<line x1="${BX + BW - 30}" y1="${rt - 6}" x2="${BX + BW - 30}" y2="${rt - 40}" stroke="${night ? '#8890c0' : '#7a819f'}" stroke-width="2"/>`;
-    out += `<circle class="blink" cx="${BX + BW - 30}" cy="${rt - 42}" r="2.6" fill="#ff4d4d" filter="url(#glow)"/>`;
+    ANIM.push(`<circle class="blink" cx="${BX + BW - 30}" cy="${rt - 42}" r="2.6" fill="#ff4d4d" filter="url(#glowA)"/>`);
     if (pc >= 1) {
       for (let k = 0; k < 3; k++) out += `<path d="M${BX + 14 + k * 20} ${rt - 6} l4 -9 h14 l-4 9 z" fill="#2b5aa8" stroke="#9ec1ff" stroke-width=".8"/>`;
     }

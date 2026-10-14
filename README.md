@@ -1,6 +1,10 @@
-# 🏙️ Krzemowe Imperium
+# 🏙️ Krzemowe Imperium · Silicon Empire
 
 Relaksująca gra **idle/clicker** z warstwą ekonomiczną: zaczynasz w garażu z laptopem, a kończysz jako kosmiczny konglomerat technologiczny. Grafika 2D (SVG + CSS), bez 3D, zrobiona z myślą o iPhonie.
+
+Gra jest **po polsku i po angielsku**: język dobiera się sam według ustawień telefonu, a zmienisz go na ekranie powitalnym albo w *Firma → Ustawienia*.
+
+> **EN:** A relaxing idle/clicker about growing a tech company from a garage into a space-age conglomerate. 2D art, no 3D, built for iPhone as a PWA (no App Store needed). Fully playable in English and Polish; the language follows your phone and can be switched in *Company → Settings*.
 
 Gra to **PWA** (Progressive Web App) — instalujesz ją z Safari na ekran początkowy, uruchamia się na pełnym ekranie jak zwykła aplikacja, działa offline i **nie wymaga App Store, Maca ani konta deweloperskiego**.
 
@@ -26,6 +30,7 @@ Gra to **PWA** (Progressive Web App) — instalujesz ją z Safari na ekran pocz�
 | **Kontrakty** | Zlecenia B2B od klientów — przyjmujesz, czekasz, dostajesz sowitą zapłatę (także offline). |
 | **Przejęcia** (14) | Kupujesz inne startupy za potężne bonusy. |
 | **Rundy finansowania** | Prestiż: zaczynasz od nowa, ale z kapitałem inwestorów, który trwale mnoży przychód. Za udziały kupujesz ulepszenia **rady nadzorczej**. |
+| **Wycena firmy** | Majątek (gotówka + wartość tego, w co zainwestowałeś) + roczny przychód × mnożnik rynkowy. Godzina gry to mniej więcej rok życia firmy, a mnożnik (×3–×15) rośnie z technologiami i rundami. Garaż zarabiający $6/s jest wart ok. $65 tys. |
 | **Wydarzenia** | Łap pływające bąbelki: 🔥 Viral (×7 przychodu), 💰 Anioł biznesu, ⚡ Hackathon (×15 kodowania), 💡 Eureka. Do tego trendy rynkowe i pasek wiadomości. |
 | **Osiągnięcia** (182) | Każde daje +1% przychodu. Kilka jest ukrytych. |
 
@@ -38,6 +43,10 @@ Tempo gry jest dostrojone symulacją (`tools/simulate.mjs`), w której bot gra w
 - **gra aktywna**: sklep internetowy ~7 min, aplikacja mobilna ~14 min, pierwsza runda finansowania ~1 h,
 - **gra „z doskoku”** (20 min co ~3 h, noc offline): ery 1–4 w pierwszy dzień, neurotechnologia ~3. dnia, pełne drzewko technologii po 2–3 tygodniach.
 
+## 🔋 Wydajność
+
+Ruchome elementy sceny (chmury, auta, część pracowników) są w osobnych warstwach SVG, więc budynek rysuje się tylko raz. Animacje sceny zatrzymują się, gdy nie patrzysz na Biuro, a logika gry chodzi z częstotliwością 20 Hz. Gra zostawiona otwarta mniej obciąża baterię.
+
 ## 🛠️ Rozwój
 
 Czysty JavaScript (moduły ES), bez bundlera i zależności.
@@ -45,7 +54,10 @@ Czysty JavaScript (moduły ES), bez bundlera i zależności.
 ```
 index.html            szkielet aplikacji
 css/style.css         wygląd
-js/data.js            cała zawartość: produkty, działy, technologie, ulepszenia…
+js/data.js            cała zawartość (po polsku): produkty, działy, technologie, ulepszenia…
+js/lang/en.js         ta sama zawartość po angielsku
+js/i18n.js            teksty interfejsu PL/EN, wybór języka, odmiana liczebników
+js/text.js            nazwy i opisy w bieżącym języku
 js/engine.js          logika gry (bez DOM) — używana też przez testy i symulator
 js/ui.js              interfejs, zakładki, modale
 js/scene.js           ilustracja budynku w SVG
@@ -59,7 +71,7 @@ tests/                testy silnika (node:test)
 
 ```bash
 npm start            # serwer lokalny: http://localhost:8080
-npm test             # testy silnika
+npm test             # testy silnika, tłumaczeń i wyceny
 npm run sim          # symulacja 21 dni gry „z doskoku”
 npm run sim:active   # symulacja ~5 h gry aktywnej
 ```
