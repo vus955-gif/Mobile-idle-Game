@@ -2,10 +2,11 @@
 import {
   PRODUCTS, DEPTS, TECHS, REPEAT_TECHS, CULTURE_UPGRADES, CLICK_UPGRADES, ACQUISITIONS, PERKS, ERAS,
   CATEGORIES, BUBBLES, ROUND_NAMES, COMPANY_STAGES, NEWS, TREND_TEMPLATES, CONTRACT_CLIENTS, CONTRACT_TASKS,
+  PRODUCT_UP_NAMED, AUTOPILOT, CHALLENGES, SCALE_LEVELS, DECISIONS,
 } from './data.js';
 import { EN } from './lang/en.js';
 import { getLang, t, noun } from './i18n.js';
-import { fmt, fmtInt, money, num } from './format.js';
+import { fmt, fmtInt, money, num, fmtTime } from './format.js';
 
 const en = () => getLang() === 'en';
 const byId = (arr) => Object.fromEntries(arr.map((x) => [x.id, x]));
@@ -17,6 +18,8 @@ const CU = byId(CULTURE_UPGRADES);
 const CL = byId(CLICK_UPGRADES);
 const A = byId(ACQUISITIONS);
 const PK = byId(PERKS);
+const AP = byId(AUTOPILOT);
+const CH = byId(CHALLENGES);
 
 export const prodName = (id) => (en() ? EN.products[id].name : P[id].name);
 export const prodDesc = (id) => (en() ? EN.products[id].desc : P[id].desc);
@@ -34,6 +37,28 @@ export const catName = (cat) => (en() ? EN.categories[cat] : CATEGORIES[cat].nam
 export const bubbleName = (type) => (en() ? EN.bubbles[type] : BUBBLES[type].name);
 export const eraName = (id) => (en() ? EN.eras[id] : ERAS.find((e) => e.id === id).name);
 export const newsList = () => (en() ? EN.news : NEWS);
+export const apName = (id) => (en() ? EN.autopilot[id].name : AP[id].name);
+export const apDesc = (id) => (en() ? EN.autopilot[id].desc : AP[id].desc);
+export const challengeName = (id) => (en() ? EN.challenges[id].name : CH[id].name);
+export const challengeDesc = (id) => (en() ? EN.challenges[id].desc : CH[id].desc);
+export const scaleName = (i) => (en() ? EN.scale[i].name : SCALE_LEVELS[i].name);
+export const scaleDesc = (i) => (en() ? EN.scale[i].desc : SCALE_LEVELS[i].desc);
+export const decisionTitle = (i) => (en() ? EN.decisions[i].title : DECISIONS[i].title);
+export const decisionText = (i) => (en() ? EN.decisions[i].text : DECISIONS[i].text);
+export const decisionLabel = (i, which) => (en() ? EN.decisions[i][which] : DECISIONS[i][which].label);
+
+// Opis efektu decyzji (po przeliczeniu przez silnik: cash/rp/x/s).
+export function decisionEffectText(e) {
+  switch (e.t) {
+    case 'cash': return t('de.cash', { v: money(e.cash) });
+    case 'rp': return t('de.rp', { v: fmt(e.rp) });
+    case 'delayed': return t('de.delayed', { v: money(e.cash), t: fmtTime(e.s) });
+    case 'boost': return t('de.boost', { x: num(e.x), t: fmtTime(e.s) });
+    case 'click': return t('de.click', { x: num(e.x), t: fmtTime(e.s) });
+    case 'rpBoost': return t('de.rpBoost', { x: num(e.x), t: fmtTime(e.s) });
+    default: return '';
+  }
+}
 
 export function roundName(count) {
   const arr = en() ? EN.rounds : ROUND_NAMES;
@@ -67,8 +92,14 @@ export function taskName(o) {
 // ---------- ulepszenia ----------
 export function upgradeName(u) {
   switch (u.kind) {
-    case 'product': return en() ? EN.products[u.pid].ups[u.tier] : P[u.pid].ups[u.tier];
-    case 'dept': return en() ? EN.depts[u.did].ups[u.tier] : D[u.did].ups[u.tier];
+    case 'product':
+      if (u.tier >= PRODUCT_UP_NAMED) return t('up.tiers')[u.tier - PRODUCT_UP_NAMED].replace('{p}', prodName(u.pid));
+      return en() ? EN.products[u.pid].ups[u.tier] : P[u.pid].ups[u.tier];
+    case 'dept': {
+      const named = D[u.did].ups.length;
+      if (u.tier >= named) return t('up.deptTiers')[u.tier - named].replace('{d}', deptName(u.did));
+      return en() ? EN.depts[u.did].ups[u.tier] : D[u.did].ups[u.tier];
+    }
     case 'culture': return en() ? EN.culture[u.id].name : CU[u.id].name;
     case 'click': return en() ? EN.click[u.id].name : CL[u.id].name;
     default: return u.id;
@@ -95,6 +126,7 @@ export function upgradeDesc(u) {
 export function achName(a) {
   if (a.type === 'fun') return t(`achFun.${a.id}`)[0];
   if (a.type === 'prod') return `${prodName(a.pid)}: ${t('achNames.prod')[a.i]}`;
+  if (a.type === 'scale') return scaleName(a.i);
   return t(`achNames.${a.type}`)[a.i];
 }
 
@@ -115,6 +147,10 @@ export function achDesc(a) {
     case 'bub': return t('ach.bub', { n: fmtInt(v), noun: noun('events', v) });
     case 'con': return t('ach.con', { n: fmtInt(v), noun: noun('contracts', v) });
     case 'acq': return t('ach.acq', { n: v, noun: noun('companies', v) });
+    case 'chal': return t('ach.chal', { n: v, noun: noun('tiers', v) });
+    case 'dec': return t('ach.dec', { n: v, noun: noun('decisions', v) });
+    case 'ap': return t('ach.ap', { n: v, noun: noun('modules', v) });
+    case 'scale': return t('ach.scale', { name: scaleName(a.i) });
     default: return '';
   }
 }
@@ -139,6 +175,13 @@ export function describeFx(fx) {
       case 'auto': parts.push(t('dfx.auto', { n: e.v })); break;
       case 'unlockProduct': parts.push(t('dfx.unlockProduct', { name: prodName(e.id) })); break;
       case 'unlockDept': parts.push(t('dfx.unlockDept', { name: deptName(e.id) })); break;
+      case 'investorPct': parts.push(t('dfx.investorPct', { p: num(e.v * 100) })); break;
+      case 'prestige': parts.push(t('dfx.prestige', { x })); break;
+      case 'contract': parts.push(t('dfx.contract', { x })); break;
+      case 'offlineCap': parts.push(t('dfx.offlineCap', { t: fmtTime(e.v) })); break;
+      case 'offlineEff': parts.push(t('dfx.offlineEff', { p: num(e.v * 100) })); break;
+      case 'acqCost': parts.push(t('dfx.acqCost', { n: Math.round((1 - e.x) * 100) })); break;
+      case 'eventPower': parts.push(t('dfx.eventPower', { x })); break;
       default: break;
     }
   }

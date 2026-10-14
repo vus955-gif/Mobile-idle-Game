@@ -24,6 +24,127 @@ export function phaseFor(date = new Date()) {
   return 'dusk';
 }
 
+// ---------- pory roku, pogoda i święta (wg kalendarza telefonu) ----------
+export function seasonFor(d = new Date()) {
+  const m = d.getMonth();
+  if (m === 11 || m <= 1) return 'winter';
+  if (m <= 4) return 'spring';
+  if (m <= 7) return 'summer';
+  return 'autumn';
+}
+export function holidayFor(d = new Date()) {
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  if ((m === 10 && day >= 25) || (m === 11 && day === 1)) return 'halloween';
+  if ((m === 12 && day >= 6) || (m === 1 && day <= 6)) return 'xmas';
+  return null;
+}
+export function isNewYear(d = new Date()) {
+  const m = d.getMonth() + 1;
+  const day = d.getDate();
+  return (m === 12 && day === 31 && d.getHours() >= 20) || (m === 1 && day === 1 && d.getHours() < 3);
+}
+// Pogoda zmienia się co 3 godziny, ale jest powtarzalna — wszyscy widzą to samo o tej samej porze.
+const WEATHER = {
+  winter: [['snow', 0.35], ['cloudy', 0.25], ['clear', 0.4]],
+  spring: [['rain', 0.22], ['cloudy', 0.23], ['clear', 0.55]],
+  summer: [['rain', 0.12], ['cloudy', 0.15], ['clear', 0.73]],
+  autumn: [['rain', 0.28], ['fog', 0.1], ['cloudy', 0.24], ['clear', 0.38]],
+};
+export function weatherFor(d = new Date(), season = seasonFor(d)) {
+  const key = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  let h = Math.imul(key ^ 0x9e3779b9, 2654435761) ^ Math.imul(Math.floor(d.getHours() / 3) + 7, 40503);
+  h = Math.imul(h ^ (h >>> 15), 2246822519) >>> 0;
+  let r = (h % 10000) / 10000;
+  for (const [w, p] of WEATHER[season]) { r -= p; if (r < 0) return w; }
+  return 'clear';
+}
+// Do testów i zrzutów ekranu: ?env=winter,snow,xmas
+function envOverride() {
+  const q = globalThis.location?.search || '';
+  const m = q.match(/[?&]env=([^&]+)/);
+  if (!m) return null;
+  const [season, weather, holiday] = decodeURIComponent(m[1]).split(',');
+  return { season, weather, holiday: holiday || null };
+}
+export function envFor(d = new Date()) {
+  const o = envOverride();
+  const season = o?.season || seasonFor(d);
+  const weather = o?.weather || weatherFor(d, season);
+  const holiday = o ? o.holiday : holidayFor(d);
+  return { season, weather, holiday, newYear: o ? o.holiday === 'newyear' : isNewYear(d), snowCover: season === 'winter' };
+}
+
+// Deszcz i śnieg: kafelek powtarzany w pionie, przesuwany jedną animacją CSS.
+function precipitation(kind, H) {
+  const tile = kind === 'rain' ? 120 : 160;
+  const r = seeded(kind === 'rain' ? 21 : 33);
+  let cell = '';
+  const n = kind === 'rain' ? 26 : 18;
+  for (let i = 0; i < n; i++) {
+    const x = -20 + r() * (W + 40);
+    const y = r() * tile;
+    if (kind === 'rain') cell += `<line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x - 3).toFixed(1)}" y2="${(y + 9).toFixed(1)}"/>`;
+    else cell += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${(1 + r() * 1.6).toFixed(2)}"/>`;
+  }
+  let tiles = '';
+  for (let y = -tile; y < H; y += tile) tiles += `<g transform="translate(0 ${y})">${cell}</g>`;
+  if (kind === 'rain') return `<g class="rain" stroke="#cfe3ff" stroke-width="1.1" stroke-linecap="round" opacity=".55">${tiles}</g>`;
+  return `<g class="snow-sway"><g class="snow" fill="#fff" opacity=".9">${tiles}</g></g>`;
+}
+
+function pumpkin(x, y, s = 1) {
+  return `<g transform="translate(${x} ${y}) scale(${s})"><ellipse cx="0" cy="-5" rx="7" ry="5.5" fill="#f08a24"/><ellipse cx="0" cy="-5" rx="3" ry="5.5" fill="#f59a3a"/>
+    <rect x="-1" y="-12.5" width="2" height="3" rx="1" fill="#4a7a2c"/><path d="M-4 -6 l1.5 -1.6 l1.5 1.6z M1 -6 l1.5 -1.6 l1.5 1.6z M-3.5 -3.2 q3.5 2 7 0" fill="#3b1d06" stroke="#3b1d06" stroke-width=".6"/></g>`;
+}
+
+function xmasTree(x, groundY, s = 1) {
+  return `<g transform="translate(${x} ${groundY}) scale(${s})"><rect x="-2" y="-6" width="4" height="6" fill="#7a5233"/>
+    <path d="M0 -40 L11 -20 L6 -20 L14 -6 L-14 -6 L-6 -20 L-11 -20 Z" fill="#2f8a55"/>
+    <circle cx="-5" cy="-12" r="1.6" fill="#ff5d73"/><circle cx="5" cy="-16" r="1.6" fill="#ffd166"/><circle cx="2" cy="-26" r="1.5" fill="#60a5fa"/><circle cx="-3" cy="-22" r="1.4" fill="#fff"/>
+    <path d="M0 -45 l1.6 3.4 3.6 .4 -2.7 2.4 .8 3.6 -3.3 -1.9 -3.3 1.9 .8 -3.6 -2.7 -2.4 3.6 -.4z" fill="#ffe066"/></g>`;
+}
+
+// Girlanda świątecznych lampek wzdłuż krawędzi; część żarówek mruga (warstwa animacji).
+function lights(x1, x2, y, sag = 4) {
+  const colors = ['#ff5d73', '#ffd166', '#4ade80', '#60a5fa', '#c084fc'];
+  let wire = `<path d="M${x1} ${y}`;
+  const n = Math.max(4, Math.round((x2 - x1) / 14));
+  let bulbs = '';
+  for (let i = 0; i <= n; i++) {
+    const x = x1 + ((x2 - x1) * i) / n;
+    const yy = y + Math.sin((i / n) * Math.PI * Math.round(n / 3)) * sag * 0.5 + sag * 0.5;
+    wire += ` L${x.toFixed(1)} ${yy.toFixed(1)}`;
+    const c = colors[i % colors.length];
+    const b = `<circle cx="${x.toFixed(1)}" cy="${(yy + 1.6).toFixed(1)}" r="1.7" fill="${c}"/>`;
+    if (i % 3 === 0) ANIM.push(`<circle class="blink" style="animation-delay:${(i * 0.23).toFixed(2)}s" cx="${x.toFixed(1)}" cy="${(yy + 1.6).toFixed(1)}" r="2.6" fill="${c}" opacity=".7" filter="url(#glowA)"/>`);
+    bulbs += b;
+  }
+  return `${wire}" fill="none" stroke="#2b2f45" stroke-width=".8"/>${bulbs}`;
+}
+
+function fireworks(groundY) {
+  let out = '';
+  const r = seeded(77);
+  const colors = ['#ffd166', '#ff5d73', '#60a5fa', '#4ade80', '#c084fc'];
+  for (let k = 0; k < 4; k++) {
+    const cx = 40 + r() * (W - 80);
+    const cy = 30 + r() * (groundY * 0.35);
+    const c = colors[k % colors.length];
+    let rays = '';
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      rays += `<line x1="${(Math.cos(a) * 4).toFixed(1)}" y1="${(Math.sin(a) * 4).toFixed(1)}" x2="${(Math.cos(a) * 18).toFixed(1)}" y2="${(Math.sin(a) * 18).toFixed(1)}"/>`;
+    }
+    out += `<g transform="translate(${cx.toFixed(0)} ${cy.toFixed(0)})"><g class="firework" style="animation-delay:${(k * 0.9).toFixed(1)}s" stroke="${c}" stroke-width="1.6" stroke-linecap="round">${rays}</g></g>`;
+  }
+  return out;
+}
+
+function bat(y, dur, delay) {
+  return `<g class="bat" style="animation-duration:${dur}s;animation-delay:${delay}s"><path transform="translate(0 ${y})" d="M0 0 q4 -5 8 -1 q2 -3 3 0 q1 -3 3 0 q4 -4 8 1 q-5 -1 -7 3 q-1.5 -2 -3 0 q-1.5 -2 -3 0 q-2 -4 -9 -3z" fill="#1a1426"/></g>`;
+}
+
 function seeded(seed) {
   let s = seed >>> 0;
   return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
@@ -91,12 +212,38 @@ function plant(x, y, s = 1) {
     <ellipse cx="-3" cy="-10" rx="3" ry="5" fill="#3fa36a" transform="rotate(-20 -3 -10)"/><ellipse cx="3" cy="-10" rx="3" ry="5" fill="#4fc27e" transform="rotate(20 3 -10)"/><ellipse cx="0" cy="-12" rx="2.6" ry="5.4" fill="#5fd38e"/></g>`;
 }
 
-function tree(x, groundY, s, rnd) {
-  const c1 = ['#3e9a5c', '#4caf6a', '#2f8a55'][Math.floor(rnd() * 3)];
-  return `<g transform="translate(${x} ${groundY}) scale(${s})">
-    <rect x="-2.5" y="-16" width="5" height="16" rx="2" fill="#7a5233"/>
+const FOLIAGE = {
+  spring: ['#4caf6a', '#5cbf78', '#3e9a5c'],
+  summer: ['#3e9a5c', '#4caf6a', '#2f8a55'],
+  autumn: ['#e8833a', '#d9534f', '#e9b73c'],
+};
+
+function tree(x, groundY, s, rnd, season = 'summer') {
+  const pick = rnd();
+  const trunk = '<rect x="-2.5" y="-16" width="5" height="16" rx="2" fill="#7a5233"/>';
+  if (season === 'winter') {
+    return `<g transform="translate(${x} ${groundY}) scale(${s})">${trunk}
+      <path d="M0 -16 L0 -34 M0 -24 L-9 -32 M0 -28 L8 -37 M-5 -28 L-9 -36 M4 -33 L2 -40" stroke="#6b4a30" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+      <ellipse cx="-9" cy="-33" rx="3.5" ry="1.6" fill="#f4f8ff"/><ellipse cx="8" cy="-38" rx="3.2" ry="1.5" fill="#f4f8ff"/><ellipse cx="2" cy="-41" rx="2.6" ry="1.3" fill="#f4f8ff"/></g>`;
+  }
+  const pal = FOLIAGE[season] || FOLIAGE.summer;
+  const c1 = pal[Math.floor(pick * 3)];
+  let extra = '';
+  if (season === 'spring') {
+    const r2 = seeded(Math.floor(x * 7 + 3));
+    for (let i = 0; i < 9; i++) extra += `<circle cx="${(r2() * 26 - 13).toFixed(1)}" cy="${(-14 - r2() * 24).toFixed(1)}" r="1.8" fill="${i % 2 ? '#f7b6cf' : '#ffd6e5'}"/>`;
+  }
+  if (season === 'autumn') {
+    const r2 = seeded(Math.floor(x * 5 + 1));
+    for (let i = 0; i < 4; i++) extra += `<ellipse cx="${(r2() * 34 - 17).toFixed(1)}" cy="-0.6" rx="2.4" ry="1" fill="${pal[i % 3]}"/>`;
+  }
+  return `<g transform="translate(${x} ${groundY}) scale(${s})">${trunk}
     <circle cx="0" cy="-26" r="13" fill="${c1}"/><circle cx="-7" cy="-20" r="8" fill="${c1}"/><circle cx="8" cy="-21" r="8.5" fill="${c1}"/>
-    <circle cx="-3" cy="-31" r="6" fill="rgba(255,255,255,.12)"/></g>`;
+    <circle cx="-3" cy="-31" r="6" fill="rgba(255,255,255,.12)"/>${extra}</g>`;
+}
+
+function leaf(x, delay, dur, color) {
+  return `<g class="leaf" style="animation-delay:${delay}s;animation-duration:${dur}s"><path transform="translate(${x} -10)" d="M0 0 q3 -3 6 0 q-3 3 -6 0z" fill="${color}"/></g>`;
 }
 
 function car(y, color, dur, delay, rev) {
@@ -132,17 +279,21 @@ export class Scene {
       const n = s.depts[d.id] || 0;
       return d.id + SEATS.filter((t) => n >= t).length;
     }).join(',');
-    return `${phase}|${floors}|${Math.min(s.prestigeCount, 8)}|${s.companyName}|${(s.products.landing || 0) > 0 ? 1 : 0}`;
+    const e = this.env || {};
+    return `${phase}|${floors}|${Math.min(s.prestigeCount, 8)}|${s.companyName}|${(s.products.landing || 0) > 0 ? 1 : 0}|${e.season}|${e.weather}|${e.holiday}|${e.newYear}`;
   }
 
   render(game, force = false) {
     const phase = phaseFor();
+    this.env = envFor();
+    const env = this.env;
     const sig = this.signature(game, phase);
     if (!force && sig === this.sig) return;
     this.sig = sig;
     const s = game.s;
     const sky = SKIES[phase];
     const night = phase === 'night';
+    const overcast = env.weather === 'rain' || env.weather === 'snow' || env.weather === 'cloudy' || env.weather === 'fog';
     const unlocked = DEPTS.filter((d) => s.deptUnlocked[d.id]);
     const garage = unlocked.length <= 1;
     const nFloors = unlocked.length;
@@ -176,7 +327,8 @@ export class Scene {
 
     // --- niebo ---
     back.push(`<rect x="-700" y="-400" width="${W + 1400}" height="${groundY + 400}" fill="url(#skyG)"/>`);
-    if (night || phase === 'dusk') {
+    if (overcast) back.push(`<rect x="-700" y="-400" width="${W + 1400}" height="${groundY + 400}" fill="${night ? '#1a1d33' : '#7d869f'}" opacity="${env.weather === 'cloudy' ? 0.22 : 0.38}"/>`);
+    if ((night || phase === 'dusk') && !overcast) {
       const sr = seeded(7);
       for (let i = 0; i < (night ? 70 : 25); i++) {
         const x = -300 + sr() * (W + 600);
@@ -191,7 +343,9 @@ export class Scene {
     // słońce / księżyc
     const now = new Date();
     const hour = now.getHours() + now.getMinutes() / 60;
-    if (night) {
+    if (overcast && env.weather !== 'cloudy') {
+      // przy deszczu, śniegu i mgle nie widać ani słońca, ani księżyca
+    } else if (night) {
       const t = ((hour + 24 - 21) % 24) / 8;
       const mx = 30 + t * (W - 60);
       const my = 40 + Math.pow(t - 0.5, 2) * 160;
@@ -204,12 +358,19 @@ export class Scene {
     }
     // chmury
     const cr = seeded(99);
-    for (let i = 0; i < 5; i++) {
-      const y = 20 + cr() * (groundY * 0.45);
-      const sc = 0.6 + cr() * 0.8;
+    const cloudN = overcast ? 9 : 5;
+    const cloudFill = overcast ? (night ? '#5a6080' : '#d5dae8') : '#fff';
+    const cloudOp = overcast ? Math.min(1, sky.cloud + 0.25) : sky.cloud;
+    for (let i = 0; i < cloudN; i++) {
+      const y = 20 + cr() * (groundY * (overcast ? 0.3 : 0.45));
+      const sc = (0.6 + cr() * 0.8) * (overcast ? 1.3 : 1);
       const dur = 80 + cr() * 90;
-      backAnim.push(`<g class="cloud" style="animation-duration:${dur.toFixed(0)}s;animation-delay:-${(cr() * dur).toFixed(0)}s" opacity="${sky.cloud}">
-        <g transform="translate(0 ${y.toFixed(0)}) scale(${sc.toFixed(2)})"><ellipse cx="0" cy="0" rx="26" ry="11" fill="#fff"/><ellipse cx="18" cy="-6" rx="17" ry="12" fill="#fff"/><ellipse cx="-14" cy="-4" rx="13" ry="9" fill="#fff"/><ellipse cx="34" cy="2" rx="14" ry="8" fill="#fff"/></g></g>`);
+      backAnim.push(`<g class="cloud" style="animation-duration:${dur.toFixed(0)}s;animation-delay:-${(cr() * dur).toFixed(0)}s" opacity="${cloudOp.toFixed(2)}">
+        <g transform="translate(0 ${y.toFixed(0)}) scale(${sc.toFixed(2)})" fill="${cloudFill}"><ellipse cx="0" cy="0" rx="26" ry="11"/><ellipse cx="18" cy="-6" rx="17" ry="12"/><ellipse cx="-14" cy="-4" rx="13" ry="9"/><ellipse cx="34" cy="2" rx="14" ry="8"/></g></g>`);
+    }
+    if (env.newYear && night) backAnim.push(fireworks(groundY));
+    if (env.holiday === 'halloween' && (night || phase === 'dusk')) {
+      backAnim.push(bat(groundY * 0.25, 16, -2), bat(groundY * 0.4, 22, -11));
     }
     // panorama miasta w tle
     const fr = seeded(5);
@@ -231,7 +392,8 @@ export class Scene {
     }
 
     // --- ziemia ---
-    parts.push(`<rect x="-700" y="${groundY}" width="${W + 1400}" height="10" fill="${sky.grass}"/>`);
+    const grass = env.snowCover ? (night ? '#aab3cc' : '#eef3fb') : env.season === 'autumn' ? shade(sky.grass, 0.85) : sky.grass;
+    parts.push(`<rect x="-700" y="${groundY}" width="${W + 1400}" height="10" fill="${grass}"/>`);
     parts.push(`<rect x="-700" y="${groundY + 10}" width="${W + 1400}" height="8" fill="${shade('#9aa3c7', sky.wall)}"/>`);
     parts.push(`<rect x="-700" y="${groundY + 18}" width="${W + 1400}" height="${GROUND + 400}" fill="${sky.ground}"/>`);
     for (let x = -700; x < W + 700; x += 30) parts.push(`<rect x="${x}" y="${groundY + 33}" width="16" height="2.4" rx="1" fill="#e9ecff" opacity=".55"/>`);
@@ -242,7 +404,8 @@ export class Scene {
     // drzewa
     const tr = seeded(11);
     const treeXs = garage ? [52, 300, -30, 390] : [BX - 26, BX + BW + 26, BX - 70, BX + BW + 70, -60, W + 60];
-    for (const tx of treeXs) parts.push(tree(tx, groundY + 4, 0.8 + tr() * 0.4, tr));
+    for (const tx of treeXs) parts.push(tree(tx, groundY + 4, 0.8 + tr() * 0.4, tr, env.season));
+    if (env.holiday === 'xmas') parts.push(xmasTree(garage ? 96 : BX - 46, groundY + 2, garage ? 0.9 : 1));
 
     // --- budynek ---
     if (garage) {
@@ -251,7 +414,19 @@ export class Scene {
       parts.push(`<g transform="${tf}">${this.garage(game, groundY, sky, night)}</g>`);
       const moving = ANIM.splice(before);
       ANIM.push(`<g transform="${tf}">${moving.join('')}</g>`);
-    } else parts.push(this.building(game, unlocked, groundY, sky, night));
+    } else parts.push(this.building(game, unlocked, groundY, sky, night, env));
+
+    // --- pogoda na pierwszym planie ---
+    if (env.weather === 'rain') ANIM.push(precipitation('rain', H));
+    if (env.weather === 'snow') ANIM.push(precipitation('snow', H));
+    if (env.weather === 'fog') {
+      parts.push(`<defs><linearGradient id="fogG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#e8ecf6" stop-opacity="0"/><stop offset="1" stop-color="#e8ecf6" stop-opacity="${night ? 0.25 : 0.55}"/></linearGradient></defs>`);
+      parts.push(`<rect x="-700" y="${groundY - 120}" width="${W + 1400}" height="130" fill="url(#fogG)"/>`);
+    }
+    if (env.season === 'autumn' && env.weather !== 'rain') {
+      const lr = seeded(55);
+      for (let i = 0; i < 5; i++) ANIM.push(leaf(20 + lr() * (W - 40), -(lr() * 9).toFixed(1), 8 + lr() * 5, FOLIAGE.autumn[i % 3]));
+    }
 
     const content = { back, backAnim, front: parts, frontAnim: ANIM };
     for (const name of LAYERS) {
@@ -298,10 +473,16 @@ export class Scene {
     out += `<text x="${W / 2}" y="${gy + 16.8}" text-anchor="middle" font-size="9" font-weight="700" fill="#ffe08a" font-family="system-ui, sans-serif">${esc(name)}</text>`;
     out += plant(gx + gw + 18, groundY + 1, 1.1);
     out += `<rect x="${gx + gw + 30}" y="${groundY - 14}" width="14" height="14" rx="2" fill="#5b6bb3"/><rect x="${gx + gw + 32}" y="${groundY - 20}" width="10" height="6" rx="2" fill="#5b6bb3"/>`;
+    const env = this.env || {};
+    if (env.snowCover) {
+      out += `<path d="M${gx - 12} ${gy + 1} L${W / 2} ${gy - 48} L${gx + gw + 12} ${gy + 1} L${gx + gw + 4} ${gy + 1} L${W / 2} ${gy - 41} L${gx - 4} ${gy + 1} Z" fill="#f4f8ff" opacity=".95"/>`;
+    }
+    if (env.holiday === 'xmas') out += lights(gx - 6, gx + gw + 6, gy + 3, 3);
+    if (env.holiday === 'halloween') out += pumpkin(gx + 8, groundY, 1.2) + pumpkin(gx + gw - 8, groundY, 1);
     return out;
   }
 
-  building(game, unlocked, groundY, sky, night) {
+  building(game, unlocked, groundY, sky, night, env = {}) {
     const s = game.s;
     let out = '';
     const top = groundY - LOBBY_H - unlocked.length * FLOOR_H;
@@ -353,6 +534,12 @@ export class Scene {
     // dach
     const rt = top;
     out += `<rect x="${BX - 4}" y="${rt - 6}" width="${BW + 8}" height="7" rx="2" fill="${night ? '#454b85' : '#c5cbe0'}"/>`;
+    if (env.snowCover) out += `<rect x="${BX - 6}" y="${rt - 9}" width="${BW + 12}" height="4.5" rx="2.2" fill="#f4f8ff"/>`;
+    if (env.holiday === 'xmas') {
+      out += lights(BX, BX + BW, rt + 1, 4);
+      out += lights(BX, BX + BW, ly + 1, 3);
+    }
+    if (env.holiday === 'halloween') out += pumpkin(W / 2 - 30, groundY, 1.5) + pumpkin(W / 2 + 30, groundY, 1.2) + pumpkin(BX + BW + 14, groundY + 2, 1.3);
     const pc = s.prestigeCount;
     out += `<line x1="${BX + BW - 30}" y1="${rt - 6}" x2="${BX + BW - 30}" y2="${rt - 40}" stroke="${night ? '#8890c0' : '#7a819f'}" stroke-width="2"/>`;
     ANIM.push(`<circle class="blink" cx="${BX + BW - 30}" cy="${rt - 42}" r="2.6" fill="#ff4d4d" filter="url(#glowA)"/>`);

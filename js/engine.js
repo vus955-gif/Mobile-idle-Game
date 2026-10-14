@@ -1,9 +1,10 @@
 // Silnik gry — czysta logika bez DOM. Używany przez UI i przez symulator balansu.
 import {
   PRODUCTS, PRODUCT_GROWTH, MILESTONES, PRODUCT_UP_TIERS,
-  DEPTS, DEPT_MILESTONES, DEPT_MILESTONE_X, DEPT_UP_TIERS,
+  DEPTS, DEPT_MILESTONES, DEPT_MILESTONE_X, DEPT_UP_TIERS, DEPT_UP_EXTRA_ICONS,
   TECHS, REPEAT_TECHS, CULTURE_UPGRADES, CLICK_UPGRADES, ACQUISITIONS, PERKS,
   BUBBLES, CONTRACT_CLIENTS, CONTRACT_TASKS, CONTRACT_DURATIONS, TREND_TEMPLATES,
+  AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, SCALE_LEVELS, ENERGY_W_PER_USD, DECISIONS,
 } from './data.js';
 import { fmt, money, num } from './format.js';
 import { t, noun, getLang } from './i18n.js';
@@ -27,6 +28,25 @@ export const TECH_MAP = Object.fromEntries(TECHS.map((t) => [t.id, t]));
 export const REPEAT_MAP = Object.fromEntries(REPEAT_TECHS.map((t) => [t.id, t]));
 export const ACQ_MAP = Object.fromEntries(ACQUISITIONS.map((a) => [a.id, a]));
 export const PERK_MAP = Object.fromEntries(PERKS.map((p) => [p.id, p]));
+export const AP_MAP = Object.fromEntries(AUTOPILOT.map((a) => [a.id, a]));
+export const CHALLENGE_MAP = Object.fromEntries(CHALLENGES.map((c) => [c.id, c]));
+
+// Decyzje i historia wykresu
+export const DECISION_FIRST = 8 * 60000;
+export const HISTORY = { shortEvery: 5 * 60000, shortMax: 288, longEvery: 2 * 3600000, longMax: 360, roundsMax: 100 };
+
+// Skala cywilizacji: próg rocznego przychodu dla każdego poziomu.
+export const SCALE_THRESHOLDS = SCALE_LEVELS.map((L) => (L.v !== undefined ? L.v : Math.pow(10, 10 * L.k + 6) / ENERGY_W_PER_USD));
+// Stopień w skali Kardaszowa (wzór Sagana) dla rocznego przychodu przeliczonego na moc.
+export function kardashev(annualRevenue) {
+  if (!(annualRevenue > 0)) return null;
+  return (Math.log10(annualRevenue * ENERGY_W_PER_USD) - 6) / 10;
+}
+export function scaleIndex(annualRevenue) {
+  let idx = -1;
+  SCALE_THRESHOLDS.forEach((v, i) => { if (annualRevenue >= v) idx = i; });
+  return idx;
+}
 
 // ---------------------------------------------------------------------------
 // Lista wszystkich ulepszeń za gotówkę
@@ -44,7 +64,7 @@ for (const p of PRODUCTS) {
 for (const d of DEPTS) {
   DEPT_UP_TIERS.forEach((t, i) => {
     UPGRADES.push({
-      id: `u_${d.id}_${i}`, kind: 'dept', did: d.id, tier: i, icon: d.upIcons[i],
+      id: `u_${d.id}_${i}`, kind: 'dept', did: d.id, tier: i, icon: d.upIcons[i] || DEPT_UP_EXTRA_ICONS[i - d.upIcons.length],
       cost: d.base * Math.pow(d.g, t.at) * t.costHires, fx: [{ t: 'dept', id: d.id, x: t.x }],
       req: { dept: d.id, heads: t.at },
     });
@@ -75,25 +95,30 @@ const ach = (id, icon, type, v, i, check, extra = {}) => ACHIEVEMENTS.push({ id,
   [1e24, '💎'], [1e27, '💎'], [1e30, '👑'], [1e35, '👑'], [1e40, '🌌'], [1e50, '🌌'], [1e60, '♾️']]
   .forEach(([v, icon], i) => ach(`earn${i}`, icon, 'earn', v, i, (g) => g.s.totalEarned >= v));
 
-[10, 1e3, 1e6, 1e9, 1e12, 1e15, 1e18, 1e21, 1e24, 1e27, 1e30, 1e35]
+[10, 1e3, 1e6, 1e9, 1e12, 1e15, 1e18, 1e21, 1e24, 1e27, 1e30, 1e35, 1e40, 1e45, 1e50]
   .forEach((v, i) => ach(`inc${i}`, '📈', 'inc', v, i, (g) => g.s.stats.maxIncome >= v));
 
 [100, 1000, 5000, 25000, 100000].forEach((v, i) => ach(`click${i}`, '👆', 'click', v, i, (g) => g.s.stats.clicks >= v));
 
 for (const p of PRODUCTS) {
-  [1, 50, 100, 200, 300].forEach((v, i) =>
+  [1, 50, 100, 200, 300, 500, 1000].forEach((v, i) =>
     ach(`p_${p.id}_${i}`, p.icon, 'prod', v, i, (g) => (g.s.products[p.id] || 0) >= v, { pid: p.id }));
 }
 
-[10, 50, 100, 250, 500, 1000, 2500].forEach((v, i) => ach(`emp${i}`, '👥', 'emp', v, i, (g) => g.totalHeads() >= v));
+[10, 50, 100, 250, 500, 1000, 2500, 5000, 10000].forEach((v, i) => ach(`emp${i}`, '👥', 'emp', v, i, (g) => g.totalHeads() >= v));
 [3, 6, 10, 13].forEach((v, i) => ach(`dept${i}`, '🏢', 'dept', v, i, (g) => g.deptCount() >= v));
 [1, 10, 20, 35, TECHS.length].forEach((v, i) => ach(`tech${i}`, '🔬', 'tech', v, i, (g) => g.techCount() >= v));
-[10, 50, 100, 150, 200].forEach((v, i) => ach(`upg${i}`, '⬆️', 'upg', v, i, (g) => g.upgradeCount() >= v));
-[1, 3, 5, 10, 25].forEach((v, i) => ach(`pres${i}`, '🦄', 'pres', v, i, (g) => g.s.prestigeCount >= v));
-[10, 100, 1000, 10000, 100000].forEach((v, i) => ach(`inv${i}`, '💼', 'inv', v, i, (g) => g.s.investors >= v));
+[10, 50, 100, 150, 200, 250, 300].forEach((v, i) => ach(`upg${i}`, '⬆️', 'upg', v, i, (g) => g.upgradeCount() >= v));
+[1, 3, 5, 10, 25, 50, 100].forEach((v, i) => ach(`pres${i}`, '🦄', 'pres', v, i, (g) => g.s.prestigeCount >= v));
+[10, 100, 1000, 10000, 100000, 1e6, 1e8, 1e10, 1e12].forEach((v, i) => ach(`inv${i}`, '💼', 'inv', v, i, (g) => g.s.investors >= v));
 [1, 10, 50, 200, 1000].forEach((v, i) => ach(`bub${i}`, '🔥', 'bub', v, i, (g) => g.s.stats.bubbles >= v));
 [1, 10, 50, 200, 1000].forEach((v, i) => ach(`con${i}`, '🤝', 'con', v, i, (g) => g.s.stats.contracts >= v));
 [1, 5, ACQUISITIONS.length].forEach((v, i) => ach(`acq${i}`, '🦈', 'acq', v, i, (g) => g.acqCount() >= v));
+[1, 5, 10, 20, CHALLENGES.length * CHALLENGE_GOALS.length]
+  .forEach((v, i) => ach(`chal${i}`, '🏅', 'chal', v, i, (g) => g.challengeTiers() >= v));
+[1, 10, 50, 150].forEach((v, i) => ach(`dec${i}`, '📨', 'dec', v, i, (g) => g.s.stats.decisions >= v));
+[1, AUTOPILOT.length].forEach((v, i) => ach(`ap${i}`, '🤖', 'ap', v, i, (g) => g.apCount() >= v));
+SCALE_LEVELS.forEach((L, i) => ach(`scale${i}`, L.icon, 'scale', i, i, (g) => g.s.scaleMax >= i));
 
 const fun = (id, icon, check) => ach(id, icon, 'fun', 0, 0, check, { hidden: true });
 fun('f_night', '🦉', (g) => { const h = new Date(g.now).getHours(); return h >= 0 && h < 4 && g.s.stats.playTime > 60; });
@@ -102,6 +127,12 @@ fun('f_frenzy', '🌪️', (g) => !!g.s.flags.frenzy);
 fun('f_patience', '🧘', (g) => !!g.s.flags.patience);
 fun('f_combo', '🎯', (g) => !!(g.boostActive('income') && g.boostActive('click')));
 fun('f_trend', '🏄', (g) => !!g.s.flags.trendBest);
+fun('f_zen', '🪷', (g) => g.s.stats.zenTime >= 120);
+fun('f_music', '🎧', (g) => g.s.stats.musicTime >= 600);
+fun('f_snow', '☃️', (g) => !!g.s.flags.snow);
+fun('f_halloween', '🎃', (g) => !!g.s.flags.halloween);
+fun('f_xmas', '🎄', (g) => !!g.s.flags.xmas);
+fun('f_master', '🥋', (g) => Object.values(g.s.challenges).some((v) => v >= CHALLENGE_GOALS.length));
 
 export const ACH_MAP = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a]));
 
@@ -170,15 +201,27 @@ export function createState(now = Date.now()) {
     trend: null,
     nextTrendAt: now + 150000,
     contracts: { offers: [], active: [], nextOfferAt: 0, seq: 0 },
+    autopilot: { owned: {}, off: {} },
+    challenge: null,
+    challenges: {},
+    decision: null,
+    nextDecisionAt: now + DECISION_FIRST,
+    recentDecisions: [],
+    pending: [],
+    scaleMax: -1,
+    history: { short: [], long: [], rounds: [], lastShort: 0, lastLong: 0 },
     flags: {},
     stats: {
       clicks: 0, runClicks: 0, autoClicks: 0, bubbles: 0, contracts: 0, playTime: 0, maxIncome: 0,
       hired: 0, upgradesBought: 0, rpTotal: 0, bestRun: 0, startedAt: now, runStartedAt: now,
+      decisions: 0, autoBuys: 0, zenTime: 0, musicTime: 0, bestValuation: 0,
     },
-    settings: { sound: false, buyAmount: 1, lang: getLang() },
+    settings: { sound: false, music: false, buyAmount: 1, lang: getLang() },
     lastTick: now,
   };
 }
+
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 
 // Uzupełnia brakujące pola i odrzuca niepoprawne liczby (np. ze starego zapisu).
 export function sanitizeState(raw, now = Date.now()) {
@@ -193,10 +236,23 @@ export function sanitizeState(raw, now = Date.now()) {
   s.contracts = { ...base.contracts, ...(raw.contracts || {}) };
   if (!Array.isArray(s.contracts.offers)) s.contracts.offers = [];
   if (!Array.isArray(s.contracts.active)) s.contracts.active = [];
+  const ap = isObj(raw.autopilot) ? raw.autopilot : {};
+  s.autopilot = { owned: isObj(ap.owned) ? { ...ap.owned } : {}, off: isObj(ap.off) ? { ...ap.off } : {} };
+  s.challenges = isObj(raw.challenges) ? { ...raw.challenges } : {};
+  s.challenge = isObj(raw.challenge) && CHALLENGE_MAP[raw.challenge.id] ? { ...raw.challenge } : null;
+  s.decision = isObj(raw.decision) && DECISIONS[raw.decision.i] ? { ...raw.decision } : null;
+  s.recentDecisions = Array.isArray(raw.recentDecisions) ? raw.recentDecisions.filter((i) => Number.isInteger(i)) : [];
+  s.pending = Array.isArray(raw.pending) ? raw.pending.filter((p) => isObj(p) && p.at > 0 && p.cash >= 0) : [];
+  const h = isObj(raw.history) ? raw.history : {};
+  const series = (a) => (Array.isArray(a) ? a.filter((r) => Array.isArray(r) && r.length >= 3) : []);
+  s.history = {
+    short: series(h.short), long: series(h.long), rounds: Array.isArray(h.rounds) ? h.rounds.filter((x) => x > 0) : [],
+    lastShort: h.lastShort > 0 ? h.lastShort : 0, lastLong: h.lastLong > 0 ? h.lastLong : 0,
+  };
   s.deptUnlocked.dev = true;
   if (!(s.depts.dev >= 0)) s.depts.dev = 0;
   const fix = (v, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : (v === null ? Number.MAX_VALUE : d));
-  for (const k of ['cash', 'rp', 'runEarned', 'totalEarned', 'investors', 'shares', 'claimedRaw', 'prestigeCount', 'lastTick', 'nextBubbleAt', 'nextTrendAt']) {
+  for (const k of ['cash', 'rp', 'runEarned', 'totalEarned', 'investors', 'shares', 'claimedRaw', 'prestigeCount', 'lastTick', 'nextBubbleAt', 'nextTrendAt', 'nextDecisionAt', 'scaleMax']) {
     s[k] = fix(s[k], base[k]);
   }
   for (const k of Object.keys(s.stats)) s.stats[k] = fix(s.stats[k], base.stats[k] || 0);
@@ -226,7 +282,14 @@ export class Game {
   }
 
   on(ev, fn) { (this.listeners[ev] ||= []).push(fn); return this; }
-  emit(ev, data) { for (const fn of this.listeners[ev] || []) fn(data); }
+  emit(ev, data) {
+    // Autopilot kupuje po cichu: bez dźwięków, toastów i przerysowań przy każdym zakupie.
+    if (this.quiet && (ev === 'buy' || ev === 'structure' || ev === 'toast')) {
+      if (ev === 'structure') this.quietStructure = true;
+      return;
+    }
+    for (const fn of this.listeners[ev] || []) fn(data);
+  }
   toast(icon, title, text = '', kind = 'info') { this.emit('toast', { icon, title, text, kind }); }
 
   // ---------- liczniki ----------
@@ -236,7 +299,12 @@ export class Game {
   upgradeCount() { return Object.keys(this.s.upgrades).length; }
   acqCount() { return Object.keys(this.s.acquisitions).length; }
   achCount() { return Object.keys(this.s.achievements).length; }
+  apCount() { return AUTOPILOT.filter((a) => this.s.autopilot.owned[a.id]).length; }
+  challengeTiers() { let n = 0; for (const k in this.s.challenges) n += this.s.challenges[k] || 0; return n; }
+  ownedProductCount() { return PRODUCTS.filter((p) => (this.s.products[p.id] || 0) > 0).length; }
   boostActive(k) { const b = this.s.boosts[k]; return b && b.until > this.now ? b : null; }
+  // Aktywna reguła wyzwania (albo null)
+  rule() { const c = this.s.challenge; return c ? CHALLENGE_MAP[c.id] : null; }
 
   // ---------- przeliczanie modyfikatorów ----------
   recalc() {
@@ -290,6 +358,8 @@ export class Game {
     for (const id in s.upgrades) if (s.upgrades[id] && UPGRADE_MAP[id]) apply(UPGRADE_MAP[id].fx);
     for (const id in s.acquisitions) if (s.acquisitions[id] && ACQ_MAP[id]) apply(ACQ_MAP[id].fx);
     for (const id in s.perks) { const l = s.perks[id] || 0; if (l > 0 && PERK_MAP[id]) apply(PERK_MAP[id].fx, l); }
+    for (const id in s.challenges) { const l = s.challenges[id] || 0; if (l > 0 && CHALLENGE_MAP[id]) apply(CHALLENGE_MAP[id].fx, l); }
+    const ch = this.rule();
 
     let eventAdd = 0; let contractAdd = 0; let hireRed = 0; let prodRed = 0; let offAdd = 0; let acqRed = 0; let presAdd = 0;
     for (const d of DEPTS) {
@@ -328,30 +398,46 @@ export class Game {
     m.slots = Math.min(MAX_SLOTS, m.slots);
 
     m.achMult = 1 + ACH_BONUS * this.achCount();
-    m.invMult = 1 + s.investors * (INVESTOR_BONUS + m.investorPct);
-    const bi = this.boostActive('income');
-    const bc = this.boostActive('click');
-    m.boostIncome = bi ? bi.x : 1;
-    m.boostClick = bc ? bc.x : 1;
-    m.global = m.all * (1 + m.incomePct) * m.achMult * m.invMult * m.boostIncome;
+    m.invMult = ch && ch.rule === 'noInvestors' ? 1 : 1 + s.investors * (INVESTOR_BONUS + m.investorPct);
+    const bx = (k) => { const b = this.boostActive(k); return b ? b.x : 1; };
+    // income/click — bąbelki (viral, hackathon); dIncome/dClick/dRp — wybrane decyzje
+    m.boostIncome = bx('income') * bx('dIncome');
+    m.boostClick = bx('click') * bx('dClick');
+    m.rp *= bx('dRp');
+    m.global = m.all * (1 + m.incomePct) * m.achMult * m.invMult * m.boostIncome * (ch && ch.rule === 'incomeMult' ? ch.v : 1);
+    this.m = m;
 
-    const trend = s.trend && s.trend.until > this.now ? s.trend : null;
     let total = 0;
     for (const p of PRODUCTS) {
       const lvl = s.products[p.id] || 0;
-      let v = 0;
-      if (lvl > 0) {
-        v = p.rps * lvl * Math.pow(2, milestoneCount(lvl)) * (m.prod[p.id] || 1) * (m.cat[p.cat] || 1)
-          * (1 + (m.catAdd[p.cat] || 0)) * m.global;
-        if (trend && trend.pid === p.id) v *= trend.x;
-      }
+      const v = lvl > 0 ? this.productUnit(p.id) * lvl * Math.pow(2, milestoneCount(lvl)) : 0;
       this.prodIncome[p.id] = v;
       total += v;
     }
     this.income = Number.isFinite(total) ? total : Number.MAX_VALUE;
-    this.clickValue = ((1 + m.clickFlat) * m.click * (1 + m.clickMultAdd) * m.achMult * m.invMult + m.clickPct * this.income) * m.boostClick;
+    if (ch && ch.rule === 'noclick') {
+      m.auto = 0;
+      this.clickValue = 0;
+    } else {
+      this.clickValue = ((1 + m.clickFlat) * m.click * (1 + m.clickMultAdd) * m.achMult * m.invMult + m.clickPct * this.income) * m.boostClick;
+    }
     this.rpRate = m.rpBase * m.rp;
-    this.m = m;
+  }
+
+  // Przychód z jednego poziomu produktu (bez kamieni milowych), z premiami i trendem.
+  productUnit(id) {
+    const p = PRODUCT_MAP[id];
+    const m = this.m;
+    let v = p.rps * (m.prod[id] || 1) * (m.cat[p.cat] || 1) * (1 + (m.catAdd[p.cat] || 0)) * m.global;
+    const tr = this.s.trend;
+    if (tr && tr.until > this.now && tr.pid === id) v *= tr.x;
+    return v;
+  }
+  // O ile wzrośnie przychód po dokupieniu n poziomów (z kamieniami milowymi).
+  productDelta(id, n = 1) {
+    const l = this.s.products[id] || 0;
+    const f = (x) => x * Math.pow(2, milestoneCount(x));
+    return this.productUnit(id) * (f(l + n) - f(l));
   }
 
   earn(x) {
@@ -397,14 +483,26 @@ export class Game {
     this.updateBubble(now);
     this.updateTrend(now);
     this.updateContracts(now);
+    this.updateDecision(now);
+    this.updatePending(now);
+
+    this.apTimer = (this.apTimer || 0) + dt;
+    if (this.apTimer >= 1) { this.apTimer = 0; this.autopilotStep(now); }
 
     this.achTimer += dt;
-    if (this.achTimer >= 1) { this.achTimer = 0; this.checkAchievements(); }
+    if (this.achTimer >= 1) {
+      this.achTimer = 0;
+      this.updateChallenge(now);
+      this.updateScale();
+      this.sampleHistory(now);
+      this.checkAchievements();
+    }
   }
 
   click(now = this.now) {
     const s = this.s;
     const v = this.clickValue;
+    if (!(v > 0)) return 0;
     this.earn(v);
     s.stats.clicks++;
     s.stats.runClicks++;
@@ -419,6 +517,12 @@ export class Game {
     const p = PRODUCT_MAP[id];
     return !p.tech || !!this.s.techs[p.tech];
   }
+  // Wyzwanie „Pełne skupienie” ogranicza liczbę różnych produktów.
+  canOwnProduct(id) {
+    const ch = this.rule();
+    if (!ch || ch.rule !== 'maxProducts' || (this.s.products[id] || 0) > 0) return true;
+    return this.ownedProductCount() < ch.v;
+  }
   productCost(id, n = 1) {
     const p = PRODUCT_MAP[id];
     return geomSum(p.cost, PRODUCT_GROWTH, this.s.products[id] || 0, n) * this.m.prodCost;
@@ -432,7 +536,7 @@ export class Game {
     return amount;
   }
   buyProduct(id, amount = 1) {
-    if (!this.productUnlocked(id)) return 0;
+    if (!this.productUnlocked(id) || !this.canOwnProduct(id)) return 0;
     const n = amount === 'max' ? this.productMax(id) : amount;
     if (n <= 0) return 0;
     const cost = this.productCost(id, n);
@@ -454,6 +558,8 @@ export class Game {
   // ---------- działy ----------
   deptAvailable(id) {
     const d = DEPT_MAP[id];
+    const ch = this.rule();
+    if (ch && ch.rule === 'onlyDev' && id !== 'dev') return false;
     return !d.tech || !!this.s.techs[d.tech];
   }
   unlockDept(id) {
@@ -506,13 +612,15 @@ export class Game {
     if (r.earned !== undefined) return s.runEarned >= r.earned;
     return true;
   }
+  upgradesBlocked() { const ch = this.rule(); return !!ch && ch.rule === 'noUpgrades'; }
   availableUpgrades() {
+    if (this.upgradesBlocked()) return [];
     return UPGRADES.filter((u) => !this.s.upgrades[u.id] && this.upgradeVisible(u)).sort((a, b) => a.cost - b.cost);
   }
   buyUpgrade(id) {
     const u = UPGRADE_MAP[id];
     const s = this.s;
-    if (!u || s.upgrades[id] || !this.upgradeVisible(u) || s.cash < u.cost) return false;
+    if (!u || s.upgrades[id] || this.upgradesBlocked() || !this.upgradeVisible(u) || s.cash < u.cost) return false;
     s.cash -= u.cost;
     s.upgrades[id] = true;
     s.stats.upgradesBought++;
@@ -667,11 +775,14 @@ export class Game {
     const gain = this.prestigeGain();
     if (gain < 1) return 0;
     const s = this.s;
+    this.sampleHistory(now, true);
     s.claimedRaw += whole;
     s.investors += gain;
     s.shares += gain;
     s.prestigeCount++;
     s.stats.bestRun = Math.max(s.stats.bestRun, s.runEarned);
+    s.history.rounds.push(now);
+    if (s.history.rounds.length > HISTORY.roundsMax) s.history.rounds.splice(0, s.history.rounds.length - HISTORY.roundsMax);
     this.resetRun(now);
     this.emit('prestige', { gain });
     this.emit('structure');
@@ -688,6 +799,7 @@ export class Game {
     s.bubble = null;
     s.trend = null;
     s.contracts = { offers: [], active: [], nextOfferAt: 0, seq: s.contracts.seq || 0 };
+    s.challenge = null;
     s.runEarned = 0;
     s.stats.runClicks = 0;
     s.stats.runStartedAt = now;
@@ -876,6 +988,9 @@ export class Game {
     const elapsed = (now - s.lastTick) / 1000;
     this.now = now;
     if (!(elapsed > 0)) { s.lastTick = Math.max(s.lastTick, now); return null; }
+    // Premie nie liczą się offline. Bąbelki przepadają, a decyzje, których czas jeszcze trwa, wracają po przerwie.
+    const kept = {};
+    for (const k of ['dIncome', 'dClick', 'dRp']) if (s.boosts[k] && s.boosts[k].until > now) kept[k] = s.boosts[k];
     s.boosts = {};
     s.bubble = null;
     if (s.trend && s.trend.until <= now) s.trend = null;
@@ -888,15 +1003,263 @@ export class Game {
     s.rp += rp;
     s.stats.rpTotal += rp;
     const contracts = this.updateContracts(now);
+    const pending = this.updatePending(now);
     if (elapsed >= 8 * 3600) s.flags.patience = true;
     s.lastTick = now;
+    s.boosts = kept;
     s.nextBubbleAt = now + 20000 + this.rng() * 30000;
     if (s.nextTrendAt < now) s.nextTrendAt = now + 60000;
+    // Po dłuższej przerwie decyzja czeka chwilę po powrocie, a nie od razu.
+    if (!s.decision && s.nextDecisionAt < now + 3 * 60000) s.nextDecisionAt = now + 3 * 60000;
     this.recalc();
     this.checkAchievements();
-    const res = { elapsed, counted, cash, rp, eff, cap: this.m.offlineCap, contracts };
+    this.sampleHistory(now, true);
+    const res = { elapsed, counted, cash, rp, eff, cap: this.m.offlineCap, contracts, pending };
     this.emit('offline', res);
+    this.autopilotStep(now);
     return res;
+  }
+
+  // ---------- autopilot ----------
+  apOwned(id) { return !!this.s.autopilot.owned[id]; }
+  apOn(id) { return this.apOwned(id) && !this.s.autopilot.off[id]; }
+  apUnlocked() { return this.s.prestigeCount > 0; }
+  buyAutopilot(id) {
+    const a = AP_MAP[id];
+    const s = this.s;
+    if (!a || this.apOwned(id) || !this.apUnlocked() || s.shares < a.cost) return false;
+    s.shares -= a.cost;
+    s.autopilot.owned[id] = true;
+    delete s.autopilot.off[id];
+    this.emit('buy', { kind: 'perk', id });
+    this.emit('structure');
+    return true;
+  }
+  toggleAutopilot(id) {
+    if (!this.apOwned(id)) return false;
+    const off = this.s.autopilot.off;
+    if (off[id]) delete off[id]; else off[id] = true;
+    return !off[id];
+  }
+  // Jeden krok autopilota (co sekundę). Zwraca liczbę wykonanych zakupów.
+  autopilotStep(now = this.now) {
+    const s = this.s;
+    if (!this.apCount()) return 0;
+    let n = 0;
+    const researched = [];
+    this.quiet = true;
+    this.quietStructure = false;
+    try {
+      if (this.apOn('research')) {
+        for (let guard = 0; guard < 5; guard++) {
+          const avail = TECHS.filter((x) => !s.techs[x.id] && this.techAvailable(x.id)).sort((a, b) => a.cost - b.cost);
+          if (avail.length) {
+            if (s.rp >= avail[0].cost && this.research(avail[0].id)) { n++; researched.push(avail[0].id); continue; }
+            break;
+          }
+          const reps = REPEAT_TECHS.filter((r) => this.techAvailable(r.id)).sort((a, b) => this.repeatCost(a.id) - this.repeatCost(b.id));
+          if (reps.length && s.rp >= this.repeatCost(reps[0].id) && this.researchRepeat(reps[0].id)) { n++; continue; }
+          break;
+        }
+      }
+      if (this.apOn('upgrades')) {
+        let k = 0;
+        for (const u of this.availableUpgrades()) {
+          if (u.cost > s.cash) break;
+          if (this.buyUpgradeSilent(u)) k++;
+        }
+        if (k) { n += k; this.recalc(); this.quietStructure = true; }
+      }
+      if (this.apOn('hire')) {
+        for (const d of DEPTS) {
+          if (!s.deptUnlocked[d.id] && this.deptAvailable(d.id) && s.cash >= d.unlock * 2 && this.unlockDept(d.id)) n++;
+        }
+        const budget = s.cash * 0.12;
+        for (const d of DEPTS) {
+          if (!s.deptUnlocked[d.id]) continue;
+          const share = d.id === 'rnd' || d.id === 'data' ? 0.3 : 0.07;
+          const k = this.hireMax(d.id, budget * share);
+          if (k > 0 && this.hire(d.id, k)) n++;
+        }
+      }
+      if (this.apOn('products')) {
+        for (let guard = 0; guard < 25; guard++) {
+          let best = null;
+          for (const p of PRODUCTS) {
+            if (!this.productUnlocked(p.id) || !this.canOwnProduct(p.id)) continue;
+            const d = this.productDelta(p.id);
+            if (!(d > 0)) continue;
+            const cost = this.productCost(p.id, 1);
+            const score = cost / d;
+            if (!best || score < best.score) best = { id: p.id, score, cost };
+          }
+          if (!best || best.cost > s.cash) break;
+          const lvl = s.products[best.id] || 0;
+          const next = nextMilestone(lvl);
+          const want = next ? next - lvl : 25;
+          const k = Math.max(1, Math.min(want, this.productMax(best.id, s.cash * 0.6)));
+          if (this.buyProduct(best.id, k)) n++; else break;
+        }
+      }
+      if (this.apOn('contracts') && this.contractsUnlocked()) {
+        const c = s.contracts;
+        while (c.active.length < this.m.slots && c.offers.length) {
+          const best = c.offers.reduce((a, o) => (this.contractReward(o).cash > this.contractReward(a).cash ? o : a));
+          if (!this.acceptContract(best.id, now)) break;
+          n++;
+        }
+      }
+    } finally {
+      this.quiet = false;
+    }
+    // Bąbelek łapiemy „po ludzku”: z toastem, ale dopiero po chwili, żeby było go widać.
+    if (this.apOn('bubbles') && s.bubble && now - (s.bubble.until - BUBBLE_LIFETIME) >= 1500) {
+      if (this.popBubble(now)) n++;
+    }
+    if (n) {
+      this.recalc();
+      s.stats.autoBuys += n;
+      this.emit('autopilot', { n, researched });
+      if (this.quietStructure) this.emit('structure');
+    }
+    return n;
+  }
+
+  // ---------- wyzwania inwestorów ----------
+  challengesUnlocked() { return this.s.prestigeCount > 0; }
+  challengeGoal(id) {
+    const tier = this.s.challenges[id] || 0;
+    return tier < CHALLENGE_GOALS.length ? CHALLENGE_GOALS[tier] : null;
+  }
+  // Rozpoczęcie wyzwania zaczyna firmę od nowa (z kapitałem z rundy, jeśli jest).
+  startChallenge(id, now = this.now) {
+    const s = this.s;
+    if (!CHALLENGE_MAP[id] || !this.challengesUnlocked() || this.challengeGoal(id) === null) return false;
+    if (this.prestigeGain() >= 1) this.doPrestige(now);
+    else this.resetRun(now);
+    s.challenge = { id, tier: s.challenges[id] || 0, start: now };
+    this.recalc();
+    this.emit('challenge', { id, started: true });
+    this.emit('structure');
+    return true;
+  }
+  abandonChallenge() {
+    if (!this.s.challenge) return false;
+    this.s.challenge = null;
+    this.recalc();
+    this.emit('challenge', { abandoned: true });
+    this.emit('structure');
+    return true;
+  }
+  updateChallenge(now = this.now) {
+    const s = this.s;
+    const c = s.challenge;
+    if (!c) return false;
+    const goal = CHALLENGE_GOALS[c.tier];
+    if (goal === undefined) { s.challenge = null; this.recalc(); return false; }
+    if (s.runEarned < goal) return false;
+    s.challenges[c.id] = Math.max(s.challenges[c.id] || 0, c.tier + 1);
+    s.challenge = null;
+    this.recalc();
+    const ch = CHALLENGE_MAP[c.id];
+    this.toast(ch.icon, t('chal.done', { name: TX.challengeName(c.id), n: c.tier + 1 }), TX.describeFx(ch.fx), 'achievement');
+    this.emit('challenge', { id: c.id, done: true, tier: c.tier + 1, at: now });
+    this.emit('structure');
+    return true;
+  }
+
+  // ---------- skala cywilizacji ----------
+  annualRevenue() { return this.steadyIncome() * SECONDS_PER_GAME_YEAR; }
+  updateScale() {
+    const s = this.s;
+    const idx = scaleIndex(this.annualRevenue());
+    if (idx <= s.scaleMax) return false;
+    s.scaleMax = idx;
+    this.emit('scale', idx);
+    return true;
+  }
+
+  // ---------- decyzje ----------
+  updateDecision(now) {
+    const s = this.s;
+    if (s.decision) return;
+    if (!s.nextDecisionAt) s.nextDecisionAt = now + DECISION_FIRST;
+    if (now < s.nextDecisionAt || !(this.income > 0)) return;
+    const recent = s.recentDecisions || [];
+    const pool = DECISIONS.map((d, i) => i).filter((i) => !recent.includes(i));
+    const i = pool[Math.floor(this.rng() * pool.length)];
+    s.decision = { i, at: now };
+    s.recentDecisions = [...recent, i].slice(-8);
+    s.nextDecisionAt = now + (15 + this.rng() * 15) * 60000;
+    this.emit('decision', s.decision);
+  }
+  // Efekt decyzji po uwzględnieniu stanu gry (np. bez działu badań punkty zamieniają się w gotówkę).
+  decisionEffect(fx) {
+    const noRp = !(this.rpRate > 0);
+    let f = fx;
+    if (fx.t === 'rp' && noRp) f = { t: 'cash', min: fx.min };
+    if (fx.t === 'rpBoost' && noRp) f = { t: 'boost', x: 1.5, s: fx.s };
+    const inc = Math.max(this.steadyIncome(), this.clickValue, 1);
+    switch (f.t) {
+      case 'cash': case 'delayed': return { ...f, cash: inc * f.min * 60 };
+      case 'rp': return { ...f, rp: this.rpRate * f.min * 60 };
+      default: return { ...f };
+    }
+  }
+  chooseDecision(which, now = this.now) {
+    const s = this.s;
+    if (!s.decision || (which !== 'a' && which !== 'b')) return null;
+    const d = DECISIONS[s.decision.i];
+    const e = this.decisionEffect(d[which].fx);
+    switch (e.t) {
+      case 'cash': this.earn(e.cash); break;
+      case 'rp': s.rp += e.rp; s.stats.rpTotal += e.rp; break;
+      case 'delayed': s.pending.push({ at: now + e.s * 1000, cash: e.cash, icon: d.icon, di: s.decision.i }); break;
+      case 'boost': s.boosts.dIncome = { x: e.x, until: now + e.s * 1000, dur: e.s }; break;
+      case 'click': s.boosts.dClick = { x: e.x, until: now + e.s * 1000, dur: e.s }; break;
+      case 'rpBoost': s.boosts.dRp = { x: e.x, until: now + e.s * 1000, dur: e.s }; break;
+      default: break;
+    }
+    s.decision = null;
+    s.stats.decisions++;
+    this.recalc();
+    this.emit('decided', { d, which, e });
+    this.checkAchievements();
+    return e;
+  }
+  // Odroczone nagrody (np. grant, artykuł o kocie) wypłacane, gdy nadejdzie ich czas.
+  updatePending(now) {
+    const s = this.s;
+    if (!s.pending.length) return 0;
+    let paid = 0;
+    s.pending = s.pending.filter((p) => {
+      if (p.at > now) return true;
+      this.earn(p.cash);
+      paid++;
+      const d = DECISIONS[p.di];
+      this.toast(p.icon || '📨', t('dec.paid'), `${d ? TX.decisionTitle(p.di) : ''}: +${money(p.cash)}`, 'contract');
+      return false;
+    });
+    return paid;
+  }
+
+  // ---------- historia (wykres) ----------
+  sampleHistory(now = this.now, force = false) {
+    const s = this.s;
+    const h = s.history;
+    const val = this.valuation();
+    if (val > s.stats.bestValuation) s.stats.bestValuation = val;
+    const row = () => [now, +this.steadyIncome().toPrecision(4), +val.toPrecision(4)];
+    if (force || now - h.lastShort >= HISTORY.shortEvery) {
+      h.short.push(row());
+      h.lastShort = now;
+      if (h.short.length > HISTORY.shortMax) h.short.splice(0, h.short.length - HISTORY.shortMax);
+    }
+    if (now - h.lastLong >= HISTORY.longEvery) {
+      h.long.push(row());
+      h.lastLong = now;
+      if (h.long.length > HISTORY.longMax) h.long.splice(0, h.long.length - HISTORY.longMax);
+    }
   }
 
   // ---------- opisy efektów (dla UI) ----------

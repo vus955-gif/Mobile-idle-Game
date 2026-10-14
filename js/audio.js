@@ -3,6 +3,7 @@ let ctx = null;
 let master = null;
 let enabled = false;
 let lastClick = 0;
+let keepAlive = false;
 
 function ensure() {
   if (ctx) return ctx;
@@ -15,6 +16,10 @@ function ensure() {
   return ctx;
 }
 
+// Wspólny kontekst audio dla efektów i muzyki (iOS pozwala go wznowić tylko w geście użytkownika).
+export function getCtx() { return ensure(); }
+export function setMusicWanted(on) { keepAlive = on; }
+
 export function setSound(on) {
   enabled = on;
   if (on) {
@@ -24,7 +29,7 @@ export function setSound(on) {
 }
 
 export function unlockAudio() {
-  if (!enabled) return;
+  if (!enabled && !keepAlive) return;
   const c = ensure();
   if (c && c.state === 'suspended') c.resume();
 }

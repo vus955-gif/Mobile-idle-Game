@@ -121,6 +121,8 @@ export const EN = {
     r_opt: { name: 'Code Optimization', desc: '+10% revenue per level.' },
     r_click: { name: 'Ergonomics', desc: '+25% coding power per level.' },
     r_science: { name: 'Scientific Method', desc: '+15% research points per level.' },
+    r_ops: { name: 'Lean Operations', desc: 'Hiring 5% cheaper per level.' },
+    r_deals: { name: 'The Art of the Deal', desc: '+15% contract rewards per level.' },
   },
 
   culture: {
@@ -140,6 +142,12 @@ export const EN = {
     c_moon: { name: 'Lunar Branch Office', desc: 'The best view of Earth there is.' },
     c_teleport: { name: 'Office Teleporter', desc: 'Commute time: zero seconds.' },
     c_happy: { name: 'A Team of Happy People', desc: 'The best technology of all.' },
+    c_zerog: { name: 'Zero-G Yoga', desc: 'The lotus position has never been easier.' },
+    c_olympus: { name: 'Office with an Olympus Mons View', desc: 'The tallest mountain in the Solar System, right outside the meeting room.' },
+    c_rings: { name: 'A Garden on Saturn’s Rings', desc: 'The tomatoes grow in ellipses here.' },
+    c_sundays: { name: 'A Week with Eight Sundays', desc: 'The R&D physicists found a way.' },
+    c_pleiades: { name: 'Team Retreat in the Pleiades', desc: 'Seven stars, one company, zero roaming fees.' },
+    c_peace: { name: 'Peace and Quiet', desc: 'No notifications. Ever.' },
   },
 
   click: {
@@ -155,6 +163,9 @@ export const EN = {
     k_neuro: { name: 'Neural Link to the IDE', desc: 'Think faster than you can type.' },
     k_flow: { name: 'Flow State', desc: 'Time disappears. The code just flows.' },
     k_midas: { name: 'The Midas Touch', desc: 'Everything you touch turns into revenue.' },
+    k_swarm: { name: 'A Swarm of Coding Microbots', desc: 'They buzz in time with the stand-up.' },
+    k_loop: { name: 'Time-Loop Keyboard', desc: 'Every tap happens twice. Yesterday and today.' },
+    k_enter: { name: 'The Cosmic Enter Key', desc: 'Press it once to commit the entire galaxy.' },
   },
 
   acquisitions: {
@@ -188,6 +199,65 @@ export const EN = {
     p_head: { name: 'Head Start', desc: 'Start every round with 10 levels of your first products (more with each level).' },
     p_hr: { name: 'Employee Stock Options', desc: 'Hiring 6% cheaper per level.' },
   },
+
+  autopilot: {
+    products: { name: 'Product Manager on Autopilot', desc: 'Grows your products, picking whichever pays for itself fastest.' },
+    upgrades: { name: 'Shopping Assistant', desc: 'Buys upgrades the moment you can afford them.' },
+    hire: { name: 'AI Recruiter', desc: 'Opens new departments and hires staff, leaving most of the money for products.' },
+    contracts: { name: 'Account Manager', desc: 'Accepts the best requests for proposal whenever a slot frees up.' },
+    research: { name: 'Head of Research', desc: 'Researches the cheapest available technology once you have the points.' },
+    bubbles: { name: 'Opportunity Hunter', desc: 'Catches event bubbles while the game is open. Handy in zen mode.' },
+  },
+
+  challenges: {
+    noclick: { name: 'No Keyboard', desc: 'Coding and automatic taps earn nothing.' },
+    focus: { name: 'Laser Focus', desc: 'You can launch at most 5 different products.' },
+    solo: { name: 'One-Person Army', desc: 'You can’t open any department except Engineering.' },
+    bootstrap: { name: 'Bootstrapping', desc: 'Investor capital doesn’t boost your revenue.' },
+    minimal: { name: 'Minimalism', desc: 'You can’t buy upgrades.' },
+    crisis: { name: 'Market Crash', desc: 'Every product earns 10× less.' },
+  },
+
+  scale: [
+    { name: 'Pocket Money', desc: 'What a lemonade stand makes over the summer.' },
+    { name: 'Neighborhood Bakery', desc: 'The revenue of a small local business.' },
+    { name: 'Chain of Stores', desc: 'A mid-sized company with a few dozen employees.' },
+    { name: 'Big Company', desc: 'A billion dollars of revenue a year.' },
+    { name: 'Tech Giant', desc: 'The big leagues of global business.' },
+    { name: 'World’s Largest Company', desc: 'The revenue of the biggest corporation on Earth (over $600B).' },
+    { name: 'GDP of Poland', desc: 'The entire Polish economy over a year (about $900B).' },
+    { name: 'GDP of the USA', desc: 'The world’s largest economy (about $29T).' },
+    { name: 'GDP of Earth', desc: 'All of humanity combined (about $110T). The UN would like a meeting.' },
+    { name: 'Type I Civilization', desc: 'Kardashev 1: all the energy that reaches the planet.' },
+    { name: 'Interplanetary Empire', desc: 'Your economy spans the planets and moons of the Solar System.' },
+    { name: 'Type II Civilization', desc: 'Kardashev 2: the entire output of a star. The Dyson sphere is done.' },
+    { name: 'Star Cluster', desc: 'Thousands of suns working for a single company.' },
+    { name: 'Type III Civilization', desc: 'Kardashev 3: the energy of an entire galaxy.' },
+    { name: 'The Local Group', desc: 'The Milky Way, Andromeda and a few dozen smaller galaxies.' },
+    { name: 'Type IV: The Universe', desc: 'Your company runs the entire observable universe.' },
+    { name: 'The Multiverse', desc: 'Competition? Not in this universe anymore.' },
+  ],
+
+  decisions: [
+    { title: 'A Tech Giant Wants Your Side Project', text: 'A little lunch-planning app, written after hours, caught the eye of a Silicon Valley corporation.', a: 'Sell it', b: 'Keep building' },
+    { title: 'A University Offers Internships', text: 'Ten computer science students want to spend the summer at your company.', a: 'Take the interns', b: 'Host a hackathon' },
+    { title: 'The Coffee Machine Broke', text: 'Productivity is tanking and a crowd is forming in the kitchen. Someone already started a thread about it.', a: 'Buy a premium espresso machine', b: 'Turn it into a meme' },
+    { title: 'An Influencer Wants to Review Your App', text: 'She has three million followers and very honest opinions.', a: 'Give her early access', b: 'Invite her to the office' },
+    { title: 'A Conference Invitation', text: 'Europe’s biggest tech conference has one speaking slot left.', a: 'Give a keynote', b: 'Send the team to workshops' },
+    { title: 'Open-Source the Library?', text: 'The team built a brilliant animation library. It could be open source.', a: 'Open source it!', b: 'Sell licenses' },
+    { title: 'An R&D Grant', text: 'The innovation fund just opened applications. The form is only 84 pages long.', a: 'Apply', b: 'Not worth the paperwork' },
+    { title: 'Your Rival Is Down', text: 'Your biggest competitor’s servers have been down since morning. Their customers are looking for alternatives.', a: 'Welcome the new customers', b: 'Help them get back up' },
+    { title: 'There’s a Dog in the Office!', text: 'Someone brought a golden retriever to work. Nobody is working. Everybody is happy.', a: 'He’s staying for good', b: 'Social media photo shoot' },
+    { title: 'You Made the Front Page', text: 'Your CTO’s post just hit the top of the most popular site for programmers.', a: 'Answer the comments', b: 'Announce you’re hiring' },
+    { title: 'An Advisor Suggests a Pivot', text: '“What if we did the same thing, but for dogs?”', a: 'Stay the course', b: 'Test the new market' },
+    { title: 'A Fund Offers Bridge Financing', text: 'Cash right away, textbook terms. Suspiciously good.', a: 'We’ll take it', b: 'We grow organically' },
+    { title: 'The Team Wants a Retreat', text: 'The chat poll is neck and neck: mountains versus beach.', a: 'To the mountains', b: 'Beach hackathon' },
+    { title: 'Nominated for Startup of the Year', text: 'The jury loves your product. Now it’s down to the public vote.', a: 'Launch a campaign', b: 'Stay focused on the product' },
+    { title: 'A New AI Model Writes Tests', text: 'The engineers are split: half are thrilled, half are terrified.', a: 'Roll it out to everyone', b: 'Study it first' },
+    { title: 'Downpour over the City', text: 'It’s pouring. Nobody is going out for lunch.', a: 'Pizza for everyone', b: 'Brainstorm over tea' },
+    { title: 'A Legendary Programmer Wants to Mentor', text: 'She wrote a compiler before it was cool. Two conditions: drip coffee and to be left alone.', a: 'Mentor the juniors', b: 'Review all the code' },
+    { title: 'The Cat Walked Across the Keyboard', text: '…and accidentally optimized a database query. Response times dropped by half.', a: 'Hire the cat', b: 'Write a blog post about it' },
+  ],
 
   bubbles: { viral: 'Viral!', angel: 'Angel Investor', hackathon: 'Hackathon!', eureka: 'Eureka!' },
 

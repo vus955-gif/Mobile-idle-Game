@@ -93,7 +93,8 @@ PRODUCTS.forEach((p, i) => {
   p.rps = nice(p.cost / (PRODUCT_PAYBACK0 * Math.pow(PRODUCT_PAYBACK_GROWTH, i)));
 });
 
-// Progi i mnożniki kosztu ulepszeń produktów (po 7 na produkt).
+// Progi i mnożniki kosztu ulepszeń produktów. Pierwsze 7 ma własne nazwy (p.ups),
+// kolejne to „wersje” produktu na późną grę — nazwy z szablonu w i18n (up.tierN).
 export const PRODUCT_UP_TIERS = [
   { at: 1, cost: 10, x: 2 },
   { at: 10, cost: 200, x: 2 },
@@ -102,7 +103,14 @@ export const PRODUCT_UP_TIERS = [
   { at: 100, cost: 1e9, x: 2 },
   { at: 150, cost: 1e12, x: 2 },
   { at: 200, cost: 1e15, x: 3 },
+  { at: 300, cost: 1e21, x: 3 },
+  { at: 400, cost: 1e27, x: 3 },
+  { at: 500, cost: 1e33, x: 3 },
+  { at: 600, cost: 1e39, x: 3 },
+  { at: 800, cost: 1e51, x: 3 },
+  { at: 1000, cost: 1e63, x: 4 },
 ];
+export const PRODUCT_UP_NAMED = 7;
 
 // ---------------------------------------------------------------------------
 // DZIAŁY — piętra w budynku, każdy pracownik daje efekt
@@ -169,7 +177,12 @@ export const DEPT_UP_TIERS = [
   { at: 10, costHires: 40, x: 1.3 },
   { at: 40, costHires: 60, x: 1.3 },
   { at: 100, costHires: 80, x: 1.5 },
+  { at: 200, costHires: 100, x: 1.5 },
+  { at: 300, costHires: 120, x: 1.5 },
+  { at: 500, costHires: 150, x: 2 },
 ];
+// Ikony ulepszeń działów ponad trzy nazwane (wspólne dla wszystkich działów).
+export const DEPT_UP_EXTRA_ICONS = ['🏅', '🌍', '👑'];
 
 // ---------------------------------------------------------------------------
 // TECHNOLOGIE — drzewko badań. Zostają po rundzie finansowania!
@@ -296,6 +309,10 @@ export const REPEAT_TECHS = [
     desc: '+25% siły kodowania za każdy poziom.' },
   { id: 'r_science', name: 'Metoda naukowa', icon: '🔭', base: 2000, g: 3.5, req: ['agile'], fx: [{ t: 'rp', x: 1.15 }],
     desc: '+15% punktów badań za każdy poziom.' },
+  { id: 'r_ops', name: 'Sprawne procesy', icon: '🗂️', base: 5e4, g: 4, req: ['microservices'], fx: [{ t: 'hireCost', x: 0.95 }],
+    desc: 'Rekrutacja tańsza o 5% za każdy poziom.' },
+  { id: 'r_deals', name: 'Sztuka negocjacji', icon: '🤝', base: 2e5, g: 4, req: ['payments'], fx: [{ t: 'contract', x: 1.15 }],
+    desc: '+15% nagród z kontraktów za każdy poziom.' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -318,6 +335,12 @@ export const CULTURE_UPGRADES = [
   { id: 'c_moon', name: 'Filia na Księżycu', icon: '🌙', cost: 1e30, x: 1.75, desc: 'Najlepszy widok na Ziemię.' },
   { id: 'c_teleport', name: 'Teleport do biura', icon: '🌀', cost: 1e34, x: 2, desc: 'Dojazd: 0 sekund.' },
   { id: 'c_happy', name: 'Zespół szczęśliwych ludzi', icon: '💖', cost: 1e38, x: 2, desc: 'Najlepsza technologia ze wszystkich.' },
+  { id: 'c_zerog', name: 'Joga w stanie nieważkości', icon: '🧘', cost: 1e42, x: 2, desc: 'Pozycja lotosu jeszcze nigdy nie była tak łatwa.' },
+  { id: 'c_olympus', name: 'Biuro z widokiem na Olympus Mons', icon: '🏔️', cost: 1e46, x: 2, desc: 'Najwyższa góra Układu Słonecznego za oknem sali konferencyjnej.' },
+  { id: 'c_rings', name: 'Ogród na pierścieniach Saturna', icon: '🪐', cost: 1e50, x: 2.5, desc: 'Pomidory rosną tu w kształcie elips.' },
+  { id: 'c_sundays', name: 'Tydzień z ośmioma niedzielami', icon: '🕰️', cost: 1e55, x: 2.5, desc: 'Fizycy z działu R&D znaleźli sposób.' },
+  { id: 'c_pleiades', name: 'Integracja w Plejadach', icon: '✨', cost: 1e60, x: 3, desc: 'Siedem gwiazd, jedna firma, zero roamingu.' },
+  { id: 'c_peace', name: 'Święty spokój', icon: '🕊️', cost: 1e66, x: 3, desc: 'Żadnych powiadomień. Nigdy.' },
 ];
 
 export const CLICK_UPGRADES = [
@@ -333,6 +356,9 @@ export const CLICK_UPGRADES = [
   { id: 'k_neuro', name: 'Neurołącze do IDE', icon: '🧠', cost: 5e19, x: 1, pct: 0.01, desc: 'Myśl szybciej niż piszesz.' },
   { id: 'k_flow', name: 'Stan flow', icon: '🌊', cost: 5e23, x: 10, desc: 'Czas przestaje istnieć. Kod płynie.' },
   { id: 'k_midas', name: 'Palec Midasa', icon: '👆', cost: 5e27, x: 1, pct: 0.02, desc: 'Czego dotkniesz, zamienia się w przychód.' },
+  { id: 'k_swarm', name: 'Rój mikrobotów piszących kod', icon: '🐝', cost: 5e32, x: 10, desc: 'Bzyczą w rytmie stand-upów.' },
+  { id: 'k_loop', name: 'Klawiatura z pętlą czasu', icon: '⏳', cost: 5e38, x: 1, pct: 0.02, desc: 'Każde kliknięcie odbywa się dwa razy. Wczoraj i dziś.' },
+  { id: 'k_enter', name: 'Kosmiczny klawisz Enter', icon: '🌠', cost: 5e45, x: 25, desc: 'Wciśnięty raz, zatwierdza całą galaktykę.' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -473,4 +499,129 @@ export const TREND_TEMPLATES = [
   'Influencerzy zachwyceni: {p} ×{x}',
   'Hossa w branży: {p} ×{x}',
   'Wszyscy o tym mówią: {p} ×{x}',
+];
+
+// ---------------------------------------------------------------------------
+// AUTOPILOT — moduły kupowane raz za udziały (💎), zostają na zawsze
+// ---------------------------------------------------------------------------
+export const AUTOPILOT = [
+  { id: 'products', icon: '📦', cost: 2, name: 'Product manager na autopilocie',
+    desc: 'Rozwija produkty, wybierając te, które najszybciej się zwracają.' },
+  { id: 'upgrades', icon: '⬆️', cost: 2, name: 'Asystent zakupów',
+    desc: 'Kupuje ulepszenia, gdy tylko Cię na nie stać.' },
+  { id: 'hire', icon: '🧑‍💼', cost: 4, name: 'Rekruter AI',
+    desc: 'Otwiera nowe działy i zatrudnia ludzi, zostawiając większość pieniędzy na produkty.' },
+  { id: 'contracts', icon: '🤝', cost: 3, name: 'Opiekun klientów',
+    desc: 'Przyjmuje najlepsze zapytania ofertowe, gdy zwolni się miejsce.' },
+  { id: 'research', icon: '🔬', cost: 6, name: 'Dyrektor ds. badań',
+    desc: 'Odkrywa najtańszą dostępną technologię, gdy starczy punktów badań.' },
+  { id: 'bubbles', icon: '🫧', cost: 5, name: 'Łowca okazji',
+    desc: 'Łapie bąbelki wydarzeń, gdy gra jest otwarta. Przydaje się w trybie zen.' },
+];
+
+// ---------------------------------------------------------------------------
+// WYZWANIA INWESTORÓW — rundy z ograniczeniem i trwałą nagrodą za każdy poziom
+// ---------------------------------------------------------------------------
+export const CHALLENGE_GOALS = [1e9, 1e14, 1e20, 1e27, 1e35];
+export const CHALLENGES = [
+  { id: 'noclick', icon: '🙅', rule: 'noclick', name: 'Bez klawiatury',
+    desc: 'Kodowanie i automatyczne kliknięcia nic nie dają.', fx: [{ t: 'all', x: 1.15 }] },
+  { id: 'focus', icon: '🎯', rule: 'maxProducts', v: 5, name: 'Pełne skupienie',
+    desc: 'Możesz wydać najwyżej 5 różnych produktów.', fx: [{ t: 'prodCost', x: 0.95 }] },
+  { id: 'solo', icon: '🧑‍💻', rule: 'onlyDev', name: 'Jednoosobowa armia',
+    desc: 'Nie możesz otwierać działów poza programistami.', fx: [{ t: 'deptAll', x: 1.1 }] },
+  { id: 'bootstrap', icon: '🥾', rule: 'noInvestors', name: 'Bootstrapping',
+    desc: 'Kapitał inwestorów nie zwiększa przychodu.', fx: [{ t: 'investorPct', v: 0.002 }] },
+  { id: 'minimal', icon: '🪶', rule: 'noUpgrades', name: 'Minimalizm',
+    desc: 'Nie możesz kupować ulepszeń.', fx: [{ t: 'rp', x: 1.2 }] },
+  { id: 'crisis', icon: '📉', rule: 'incomeMult', v: 0.1, name: 'Kryzys na rynkach',
+    desc: 'Wszystkie produkty zarabiają 10× mniej.', fx: [{ t: 'prestige', x: 1.1 }] },
+];
+
+// ---------------------------------------------------------------------------
+// SKALA CYWILIZACJI — roczny przychód porównany ze światem, potem skala Kardaszowa.
+// Progi z „v” są w dolarach rocznie; progi z „k” to stopień w skali Kardaszowa.
+// ---------------------------------------------------------------------------
+// Ludzkość zużywa ok. 20 TW przy PKB ok. $110 bln rocznie → ok. 0,18 W na dolara rocznego PKB.
+export const ENERGY_W_PER_USD = 0.18;
+export const SCALE_LEVELS = [
+  { v: 1e3, icon: '🪙', name: 'Kieszonkowe', desc: 'Tyle zarabia stoisko z lemoniadą przez wakacje.' },
+  { v: 1e5, icon: '🥐', name: 'Osiedlowa piekarnia', desc: 'Przychody małej, lokalnej firmy.' },
+  { v: 1e7, icon: '🏪', name: 'Sieć sklepów', desc: 'Średnia firma z kilkudziesięcioma pracownikami.' },
+  { v: 1e9, icon: '🏢', name: 'Duża firma', desc: 'Miliard dolarów przychodu rocznie.' },
+  { v: 1e11, icon: '🦄', name: 'Gigant technologiczny', desc: 'Pierwsza liga światowego biznesu.' },
+  { v: 6e11, icon: '🏬', name: 'Największa firma świata', desc: 'Przychody największej korporacji na Ziemi (ponad $600 mld).' },
+  { v: 9e11, icon: '🇵🇱', name: 'PKB Polski', desc: 'Cała polska gospodarka w ciągu roku (ok. $900 mld).' },
+  { v: 2.9e13, icon: '🇺🇸', name: 'PKB USA', desc: 'Największa gospodarka świata (ok. $29 bln).' },
+  { v: 1.1e14, icon: '🌍', name: 'PKB Ziemi', desc: 'Cała ludzkość razem wzięta (ok. $110 bln). ONZ prosi o spotkanie.' },
+  { k: 1, icon: '⚡', name: 'Cywilizacja typu I', desc: 'Skala Kardaszowa 1: cała energia docierająca do planety.' },
+  { k: 1.5, icon: '🪐', name: 'Imperium międzyplanetarne', desc: 'Gospodarka obejmuje planety i księżyce Układu Słonecznego.' },
+  { k: 2, icon: '☀️', name: 'Cywilizacja typu II', desc: 'Skala Kardaszowa 2: cała energia gwiazdy. Sfera Dysona gotowa.' },
+  { k: 2.5, icon: '✨', name: 'Gromada gwiazd', desc: 'Tysiące słońc pracuje dla jednej firmy.' },
+  { k: 3, icon: '🌌', name: 'Cywilizacja typu III', desc: 'Skala Kardaszowa 3: energia całej galaktyki.' },
+  { k: 3.5, icon: '🔭', name: 'Grupa Lokalna', desc: 'Droga Mleczna, Andromeda i kilkadziesiąt mniejszych galaktyk.' },
+  { k: 4, icon: '🕳️', name: 'Typ IV: wszechświat', desc: 'Firma zarządza całym obserwowalnym wszechświatem.' },
+  { k: 5, icon: '♾️', name: 'Multiwersum', desc: 'Konkurencja? W tym wszechświecie już jej nie ma.' },
+];
+
+// ---------------------------------------------------------------------------
+// DECYZJE — co jakiś czas firma staje przed wyborem. Obie opcje są dobre, tylko inne.
+// fx: cash/rp = tyle minut przychodu/badań od ręki, delayed = gotówka po s sekundach,
+//     boost/click/rpBoost = mnożnik x przez s sekund.
+// ---------------------------------------------------------------------------
+export const DECISIONS = [
+  { id: 'bigtech', icon: '🐋', title: 'Gigant chce kupić Twój projekt poboczny',
+    text: 'Mała aplikacja do planowania lunchu, napisana po godzinach, wpadła w oko korporacji z Doliny Krzemowej.',
+    a: { label: 'Sprzedaj', fx: { t: 'cash', min: 20 } }, b: { label: 'Rozwijaj dalej', fx: { t: 'boost', x: 2, s: 1200 } } },
+  { id: 'intern', icon: '🎓', title: 'Uczelnia proponuje program staży',
+    text: 'Dziesięcioro studentów informatyki chce spędzić lato w Twojej firmie.',
+    a: { label: 'Przyjmij stażystów', fx: { t: 'rp', min: 30 } }, b: { label: 'Zorganizuj hackathon', fx: { t: 'click', x: 10, s: 180 } } },
+  { id: 'coffee', icon: '☕', title: 'Ekspres do kawy się zepsuł',
+    text: 'Produktywność spada, a w kuchni zbiera się tłum. Ktoś już założył o tym wątek na firmowym czacie.',
+    a: { label: 'Kup ekspres premium', fx: { t: 'boost', x: 1.5, s: 1800 } }, b: { label: 'Zrób z tego mema', fx: { t: 'delayed', min: 40, s: 900 } } },
+  { id: 'influencer', icon: '📸', title: 'Influencerka chce zrecenzować Twoją aplikację',
+    text: 'Ma trzy miliony obserwujących i bardzo szczere opinie.',
+    a: { label: 'Daj jej dostęp przed premierą', fx: { t: 'boost', x: 3, s: 300 } }, b: { label: 'Zaproś ją do biura', fx: { t: 'cash', min: 12 } } },
+  { id: 'conference', icon: '🎤', title: 'Zaproszenie na konferencję',
+    text: 'Organizatorzy największej konferencji technologicznej w Europie mają jeszcze jedno wolne miejsce na scenie.',
+    a: { label: 'Wystąp z prezentacją', fx: { t: 'delayed', min: 50, s: 1200 } }, b: { label: 'Wyślij zespół na warsztaty', fx: { t: 'rp', min: 25 } } },
+  { id: 'opensource', icon: '🐙', title: 'Otworzyć kod biblioteki?',
+    text: 'Zespół napisał świetną bibliotekę do animacji. Mogłaby być open source.',
+    a: { label: 'Open source!', fx: { t: 'rpBoost', x: 2, s: 900 } }, b: { label: 'Sprzedawaj licencje', fx: { t: 'cash', min: 15 } } },
+  { id: 'grant', icon: '🏛️', title: 'Grant na badania i rozwój',
+    text: 'Fundusz innowacji ogłosił nabór. Wniosek ma tylko 84 strony.',
+    a: { label: 'Złóż wniosek', fx: { t: 'delayed', min: 60, s: 1800 } }, b: { label: 'Szkoda czasu na papiery', fx: { t: 'boost', x: 2, s: 600 } } },
+  { id: 'outage', icon: '🔥', title: 'Awaria u konkurencji',
+    text: 'Serwery największego rywala leżą od rana. Ich klienci szukają alternatywy.',
+    a: { label: 'Przyjmij nowych klientów', fx: { t: 'cash', min: 25 } }, b: { label: 'Pomóż im wstać', fx: { t: 'rp', min: 30 } } },
+  { id: 'dog', icon: '🐕', title: 'Pies w biurze!',
+    text: 'Ktoś przyprowadził do pracy golden retrievera. Nikt nie pracuje, wszyscy są szczęśliwi.',
+    a: { label: 'Zostaje na stałe', fx: { t: 'boost', x: 1.25, s: 3600 } }, b: { label: 'Sesja zdjęciowa do social mediów', fx: { t: 'delayed', min: 30, s: 600 } } },
+  { id: 'frontpage', icon: '🗞️', title: 'Jesteście na pierwszej stronie',
+    text: 'Wpis Twojego CTO trafił na szczyt najpopularniejszego serwisu dla programistów.',
+    a: { label: 'Odpowiadaj na komentarze', fx: { t: 'rp', min: 20 } }, b: { label: 'Ogłoś rekrutację', fx: { t: 'boost', x: 2, s: 900 } } },
+  { id: 'pivot', icon: '🔄', title: 'Doradca sugeruje pivot',
+    text: '„A może zróbmy to samo, tylko dla psów?”',
+    a: { label: 'Zostańmy przy swoim', fx: { t: 'boost', x: 1.5, s: 1800 } }, b: { label: 'Przetestujmy nowy rynek', fx: { t: 'delayed', min: 60, s: 1800 } } },
+  { id: 'loan', icon: '🤵', title: 'Fundusz proponuje finansowanie pomostowe',
+    text: 'Pieniądze od ręki, warunki jak z podręcznika. Podejrzanie dobre.',
+    a: { label: 'Bierzemy', fx: { t: 'cash', min: 30 } }, b: { label: 'Rośniemy organicznie', fx: { t: 'boost', x: 1.5, s: 2400 } } },
+  { id: 'retreat', icon: '🏕️', title: 'Zespół marzy o wyjeździe integracyjnym',
+    text: 'Głosowanie na czacie jest wyrównane: góry kontra plaża.',
+    a: { label: 'Jedziemy w góry', fx: { t: 'rp', min: 25 } }, b: { label: 'Hackathon na plaży', fx: { t: 'click', x: 8, s: 240 } } },
+  { id: 'award', icon: '🏆', title: 'Nominacja do nagrody Startup Roku',
+    text: 'Jury zachwyciło się Waszym produktem. Teraz decydują głosy internautów.',
+    a: { label: 'Ruszamy z kampanią', fx: { t: 'boost', x: 2, s: 900 } }, b: { label: 'Skupmy się na produkcie', fx: { t: 'cash', min: 15 } } },
+  { id: 'aitests', icon: '🤖', title: 'Nowy model AI pisze testy',
+    text: 'Programiści są podzieleni: połowa się cieszy, połowa się boi.',
+    a: { label: 'Wdrażamy w całym zespole', fx: { t: 'click', x: 10, s: 180 } }, b: { label: 'Najpierw to zbadajmy', fx: { t: 'rp', min: 30 } } },
+  { id: 'rain', icon: '🌧️', title: 'Ulewa nad miastem',
+    text: 'Leje jak z cebra. Nikt nie wychodzi na lunch.',
+    a: { label: 'Pizza dla wszystkich', fx: { t: 'boost', x: 1.5, s: 1200 } }, b: { label: 'Burza mózgów przy herbacie', fx: { t: 'rp', min: 15 } } },
+  { id: 'mentor', icon: '🧓', title: 'Legendarny programista chce zostać mentorem',
+    text: 'Napisał kompilator, zanim to było modne. Ma dwa warunki: kawa z ekspresu przelewowego i święty spokój.',
+    a: { label: 'Mentoring dla juniorów', fx: { t: 'rpBoost', x: 2, s: 1200 } }, b: { label: 'Code review wszystkiego', fx: { t: 'boost', x: 1.5, s: 1800 } } },
+  { id: 'cat', icon: '🐈', title: 'Kot przeszedł po klawiaturze',
+    text: '…i przypadkiem zoptymalizował zapytanie do bazy danych. Czas odpowiedzi spadł o połowę.',
+    a: { label: 'Zatrudnij kota', fx: { t: 'boost', x: 1.5, s: 1800 } }, b: { label: 'Napisz o tym artykuł', fx: { t: 'delayed', min: 35, s: 900 } } },
 ];
