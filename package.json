@@ -1,0 +1,14 @@
+{
+  "name": "krzemowe-imperium",
+  "version": "1.0.0",
+  "description": "Relaksująca gra idle/clicker (PWA na iOS): zbuduj firmę technologiczną od garażu do kosmicznego imperium.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node --test tests/*.test.mjs",
+    "sim": "node tools/simulate.mjs casual 21",
+    "sim:active": "node tools/simulate.mjs active 0.2",
+    "icons": "node tools/make-icons.mjs"
+  }
+}

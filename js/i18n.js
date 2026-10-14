@@ -1,0 +1,384 @@
+// Teksty interfejsu w dwóch językach + wybór języka. Treść gry (produkty, technologie…)
+// po angielsku jest w js/lang/en.js, po polsku w js/data.js.
+let lang = 'pl';
+
+export const LANGS = [['pl', 'Polski'], ['en', 'English']];
+
+export function detectLang() {
+  const nav = globalThis.navigator;
+  const list = (nav && (nav.languages && nav.languages.length ? nav.languages : [nav.language])) || [];
+  for (const l of list) {
+    if (!l) continue;
+    const code = String(l).toLowerCase();
+    if (code.startsWith('pl')) return 'pl';
+    if (code.startsWith('en')) return 'en';
+  }
+  return 'en';
+}
+
+export function setLang(l) { lang = l === 'en' ? 'en' : 'pl'; }
+export function getLang() { return lang; }
+
+const PL = {
+  appName: 'Krzemowe Imperium',
+  defaultCompany: 'Garażowy Startup',
+  companyNames: ['Bajt i Synowie', 'Pixel & Spółka', 'Chmurka Software', 'Kod z Garażu', 'Nowa Dolina', 'Startup Marzeń'],
+
+  'tab.office': 'Biuro', 'tab.products': 'Produkty', 'tab.team': 'Zespół', 'tab.research': 'Badania',
+  'tab.upgrades': 'Ulepszenia', 'tab.company': 'Firma',
+  'tap.label': 'Koduj', 'sound': 'Dźwięk',
+  buyAll: 'Kup wszystkie', buyAllN: 'Kup wszystkie ({n})',
+  'ct.investors': 'Inwestorzy', 'ct.contracts': 'Kontrakty', 'ct.acq': 'Przejęcia', 'ct.ach': 'Osiągnięcia',
+  'ct.stats': 'Statystyki', 'ct.settings': 'Ustawienia',
+  'unit.rp': 'PB',
+
+  'off.firstStep': 'Pierwszy krok', 'off.collect': 'Zbierz {v}', 'off.toProducts': 'Produkty →',
+  'off.team': 'Zespół', 'off.people': '{n} os.', 'off.research': 'Badania', 'off.products': 'Produkty',
+  'off.levels': '{n} poz.', 'off.valuation': 'Wycena', 'off.offers': '🤝 Oferty: {n}', 'off.coding': 'Kodowanie',
+  'badge.contracts': '🤝 Kontrakty: {n} · {t}',
+  'news.offer': '🤝 <b>Nowe zapytanie ofertowe</b> — sprawdź Kontrakty w zakładce Firma',
+
+  'prod.level': 'Poz. {n}', 'prod.income': '<b>+{v}/s</b> · {p} przychodu', 'prod.notReleased': 'Jeszcze nie wydany',
+  'prod.milestone': '{n}/{m} · kamień milowy ×2', 'prod.allMilestones': 'Wszystkie kamienie milowe!',
+  'prod.release': 'Wydaj', 'prod.buy': 'Kup ×{n}', 'prod.requires': 'Wymaga technologii:', goResearch: 'Badania →',
+
+  'team.newFloor': 'Nowe piętro', 'team.openHint': 'Otwórz nowy dział — w budynku pojawi się kolejne piętro.',
+  'team.open': 'Otwórz dział', 'team.hireFirst': 'Zatrudnij pierwszą osobę!', 'team.milestone': '{n}/{m} · efekty ×{x}',
+  'team.full': 'Pełna obsada!', 'team.hire': 'Zatrudnij ×{n}',
+
+  'fx.income': '{p} przychodu', 'fx.clickFlat': '+{v} do kodowania', 'fx.clickMult': '{p} siły kodowania',
+  'fx.rp': '+{v} PB/s', 'fx.eventFreq': '{p} częstsze wydarzenia', 'fx.contract': '{p} nagród z kontraktów',
+  'fx.slots': '{n} {noun} na kontrakty', 'fx.offlineEff': '{p} wydajności offline', 'fx.hireCost': '−{n}% kosztu rekrutacji',
+  'fx.prodCost': '−{n}% kosztu produktów', 'fx.offlineCap': '+{t} limitu offline', 'fx.auto': '+{v} auto-kliknięć/s',
+  'fx.cat': '{p} dla kategorii {c}', 'fx.acqCost': '−{n}% kosztu przejęć', 'fx.prestige': '{p} kapitału z rundy',
+
+  'dfx.prod': '{name} ×{x}', 'dfx.cat': 'Kategoria {c} ×{x}', 'dfx.dept': 'Dział {d} ×{x}', 'dfx.deptAll': 'Wszystkie działy ×{x}',
+  'dfx.all': 'Cały przychód ×{x}', 'dfx.click': 'Kodowanie ×{x}', 'dfx.clickPct': 'Klik +{p}% przychodu/s',
+  'dfx.rp': 'Punkty badań ×{x}', 'dfx.hireCost': 'Rekrutacja −{n}%', 'dfx.prodCost': 'Produkty tańsze o {n}%',
+  'dfx.eventFreq': 'Wydarzenia częściej ×{x}', 'dfx.auto': '+{n} auto-klik/s', 'dfx.unlockProduct': 'Odblokowuje: {name}',
+  'dfx.unlockDept': 'Nowy dział: {name}',
+
+  'up.prodDesc': '{name}: przychód ×{x}', 'up.deptDesc': 'Efekty działu „{name}” ×{x}', 'up.cultureDesc': '{desc} Cały przychód ×{x}.',
+  'up.clickX': 'kodowanie ×{x}', 'up.clickPct': '+{p}% przychodu/s na klik',
+  'up.none': 'Brak dostępnych ulepszeń. Rozwijaj produkty i działy — nowe ulepszenia pojawią się same. ✨',
+  'up.owned': 'Kupione · {n}', 'up.bought': 'Kupiono {n} {noun}',
+
+  'rs.points': 'Punkty badań', 'rs.techCount': '{n}/{m} technologii',
+  'rs.needRnd': 'Otwórz dział <b>Badania i rozwój</b> w zakładce Zespół, żeby zdobywać punkty badań. 🔬',
+  'rs.persist': 'Odkryte technologie zostają z Tobą także po rundzie finansowania.',
+  'rs.lockedEra': 'Era {n}: {name}', 'rs.requires': 'Wymaga: {list}', 'rs.infinite': 'Badania bez końca', 'rs.level': 'poz. {n}',
+
+  'inv.nextRound': 'Następna runda: {r}', 'inv.now': 'Obecnie {n} kapitału = przychód ×{x}',
+  'inv.perPoint': 'Każdy punkt: +{p}% przychodu', 'inv.valuation': 'Wycena firmy', 'inv.assets': 'Majątek firmy',
+  'inv.annual': 'Roczny przychód', 'inv.multiple': 'Mnożnik rynkowy', 'inv.run': 'Zarobione w tej rundzie',
+  'inv.total': 'Zarobione łącznie', 'inv.next': 'Kolejny punkt kapitału przy', 'inv.board': 'Bonus zarządu',
+  'inv.raise': 'Zbierz rundę finansowania',
+  'inv.valNote': 'Wycena = majątek + roczny przychód × mnożnik rynkowy. W grze godzina to mniej więcej rok życia firmy; mnożnik rośnie z technologiami i kolejnymi rundami.',
+  'inv.explain': 'Runda zaczyna firmę od nowa (gotówka, produkty, działy, ulepszenia, przejęcia), ale <b style="color:var(--text)">technologie, punkty badań i osiągnięcia zostają</b>, a kapitał inwestorów trwale zwiększa przychód.',
+  'inv.boardTitle': 'Rada nadzorcza', 'inv.shares': '{n} udziałów', 'inv.max': 'Maks.',
+
+  'con.locked': '🤝 Otwórz dział <b>Sprzedaż</b> w zakładce Zespół, żeby otrzymywać zapytania ofertowe od klientów.<br><br>Kontrakty to zlecenia na określony czas — po ukończeniu dostajesz sowitą zapłatę, także gdy gra jest zamknięta.',
+  'con.slots': 'Miejsca na kontrakty', 'con.mult': 'Mnożnik nagród', 'con.active': 'W realizacji', 'con.noActive': 'Brak aktywnych kontraktów.',
+  'con.offers': 'Zapytania ofertowe', 'con.waiting': 'Czekasz na zapytania… Kolejne za ok. {t}.',
+  'con.order': 'Zamawia {task} · czas: {t}', 'con.reward': 'Nagroda:', 'con.expires': 'Oferta wygasa za {t}',
+  'con.decline': 'Odrzuć', 'con.accept': 'Przyjmij',
+  'con.full': 'Wszystkie miejsca zajęte — zatrudnij więcej handlowców (co 25 osób = +1 miejsce).',
+  'con.left': 'Zostało {t}', 'con.done': 'Kontrakt ukończony', 'con.doneRp': ' i {v} PB',
+
+  'acq.locked': '⚖️ Otwórz <b>Dział prawny</b>, żeby przejmować inne firmy. Każde przejęcie to potężny bonus do końca rundy.',
+  'acq.yours': '✓ Twoja', 'acq.buy': 'Przejmij', 'acq.toast': 'Przejęto: {name}',
+
+  'ach.count': 'Zdobyte osiągnięcia', 'ach.bonus': 'Bonus do przychodu', 'ach.tap': 'Dotknij ikony, żeby zobaczyć szczegóły.',
+  'ach.hidden': 'Ukryte osiągnięcie', 'ach.hiddenText': 'Odkryj je, grając dalej…', 'ach.toast': 'Osiągnięcie: {name}',
+  'ach.toastText': '{desc} · +{p}% przychodu',
+  'ach.earn': 'Zarób łącznie {v}', 'ach.inc': 'Osiągnij przychód {v}/s', 'ach.click': 'Kliknij {n} razy',
+  'ach.prod': 'Osiągnij poziom {n} produktu „{p}”', 'ach.emp': 'Zatrudniaj jednocześnie {n} {noun}',
+  'ach.dept': 'Otwórz {n} {noun}', 'ach.tech': 'Odkryj {n} {noun}', 'ach.upg': 'Kup {n} {noun} w jednej rundzie',
+  'ach.pres': 'Zbierz {n} {noun} finansowania', 'ach.inv': 'Zgromadź {n} punktów kapitału', 'ach.bub': 'Złap {n} {noun}',
+  'ach.con': 'Ukończ {n} {noun}', 'ach.acq': 'Przejmij {n} {noun}',
+  'achNames.earn': ['Pierwsza stówka', 'Drobne na kawę', 'Milioner', 'Miliarder', 'Bilioner', 'Biliarder', 'Trylioner', 'Tryliarder',
+    'Kwadrylioner', 'Kwadryliarder', 'Kwintylioner', 'Poza skalą', 'Kosmiczne pieniądze', 'Gospodarka galaktyki', 'Bank wszechświata'],
+  'achNames.inc': ['Pierwszy przychód', 'Rentowność', 'Maszynka do pieniędzy', 'Złota żyła', 'Fontanna gotówki', 'Gejzer', 'Wodospad',
+    'Ocean', 'Supernowa', 'Kwazar', 'Wielki Wybuch', 'Osobliwość'],
+  'achNames.click': ['Rozgrzewka', 'Klawiszowiec', 'Maratończyk', 'Stalowe palce', 'Legenda klawiatury'],
+  'achNames.prod': ['Premiera', 'Wersja 50', 'Setka', 'Legenda', 'Monopol'],
+  'achNames.emp': ['Zespół', 'Startup', 'Scale-up', 'Korporacja', 'Gigant', 'Armia', 'Państwo w państwie'],
+  'achNames.dept': ['Pierwsze piętra', 'Biurowiec', 'Wieżowiec', 'Kompletna firma'],
+  'achNames.tech': ['Ciekawość', 'Innowator', 'Wizjoner', 'Pionier', 'Koniec historii'],
+  'achNames.upg': ['Zakupoholik', 'Modernizacja', 'Wszystko na bogato', 'Kolekcjoner', 'Perfekcjonista'],
+  'achNames.pres': ['Pierwsza runda', 'Seryjny przedsiębiorca', 'Ulubieniec funduszy', 'Jednorożec', 'Dekakorn'],
+  'achNames.inv': ['Kapitał', 'Fundusz', 'Wielki fundusz', 'Skarbiec', 'Bank centralny'],
+  'achNames.bub': ['Złap okazję', 'Łowca trendów', 'Wirusowy', 'Król internetu', 'Fenomen'],
+  'achNames.con': ['Pierwszy klient', 'Portfolio', 'Zaufany partner', 'Integrator', 'Dostawca wszystkiego'],
+  'achNames.acq': ['Pierwsze przejęcie', 'Drapieżnik', 'Monopolista'],
+  'achFun.f_night': ['Nocny marek', 'Graj między północą a czwartą rano'],
+  'achFun.f_rename': ['Nowa tożsamość', 'Zmień nazwę firmy'],
+  'achFun.f_frenzy': ['Szał kodowania', 'Kliknij 12 razy w ciągu sekundy'],
+  'achFun.f_patience': ['Cierpliwość', 'Wróć po co najmniej 8 godzinach przerwy'],
+  'achFun.f_combo': ['Idealny moment', 'Miej jednocześnie aktywny Viral i Hackathon'],
+  'achFun.f_trend': ['Na fali', 'Złap trend rynkowy na swoim najlepszym produkcie'],
+
+  'noun.people': { one: 'osobę', few: 'osoby', many: 'osób' },
+  'noun.peopleNom': { one: 'osoba', few: 'osoby', many: 'osób' },
+  'noun.depts': { one: 'dział', few: 'działy', many: 'działów' },
+  'noun.techs': { one: 'technologię', few: 'technologie', many: 'technologii' },
+  'noun.upgrades': { one: 'ulepszenie', few: 'ulepszenia', many: 'ulepszeń' },
+  'noun.rounds': { one: 'rundę', few: 'rundy', many: 'rund' },
+  'noun.events': { one: 'wydarzenie', few: 'wydarzenia', many: 'wydarzeń' },
+  'noun.contracts': { one: 'kontrakt', few: 'kontrakty', many: 'kontraktów' },
+  'noun.companies': { one: 'firmę', few: 'firmy', many: 'firm' },
+  'noun.slots': { one: 'miejsce', few: 'miejsca', many: 'miejsc' },
+
+  'toast.milestone': 'Kamień milowy: {name}', 'toast.milestoneText': 'Poziom {n} — przychód ×{x}',
+  'toast.newDept': 'Nowy dział: {name}', 'toast.newDeptText': 'W budynku pojawiło się nowe piętro!',
+  'toast.deptMilestone': '{name}: {n} {noun}', 'toast.deptMilestoneText': 'Efekty działu ×{x}',
+  'toast.researched': 'Odkryto: {name}',
+  'bubble.viralText': 'Przychód ×7 przez {n} s', 'bubble.angelText': 'Inwestor wpłaca {v}',
+  'bubble.hackText': 'Kodowanie ×15 przez {n} s', 'bubble.eurekaText': '+{v} punktów badań',
+  'toast.roundClosed': 'Runda zamknięta: +{n} kapitału', 'toast.roundClosedText': 'Przychód ×{x} dzięki inwestorom',
+  'toast.tooEarly': 'Za wcześnie na rundę', 'toast.tooEarlyText': 'Pierwszy punkt kapitału przy łącznych zarobkach {v}',
+  'toast.renamed': 'Nowa nazwa firmy', 'toast.copied': 'Skopiowano zapis', 'toast.copyManual': 'Zaznacz i skopiuj ręcznie',
+  'toast.imported': 'Zapis wczytany', 'toast.importBad': 'Nieprawidłowy zapis', 'toast.importBadText': 'Sprawdź, czy skopiowano cały tekst.',
+  'toast.lang': 'Język: polski',
+
+  'st.income': 'Przychód', 'st.maxIncome': 'Rekordowy przychód', 'st.click': 'Wartość kliknięcia', 'st.auto': 'Auto-kliknięcia',
+  'st.total': 'Zarobione łącznie', 'st.run': 'Zarobione w tej rundzie', 'st.bestRun': 'Najlepsza runda', 'st.clicks': 'Kliknięcia',
+  'st.staff': 'Pracownicy', 'st.hired': 'Zatrudnieni łącznie', 'st.upgrades': 'Kupione ulepszenia', 'st.techs': 'Technologie',
+  'st.bubbles': 'Złapane wydarzenia', 'st.contracts': 'Ukończone kontrakty', 'st.rounds': 'Rundy finansowania',
+  'st.offlineCap': 'Limit zarobku offline', 'st.offlineEff': 'Wydajność offline', 'st.playTime': 'Czas gry', 'st.founded': 'Firma założona',
+
+  'set.company': 'Firma', 'set.name': 'Nazwa firmy', 'set.nameHint': 'Widoczna na szyldzie budynku i w wiadomościach.', 'set.save': 'Zapisz',
+  'set.game': 'Gra', 'set.lang': 'Język', 'set.langHint': 'Wszystkie teksty w grze.', 'set.sound': 'Dźwięki', 'set.soundHint': 'Delikatne efekty przy klikaniu i zakupach.',
+  'set.install': 'Instalacja na iPhonie', 'set.installHint': 'Jak dodać grę do ekranu początkowego.', 'set.show': 'Pokaż',
+  'set.saveTitle': 'Zapis gry', 'set.export': 'Eksport zapisu', 'set.exportHint': 'Kopia zapasowa jako tekst — zachowaj ją w Notatkach.', 'set.exportBtn': 'Eksportuj',
+  'set.import': 'Import zapisu', 'set.importHint': 'Wczytaj wcześniej wyeksportowany tekst.', 'set.importBtn': 'Importuj',
+  'set.reset': 'Zacznij od nowa', 'set.resetHint': 'Usuwa cały postęp. Nie da się cofnąć.', 'set.resetBtn': 'Resetuj',
+  'set.footer': 'wersja {v}<br>Gra zapisuje się automatycznie na tym urządzeniu.',
+
+  'w.lead': 'Wszystko zaczyna się w garażu: laptop, kawa i wielki pomysł.',
+  'w.tips': [
+    '<b>Koduj</b> — stukaj w fioletowy przycisk, żeby zarobić pierwsze pieniądze.',
+    '<b>Produkty</b> zarabiają same, nawet gdy gra jest zamknięta.',
+    '<b>Działy</b> to nowe piętra budynku i potężne bonusy.',
+    '<b>Badania</b> odblokowują kolejne technologie — od HTML po superinteligencję.',
+    'Łap płonące <b>bąbelki</b> — to virale, inwestorzy i hackathony!',
+  ],
+  'w.name': 'Jak nazywa się Twoja firma?', 'w.start': 'Zaczynamy!',
+  'o.title': 'Witaj z powrotem!', 'o.away': 'Nie było Cię {t}. W tym czasie firma zarobiła:', 'o.rp': '+{v} punktów badań',
+  'o.contracts': 'Ukończone kontrakty: {n}', 'o.note': 'Zarobek offline: {p}% wydajności, limit {t}{reached}.', 'o.reached': ' (osiągnięty)', 'o.ok': 'Super!',
+  'p.title': 'Runda: {r}', 'p.lead': 'Inwestorzy są gotowi wyłożyć pieniądze. Zyskasz:',
+  'p.gain': 'Przychód ×{a} → <b style="color:var(--text)">×{b}</b> oraz {n} udziałów dla rady nadzorczej.',
+  'p.resets': '<b>Resetuje się:</b> gotówka, produkty, działy, ulepszenia, przejęcia.',
+  'p.keeps': '<b>Zostaje:</b> technologie, punkty badań, osiągnięcia, kapitał i rada nadzorcza.',
+  'p.confirm': 'Zbierz rundę', 'p.cancel': 'Jeszcze nie',
+  'r.title': 'Zacząć od nowa?', 'r.text': 'Cały postęp — łącznie z technologiami, kapitałem i osiągnięciami — zostanie usunięty. Tego nie da się cofnąć.',
+  'r.confirm': 'Tak, usuń wszystko', cancel: 'Anuluj', close: 'Zamknij',
+  'e.title': 'Eksport zapisu', 'e.text': 'Skopiuj ten tekst i zachowaj w bezpiecznym miejscu (np. w Notatkach).', 'e.copy': 'Kopiuj',
+  'i.title': 'Import zapisu', 'i.text': 'Wklej tekst z eksportu. Obecny postęp zostanie zastąpiony.', 'i.placeholder': 'Wklej zapis tutaj…', 'i.load': 'Wczytaj',
+  'h.title': 'Gra na ekranie początkowym',
+  'h.steps': [
+    'Otwórz tę stronę w <b>Safari</b>.',
+    'Stuknij <b>Udostępnij</b> (kwadrat ze strzałką).',
+    'Wybierz <b>Do ekranu początk.</b> i potwierdź <b>Dodaj</b>.',
+    'Uruchamiaj grę z ikony — działa na pełnym ekranie i bez internetu.',
+  ],
+  'h.note': 'Zapis jest przechowywany na urządzeniu. Raz na jakiś czas zrób eksport zapisu — na wszelki wypadek.', 'h.ok': 'Rozumiem',
+
+  'time.d': 'd', 'time.h': 'h', 'time.m': 'min', 'time.s': 's',
+};
+
+const EN = {
+  appName: 'Silicon Empire',
+  defaultCompany: 'Garage Startup',
+  companyNames: ['Byte & Sons', 'Pixel & Co.', 'Tiny Cloud Inc.', 'Garage Code Labs', 'New Valley Works', 'Moonshot Software'],
+
+  'tab.office': 'Office', 'tab.products': 'Products', 'tab.team': 'Team', 'tab.research': 'Research',
+  'tab.upgrades': 'Upgrades', 'tab.company': 'Company',
+  'tap.label': 'Code', 'sound': 'Sound',
+  buyAll: 'Buy all', buyAllN: 'Buy all ({n})',
+  'ct.investors': 'Investors', 'ct.contracts': 'Contracts', 'ct.acq': 'Acquisitions', 'ct.ach': 'Achievements',
+  'ct.stats': 'Stats', 'ct.settings': 'Settings',
+  'unit.rp': 'RP',
+
+  'off.firstStep': 'First step', 'off.collect': 'Collect {v}', 'off.toProducts': 'Products →',
+  'off.team': 'Team', 'off.people': '{n} staff', 'off.research': 'Research', 'off.products': 'Products',
+  'off.levels': '{n} levels', 'off.valuation': 'Valuation', 'off.offers': '🤝 Offers: {n}', 'off.coding': 'Coding',
+  'badge.contracts': '🤝 Contracts: {n} · {t}',
+  'news.offer': '🤝 <b>New request for proposal</b> — check Contracts on the Company tab',
+
+  'prod.level': 'Lvl {n}', 'prod.income': '<b>+{v}/s</b> · {p} of revenue', 'prod.notReleased': 'Not launched yet',
+  'prod.milestone': '{n}/{m} · milestone ×2', 'prod.allMilestones': 'Every milestone reached!',
+  'prod.release': 'Launch', 'prod.buy': 'Buy ×{n}', 'prod.requires': 'Requires:', goResearch: 'Research →',
+
+  'team.newFloor': 'New floor', 'team.openHint': 'Open a new department and your building gets another floor.',
+  'team.open': 'Open department', 'team.hireFirst': 'Make your first hire!', 'team.milestone': '{n}/{m} · effects ×{x}',
+  'team.full': 'Fully staffed!', 'team.hire': 'Hire ×{n}',
+
+  'fx.income': '{p} revenue', 'fx.clickFlat': '+{v} coding power', 'fx.clickMult': '{p} coding power',
+  'fx.rp': '+{v} RP/s', 'fx.eventFreq': '{p} event frequency', 'fx.contract': '{p} contract rewards',
+  'fx.slots': '{n} contract {noun}', 'fx.offlineEff': '{p} offline efficiency', 'fx.hireCost': '−{n}% hiring cost',
+  'fx.prodCost': '−{n}% product cost', 'fx.offlineCap': '+{t} offline limit', 'fx.auto': '+{v} auto-taps/s',
+  'fx.cat': '{p} for {c}', 'fx.acqCost': '−{n}% acquisition cost', 'fx.prestige': '{p} round capital',
+
+  'dfx.prod': '{name} ×{x}', 'dfx.cat': '{c} category ×{x}', 'dfx.dept': '{d} ×{x}', 'dfx.deptAll': 'All departments ×{x}',
+  'dfx.all': 'All revenue ×{x}', 'dfx.click': 'Coding ×{x}', 'dfx.clickPct': 'Taps earn +{p}% of revenue/s',
+  'dfx.rp': 'Research points ×{x}', 'dfx.hireCost': 'Hiring −{n}%', 'dfx.prodCost': 'Products {n}% cheaper',
+  'dfx.eventFreq': 'Events more often ×{x}', 'dfx.auto': '+{n} auto-tap/s', 'dfx.unlockProduct': 'Unlocks: {name}',
+  'dfx.unlockDept': 'New department: {name}',
+
+  'up.prodDesc': '{name}: revenue ×{x}', 'up.deptDesc': '{name} effects ×{x}', 'up.cultureDesc': '{desc} All revenue ×{x}.',
+  'up.clickX': 'coding ×{x}', 'up.clickPct': '+{p}% of revenue/s per tap',
+  'up.none': 'No upgrades available right now. Keep growing your products and departments and new ones will show up. ✨',
+  'up.owned': 'Owned · {n}', 'up.bought': 'Bought {n} {noun}',
+
+  'rs.points': 'Research points', 'rs.techCount': '{n}/{m} technologies',
+  'rs.needRnd': 'Open the <b>R&amp;D</b> department on the Team tab to start earning research points. 🔬',
+  'rs.persist': 'Researched technologies stay with you through every funding round.',
+  'rs.lockedEra': 'Era {n}: {name}', 'rs.requires': 'Requires: {list}', 'rs.infinite': 'Endless Research', 'rs.level': 'lvl {n}',
+
+  'inv.nextRound': 'Next round: {r}', 'inv.now': 'You hold {n} capital = revenue ×{x}',
+  'inv.perPoint': 'Each point: +{p}% revenue', 'inv.valuation': 'Company valuation', 'inv.assets': 'Company assets',
+  'inv.annual': 'Annual revenue', 'inv.multiple': 'Market multiple', 'inv.run': 'Earned this round',
+  'inv.total': 'Earned all time', 'inv.next': 'Next capital point at', 'inv.board': 'Board bonus',
+  'inv.raise': 'Raise a funding round',
+  'inv.valNote': 'Valuation = assets + annual revenue × market multiple. One hour of play is roughly one year in the life of your company; the multiple grows with technology and every new round.',
+  'inv.explain': 'A new round restarts the company (cash, products, departments, upgrades, acquisitions), but <b style="color:var(--text)">technologies, research points and achievements stay</b>, and investor capital permanently boosts your revenue.',
+  'inv.boardTitle': 'Board of Directors', 'inv.shares': '{n} shares', 'inv.max': 'Max',
+
+  'con.locked': '🤝 Open the <b>Sales</b> department on the Team tab to start receiving requests from clients.<br><br>Contracts are time-boxed jobs. When one finishes you get a generous payout, even while the game is closed.',
+  'con.slots': 'Contract slots', 'con.mult': 'Reward multiplier', 'con.active': 'In progress', 'con.noActive': 'No active contracts.',
+  'con.offers': 'Requests for proposal', 'con.waiting': 'Waiting for requests… next one in about {t}.',
+  'con.order': 'Project: {task} · time: {t}', 'con.reward': 'Reward:', 'con.expires': 'Offer expires in {t}',
+  'con.decline': 'Decline', 'con.accept': 'Accept',
+  'con.full': 'Every slot is taken. Hire more salespeople (every 25 = +1 slot).',
+  'con.left': '{t} left', 'con.done': 'Contract completed', 'con.doneRp': ' and {v} RP',
+
+  'acq.locked': '⚖️ Open the <b>Legal</b> department to acquire other companies. Every acquisition is a big bonus for the rest of the round.',
+  'acq.yours': '✓ Yours', 'acq.buy': 'Acquire', 'acq.toast': 'Acquired: {name}',
+
+  'ach.count': 'Achievements earned', 'ach.bonus': 'Revenue bonus', 'ach.tap': 'Tap an icon to see the details.',
+  'ach.hidden': 'Hidden achievement', 'ach.hiddenText': 'Keep playing to find out…', 'ach.toast': 'Achievement: {name}',
+  'ach.toastText': '{desc} · +{p}% revenue',
+  'ach.earn': 'Earn {v} in total', 'ach.inc': 'Reach {v}/s in revenue', 'ach.click': 'Tap {n} times',
+  'ach.prod': 'Get “{p}” to level {n}', 'ach.emp': 'Have {n} {noun} on staff',
+  'ach.dept': 'Open {n} {noun}', 'ach.tech': 'Research {n} {noun}', 'ach.upg': 'Buy {n} {noun} in a single round',
+  'ach.pres': 'Close {n} funding {noun}', 'ach.inv': 'Hold {n} capital points', 'ach.bub': 'Catch {n} {noun}',
+  'ach.con': 'Complete {n} {noun}', 'ach.acq': 'Acquire {n} {noun}',
+  'achNames.earn': ['First Hundred', 'Coffee Money', 'Millionaire', 'Billionaire', 'Trillionaire', 'Quadrillionaire', 'Quintillionaire',
+    'Sextillionaire', 'Septillionaire', 'Octillionaire', 'Nonillionaire', 'Off the Charts', 'Cosmic Money', 'Galactic Economy', 'Bank of the Universe'],
+  'achNames.inc': ['First Revenue', 'In the Black', 'Money Machine', 'Gold Mine', 'Cash Fountain', 'Geyser', 'Waterfall',
+    'Ocean', 'Supernova', 'Quasar', 'Big Bang', 'Singularity'],
+  'achNames.click': ['Warm-Up', 'Keyboard Warrior', 'Marathoner', 'Fingers of Steel', 'Keyboard Legend'],
+  'achNames.prod': ['Launch Day', 'Version 50', 'The Big 100', 'Legend', 'Monopoly'],
+  'achNames.emp': ['A Real Team', 'Startup', 'Scale-Up', 'Corporation', 'Giant', 'An Army', 'A State Within a State'],
+  'achNames.dept': ['First Floors', 'Office Block', 'Skyscraper', 'The Whole Company'],
+  'achNames.tech': ['Curiosity', 'Innovator', 'Visionary', 'Pioneer', 'The End of History'],
+  'achNames.upg': ['Shopaholic', 'Modernization', 'Living Large', 'Collector', 'Perfectionist'],
+  'achNames.pres': ['First Round', 'Serial Founder', 'VC Darling', 'Unicorn', 'Decacorn'],
+  'achNames.inv': ['Capital', 'Fund', 'Mega Fund', 'Treasury', 'Central Bank'],
+  'achNames.bub': ['Seize the Moment', 'Trend Hunter', 'Gone Viral', 'King of the Internet', 'Phenomenon'],
+  'achNames.con': ['First Client', 'Portfolio', 'Trusted Partner', 'Integrator', 'Supplier of Everything'],
+  'achNames.acq': ['First Acquisition', 'Predator', 'Monopolist'],
+  'achFun.f_night': ['Night Owl', 'Play between midnight and 4 a.m.'],
+  'achFun.f_rename': ['New Identity', 'Rename your company'],
+  'achFun.f_frenzy': ['Coding Frenzy', 'Tap 12 times in one second'],
+  'achFun.f_patience': ['Patience', 'Come back after at least 8 hours away'],
+  'achFun.f_combo': ['Perfect Timing', 'Have Viral and Hackathon running at the same time'],
+  'achFun.f_trend': ['Riding the Wave', 'Catch a market trend on your best product'],
+
+  'noun.people': { one: 'person', other: 'people' },
+  'noun.peopleNom': { one: 'person', other: 'people' },
+  'noun.depts': { one: 'department', other: 'departments' },
+  'noun.techs': { one: 'technology', other: 'technologies' },
+  'noun.upgrades': { one: 'upgrade', other: 'upgrades' },
+  'noun.rounds': { one: 'round', other: 'rounds' },
+  'noun.events': { one: 'event', other: 'events' },
+  'noun.contracts': { one: 'contract', other: 'contracts' },
+  'noun.companies': { one: 'company', other: 'companies' },
+  'noun.slots': { one: 'slot', other: 'slots' },
+
+  'toast.milestone': 'Milestone: {name}', 'toast.milestoneText': 'Level {n}: revenue ×{x}',
+  'toast.newDept': 'New department: {name}', 'toast.newDeptText': 'A new floor just went up on your building!',
+  'toast.deptMilestone': '{name}: {n} {noun}', 'toast.deptMilestoneText': 'Department effects ×{x}',
+  'toast.researched': 'Researched: {name}',
+  'bubble.viralText': 'Revenue ×7 for {n}s', 'bubble.angelText': 'An investor wires you {v}',
+  'bubble.hackText': 'Coding ×15 for {n}s', 'bubble.eurekaText': '+{v} research points',
+  'toast.roundClosed': 'Round closed: +{n} capital', 'toast.roundClosedText': 'Revenue ×{x} thanks to your investors',
+  'toast.tooEarly': 'Too early for a round', 'toast.tooEarlyText': 'Your first capital point comes at {v} in total earnings',
+  'toast.renamed': 'Company renamed', 'toast.copied': 'Save copied', 'toast.copyManual': 'Select the text and copy it manually',
+  'toast.imported': 'Save loaded', 'toast.importBad': 'That save doesn’t look right', 'toast.importBadText': 'Make sure you copied the whole text.',
+  'toast.lang': 'Language: English',
+
+  'st.income': 'Revenue', 'st.maxIncome': 'Record revenue', 'st.click': 'Tap value', 'st.auto': 'Auto-taps',
+  'st.total': 'Earned all time', 'st.run': 'Earned this round', 'st.bestRun': 'Best round', 'st.clicks': 'Taps',
+  'st.staff': 'Employees', 'st.hired': 'Total hires', 'st.upgrades': 'Upgrades bought', 'st.techs': 'Technologies',
+  'st.bubbles': 'Events caught', 'st.contracts': 'Contracts completed', 'st.rounds': 'Funding rounds',
+  'st.offlineCap': 'Offline earnings limit', 'st.offlineEff': 'Offline efficiency', 'st.playTime': 'Time played', 'st.founded': 'Founded',
+
+  'set.company': 'Company', 'set.name': 'Company name', 'set.nameHint': 'Shown on your building’s sign and in the news.', 'set.save': 'Save',
+  'set.game': 'Game', 'set.lang': 'Language', 'set.langHint': 'All text in the game.', 'set.sound': 'Sound effects', 'set.soundHint': 'Soft sounds for taps and purchases.',
+  'set.install': 'Install on iPhone', 'set.installHint': 'How to add the game to your Home Screen.', 'set.show': 'Show',
+  'set.saveTitle': 'Saved game', 'set.export': 'Export save', 'set.exportHint': 'A text backup. Keep it somewhere safe, like Notes.', 'set.exportBtn': 'Export',
+  'set.import': 'Import save', 'set.importHint': 'Load a save you exported earlier.', 'set.importBtn': 'Import',
+  'set.reset': 'Start over', 'set.resetHint': 'Deletes all progress. This can’t be undone.', 'set.resetBtn': 'Reset',
+  'set.footer': 'version {v}<br>The game saves automatically on this device.',
+
+  'w.lead': 'Every empire starts in a garage: a laptop, a coffee and one big idea.',
+  'w.tips': [
+    '<b>Code</b>: tap the purple button to earn your first dollars.',
+    '<b>Products</b> make money on their own, even when the game is closed.',
+    '<b>Departments</b> add floors to your building and powerful bonuses.',
+    '<b>Research</b> unlocks new technology, from HTML all the way to superintelligence.',
+    'Catch the glowing <b>bubbles</b>: viral hits, angel investors and hackathons!',
+  ],
+  'w.name': 'What’s your company called?', 'w.start': 'Let’s go!',
+  'o.title': 'Welcome back!', 'o.away': 'You were away for {t}. Meanwhile, your company earned:', 'o.rp': '+{v} research points',
+  'o.contracts': 'Contracts completed: {n}', 'o.note': 'Offline earnings: {p}% efficiency, {t} limit{reached}.', 'o.reached': ' (reached)', 'o.ok': 'Nice!',
+  'p.title': 'Round: {r}', 'p.lead': 'Investors are ready to write a check. You’ll get:',
+  'p.gain': 'Revenue ×{a} → <b style="color:var(--text)">×{b}</b>, plus {n} shares for your board.',
+  'p.resets': '<b>Resets:</b> cash, products, departments, upgrades, acquisitions.',
+  'p.keeps': '<b>Stays:</b> technologies, research points, achievements, capital and your board.',
+  'p.confirm': 'Raise the round', 'p.cancel': 'Not yet',
+  'r.title': 'Start over?', 'r.text': 'All progress, including technologies, capital and achievements, will be deleted. This can’t be undone.',
+  'r.confirm': 'Yes, delete everything', cancel: 'Cancel', close: 'Close',
+  'e.title': 'Export save', 'e.text': 'Copy this text and keep it somewhere safe (Notes works great).', 'e.copy': 'Copy',
+  'i.title': 'Import save', 'i.text': 'Paste the exported text. Your current progress will be replaced.', 'i.placeholder': 'Paste your save here…', 'i.load': 'Load',
+  'h.title': 'Play from your Home Screen',
+  'h.steps': [
+    'Open this page in <b>Safari</b>.',
+    'Tap <b>Share</b> (the square with an arrow).',
+    'Choose <b>Add to Home Screen</b> and tap <b>Add</b>.',
+    'Launch the game from its icon. It runs full screen and works offline.',
+  ],
+  'h.note': 'Your save lives on this device. Export it every now and then, just in case.', 'h.ok': 'Got it',
+
+  'time.d': 'd', 'time.h': 'h', 'time.m': 'm', 'time.s': 's',
+};
+
+export const DICT = { pl: PL, en: EN };
+
+function lookup(key) {
+  const d = DICT[lang];
+  if (d[key] !== undefined) return d[key];
+  return PL[key] !== undefined ? PL[key] : key;
+}
+
+export function t(key, params) {
+  const v = lookup(key);
+  if (typeof v !== 'string' || !params) return v;
+  return v.replace(/\{(\w+)\}/g, (m, k) => (params[k] !== undefined ? params[k] : m));
+}
+
+// Forma liczebnika: PL 1 / 2–4 / 5+, EN 1 / reszta
+export function pluralForm(n, forms) {
+  if (lang === 'en') return n === 1 ? forms.one : forms.other;
+  if (n === 1) return forms.one;
+  const d = n % 10;
+  const dd = n % 100;
+  if (d >= 2 && d <= 4 && (dd < 12 || dd > 14)) return forms.few;
+  return forms.many;
+}
+
+export function noun(key, n) {
+  return pluralForm(n, lookup(`noun.${key}`));
+}
