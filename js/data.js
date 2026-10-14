@@ -599,6 +599,33 @@ export const OFFICES = [
 ];
 
 // ---------------------------------------------------------------------------
+// GIEŁDA — po rundzie IPO. Konkurenci rosną razem z rynkiem (ich kapitalizacja to ułamek
+// Twojej najwyższej wyceny), a kurs waha się z nastrojami inwestorów.
+// Udziały dają premię dla kategorii konkurenta; 51% to przejęcie kontroli.
+// ---------------------------------------------------------------------------
+export const MARKET = {
+  unlockRounds: 8, baseShare: 0.6, fee: 0.02, every: 30000, histMax: 60,
+  sentMin: 0.7, sentMax: 1.35, revert: 0.04, shockChance: 0.015, sharesOut: 1e9,
+  stakeBonus: 3, stakeCap: 0.5, control: 0.51, controlCat: 1.2, controlAll: 1.05,
+};
+export const COMPETITORS = [
+  { id: 'pear', icon: '🍐', cat: 'mobile', k: 1.4, vol: 0.025, name: 'Gruszka Computers', ticker: 'GRSZ' },
+  { id: 'macrohard', icon: '🪟', cat: 'infra', k: 1.2, vol: 0.02, name: 'Makrotwardy', ticker: 'MKTW' },
+  { id: 'goggle', icon: '🔎', cat: 'web', k: 1.1, vol: 0.025, name: 'Gogle', ticker: 'GOGL' },
+  { id: 'amazin', icon: '📦', cat: 'biz', k: 1, vol: 0.03, name: 'Amazonka', ticker: 'AMZK' },
+  { id: 'envydia', icon: '🟩', cat: 'deep', k: 0.9, vol: 0.05, name: 'Envydia', ticker: 'ENVD' },
+  { id: 'facepage', icon: '👍', cat: 'social', k: 0.7, vol: 0.035, name: 'Twarzoksiążka', ticker: 'TWKS' },
+  { id: 'closedai', icon: '🤖', cat: 'ai', k: 0.5, vol: 0.06, name: 'ZamknięteAI', ticker: 'ZAI' },
+  { id: 'spacey', icon: '🚀', cat: 'space', k: 0.4, vol: 0.06, name: 'SpaceY', ticker: 'SPCY' },
+  { id: 'notflix', icon: '🍿', cat: 'social', k: 0.3, vol: 0.04, name: 'Nietflix', ticker: 'NTFX' },
+  { id: 'qleap', icon: '⚛️', cat: 'deep', k: 0.1, vol: 0.07, name: 'Skok Kwantowy', ticker: 'SKOK' },
+];
+export const MARKET_NEWS = {
+  up: ['{n}: akcje +{p}% po premierze nowego produktu', '{n} bije rekordy na giełdzie: +{p}%', 'Analitycy zachwyceni wynikami {n}: +{p}%'],
+  down: ['{n}: akcje −{p}% po awarii serwerów', 'Rozczarowujące wyniki {n}: −{p}%', '{n} traci {p}% po aferze z danymi'],
+};
+
+// ---------------------------------------------------------------------------
 // SKALA CYWILIZACJI — roczny przychód porównany ze światem, potem skala Kardaszowa.
 // Progi z „v” są w dolarach rocznie; progi z „k” to stopień w skali Kardaszowa.
 // ---------------------------------------------------------------------------

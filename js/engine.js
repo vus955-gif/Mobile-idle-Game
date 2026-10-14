@@ -5,7 +5,7 @@ import {
   TECHS, REPEAT_TECHS, CULTURE_UPGRADES, CLICK_UPGRADES, ACQUISITIONS, PERKS,
   BUBBLES, CONTRACT_CLIENTS, CONTRACT_TASKS, CONTRACT_DURATIONS, TREND_TEMPLATES,
   AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, SCALE_LEVELS, ENERGY_W_PER_USD, DECISIONS,
-  OFFICES, OFFICE_MAX_LEVEL, OFFICE_LEVEL_COST,
+  OFFICES, OFFICE_MAX_LEVEL, OFFICE_LEVEL_COST, MARKET, COMPETITORS,
 } from './data.js';
 import { fmt, money, num } from './format.js';
 import { t, noun, getLang } from './i18n.js';
@@ -34,6 +34,7 @@ export const CHALLENGE_MAP = Object.fromEntries(CHALLENGES.map((c) => [c.id, c])
 export const OFFICE_MAP = Object.fromEntries(OFFICES.map((o) => [o.id, o]));
 const EARTH_OFFICES = OFFICES.filter((o) => o.kind === 'earth' && !o.hq).length;
 const SPACE_OFFICES = OFFICES.filter((o) => o.kind === 'space').length;
+export const COMP_MAP = Object.fromEntries(COMPETITORS.map((c) => [c.id, c]));
 
 // Decyzje i historia wykresu
 export const DECISION_FIRST = 8 * 60000;
@@ -125,6 +126,9 @@ for (const p of PRODUCTS) {
 SCALE_LEVELS.forEach((L, i) => ach(`scale${i}`, L.icon, 'scale', i, i, (g) => g.s.scaleMax >= i));
 [1, 5, 10, EARTH_OFFICES].forEach((v, i) => ach(`off${i}`, '🌍', 'off', v, i, (g) => g.officeCount('earth') >= v));
 [1, 3, SPACE_OFFICES].forEach((v, i) => ach(`spc${i}`, '🚀', 'spc', v, i, (g) => g.officeCount('space') >= v));
+[1, 3, COMPETITORS.length].forEach((v, i) => ach(`ctl${i}`, '🦁', 'ctl', v, i, (g) => g.controlCount() >= v));
+ach('mkt0', '📈', 'mkt', 0, 0, (g) => g.marketUnlocked() && Object.keys(g.s.market.stakes).length > 0);
+ach('mkt1', '🥇', 'mkt', 1, 1, (g) => g.marketUnlocked() && g.marketRank() === 1);
 
 const fun = (id, icon, check) => ach(id, icon, 'fun', 0, 0, check, { hidden: true });
 fun('f_night', '🦉', (g) => { const h = new Date(g.now).getHours(); return h >= 0 && h < 4 && g.s.stats.playTime > 60; });
@@ -211,6 +215,7 @@ export function createState(now = Date.now()) {
     contracts: { offers: [], active: [], nextOfferAt: 0, seq: 0 },
     autopilot: { owned: {}, off: {} },
     offices: { waw: 1 },
+    market: { comps: {}, stakes: {}, lastTick: 0 },
     challenge: null,
     challenges: {},
     decision: null,
@@ -223,7 +228,7 @@ export function createState(now = Date.now()) {
     stats: {
       clicks: 0, runClicks: 0, autoClicks: 0, bubbles: 0, contracts: 0, playTime: 0, maxIncome: 0,
       hired: 0, upgradesBought: 0, rpTotal: 0, bestRun: 0, startedAt: now, runStartedAt: now,
-      decisions: 0, autoBuys: 0, zenTime: 0, musicTime: 0, bestValuation: 0,
+      decisions: 0, autoBuys: 0, zenTime: 0, musicTime: 0, bestValuation: 0, bestCore: 0,
     },
     settings: { sound: false, music: false, buyAmount: 1, lang: getLang(), view: 'waw' },
     lastTick: now,
@@ -253,6 +258,14 @@ export function sanitizeState(raw, now = Date.now()) {
     for (const [id, l] of Object.entries(raw.offices)) if (OFFICE_MAP[id] && l > 0) s.offices[id] = Math.min(OFFICE_MAX_LEVEL, Math.floor(l));
   }
   if (!OFFICE_MAP[s.settings.view] || !s.offices[s.settings.view]) s.settings.view = 'waw';
+  const mk = isObj(raw.market) ? raw.market : {};
+  s.market = { comps: {}, stakes: {}, lastTick: mk.lastTick > 0 ? mk.lastTick : 0 };
+  for (const c of COMPETITORS) {
+    const rc = isObj(mk.comps) && isObj(mk.comps[c.id]) ? mk.comps[c.id] : null;
+    if (rc && rc.sent > 0) s.market.comps[c.id] = { sent: rc.sent, hist: Array.isArray(rc.hist) ? rc.hist.filter((x) => x > 0).slice(-MARKET.histMax) : [] };
+    const st = isObj(mk.stakes) ? mk.stakes[c.id] : 0;
+    if (st > 0) s.market.stakes[c.id] = Math.min(1, st);
+  }
   s.challenge = isObj(raw.challenge) && CHALLENGE_MAP[raw.challenge.id] ? { ...raw.challenge } : null;
   s.decision = isObj(raw.decision) && DECISIONS[raw.decision.i] ? { ...raw.decision } : null;
   s.recentDecisions = Array.isArray(raw.recentDecisions) ? raw.recentDecisions.filter((i) => Number.isInteger(i)) : [];
@@ -375,6 +388,15 @@ export class Game {
     for (const id in s.perks) { const l = s.perks[id] || 0; if (l > 0 && PERK_MAP[id]) apply(PERK_MAP[id].fx, l); }
     for (const id in s.challenges) { const l = s.challenges[id] || 0; if (l > 0 && CHALLENGE_MAP[id]) apply(CHALLENGE_MAP[id].fx, l); }
     for (const id in s.offices) { const l = s.offices[id] || 0; if (l > 0 && OFFICE_MAP[id]) apply(OFFICE_MAP[id].fx, l); }
+    // udziały w konkurentach: premia dla ich kategorii, a przy 51% przejęcie kontroli
+    for (const id in s.market.stakes) {
+      const c = COMP_MAP[id];
+      const p = s.market.stakes[id] || 0;
+      if (!c || !(p > 0)) continue;
+      let x = 1 + MARKET.stakeBonus * Math.min(p, MARKET.stakeCap);
+      if (p >= MARKET.control) { x *= MARKET.controlCat; m.all *= MARKET.controlAll; }
+      m.cat[c.cat] = (m.cat[c.cat] || 1) * x;
+    }
     const ch = this.rule();
 
     let eventAdd = 0; let contractAdd = 0; let hireRed = 0; let prodRed = 0; let offAdd = 0; let acqRed = 0; let presAdd = 0;
@@ -501,6 +523,7 @@ export class Game {
     this.updateContracts(now);
     this.updateDecision(now);
     this.updatePending(now);
+    this.updateMarket(now);
 
     this.apTimer = (this.apTimer || 0) + dt;
     if (this.apTimer >= 1) { this.apTimer = 0; this.autopilotStep(now); }
@@ -771,6 +794,7 @@ export class Game {
     }
     for (const id in s.upgrades) if (UPGRADE_MAP[id]) v += UPGRADE_MAP[id].cost * 0.25;
     for (const id in s.acquisitions) if (ACQ_MAP[id]) v += ACQ_MAP[id].cost * 0.75;
+    if (this.marketUnlocked()) v += this.portfolioValue();
     return Math.min(Number.MAX_VALUE, v);
   }
   valuationMultiple() {
@@ -817,6 +841,7 @@ export class Game {
     s.trend = null;
     s.contracts = { offers: [], active: [], nextOfferAt: 0, seq: s.contracts.seq || 0 };
     s.challenge = null;
+    s.market.stakes = {};
     s.runEarned = 0;
     s.stats.runClicks = 0;
     s.stats.runStartedAt = now;
@@ -1021,6 +1046,7 @@ export class Game {
     s.stats.rpTotal += rp;
     const contracts = this.updateContracts(now);
     const pending = this.updatePending(now);
+    if (this.marketUnlocked()) this.updateMarket(now, Math.min(20, Math.floor(elapsed / (MARKET.every / 1000))));
     if (elapsed >= 8 * 3600) s.flags.patience = true;
     s.lastTick = now;
     s.boosts = kept;
@@ -1068,6 +1094,82 @@ export class Game {
     if (id !== 'waw') this.s.flags.viewChanged = true;
     this.emit('structure');
     return true;
+  }
+
+  // ---------- giełda ----------
+  marketUnlocked() { return this.s.prestigeCount >= MARKET.unlockRounds; }
+  // Wielkość rynku liczymy od najwyższej wyceny bez portfela akcji — inaczej udziały pompowałyby same siebie.
+  marketBase() { return Math.max(1e6, this.s.stats.bestCore || 0) * MARKET.baseShare; }
+  comp(id) {
+    const m = this.s.market;
+    if (!m.comps[id]) m.comps[id] = { sent: 1, hist: [1] };
+    return m.comps[id];
+  }
+  compCap(id) { return this.marketBase() * COMP_MAP[id].k * this.comp(id).sent; }
+  stake(id) { return this.s.market.stakes[id] || 0; }
+  stakeValue(id) { return this.stake(id) * this.compCap(id); }
+  portfolioValue() { let v = 0; for (const id in this.s.market.stakes) if (COMP_MAP[id]) v += this.stakeValue(id); return v; }
+  controlCount() { return Object.values(this.s.market.stakes).filter((p) => p >= MARKET.control).length; }
+  sharePrice() { return this.valuation() / MARKET.sharesOut; }
+  // Miejsce Twojej firmy wśród spółek na giełdzie (1 = najcenniejsza).
+  marketRank() {
+    const v = this.valuation();
+    return 1 + COMPETITORS.filter((c) => this.compCap(c.id) > v).length;
+  }
+  stakeCost(id, pct) { return pct * this.compCap(id) * (1 + MARKET.fee); }
+  buyStake(id, pct) {
+    if (!this.marketUnlocked() || !COMP_MAP[id]) return false;
+    const have = this.stake(id);
+    const p = Math.min(pct, 1 - have);
+    if (!(p > 1e-9)) return false;
+    const cost = this.stakeCost(id, p);
+    if (cost > this.s.cash) return false;
+    this.s.cash -= cost;
+    this.s.market.stakes[id] = Math.round((have + p) * 1e6) / 1e6;
+    this.recalc();
+    this.emit('buy', { kind: 'stake', id });
+    if (have < MARKET.control && have + p >= MARKET.control) this.emit('control', id);
+    return true;
+  }
+  sellStake(id, pct) {
+    const have = this.stake(id);
+    const p = Math.min(pct, have);
+    if (!(p > 1e-9)) return false;
+    this.earnRaw(p * this.compCap(id) * (1 - MARKET.fee));
+    const left = Math.round((have - p) * 1e6) / 1e6;
+    if (left > 0) this.s.market.stakes[id] = left; else delete this.s.market.stakes[id];
+    this.recalc();
+    this.emit('buy', { kind: 'stake', id });
+    return true;
+  }
+  // Sprzedaż udziałów to nie zarobek — nie liczy się do rund finansowania.
+  earnRaw(x) { if (x > 0) this.s.cash = Math.min(Number.MAX_VALUE, this.s.cash + x); }
+  updateMarket(now, steps = 1) {
+    if (!this.marketUnlocked() || steps <= 0) return 0;
+    const mk = this.s.market;
+    if (!mk.lastTick) mk.lastTick = now;
+    if (now - mk.lastTick < MARKET.every && steps === 1) return 0;
+    mk.lastTick = now;
+    let changed = 0;
+    for (let k = 0; k < steps; k++) {
+      for (const c of COMPETITORS) {
+        const st = this.comp(c.id);
+        const z = (this.rng() + this.rng() + this.rng() - 1.5) * 2;
+        let sent = st.sent + (1 - st.sent) * MARKET.revert + z * c.vol;
+        if (this.rng() < MARKET.shockChance) {
+          const d = (0.08 + this.rng() * 0.1) * (this.rng() < 0.5 ? -1 : 1);
+          sent *= 1 + d;
+          if (steps === 1) this.emit('marketNews', { id: c.id, d });
+        }
+        st.sent = Math.min(MARKET.sentMax, Math.max(MARKET.sentMin, sent));
+        st.hist.push(+st.sent.toFixed(4));
+        if (st.hist.length > MARKET.histMax) st.hist.splice(0, st.hist.length - MARKET.histMax);
+      }
+      changed++;
+    }
+    if (Object.keys(mk.stakes).length) this.recalc();
+    this.emit('market');
+    return changed;
   }
 
   // ---------- autopilot ----------
@@ -1299,6 +1401,8 @@ export class Game {
     const h = s.history;
     const val = this.valuation();
     if (val > s.stats.bestValuation) s.stats.bestValuation = val;
+    const core = val - (this.marketUnlocked() ? this.portfolioValue() : 0);
+    if (core > (s.stats.bestCore || 0)) s.stats.bestCore = core;
     const row = () => [now, +this.steadyIncome().toPrecision(4), +val.toPrecision(4)];
     if (force || now - h.lastShort >= HISTORY.shortEvery) {
       h.short.push(row());

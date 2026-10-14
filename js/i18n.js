@@ -260,6 +260,16 @@ const PL = {
   'achFun.f_view': ['Nowy widok', 'Zmień widok z okna na inne biuro'],
   'noun.offices': { one: 'biuro', few: 'biura', many: 'biur' },
 
+  'ct.market': 'Giełda',
+  'mk.locked': '📈 Giełda otworzy się po rundzie <b>IPO</b>, czyli po 8. rundzie finansowania. Wtedy Twoja firma wejdzie na parkiet.',
+  'mk.lead': 'Kurs Twoich akcji to wycena podzielona na miliard akcji. Konkurenci rosną razem z rynkiem, a ich kursy falują z nastrojami inwestorów. Udziały w konkurencie wzmacniają Twoje produkty z jego kategorii, a 51% daje kontrolę i dodatkową premię. Udziały przepadają przy rundzie finansowania.',
+  'mk.yours': 'Twoja spółka', 'mk.price': 'Kurs akcji', 'mk.cap': 'Kapitalizacja', 'mk.rank': 'Miejsce na giełdzie', 'mk.rankV': '#{n} z {m}',
+  'mk.portfolio': 'Wartość portfela', 'mk.companies': 'Spółki', 'mk.stake': 'Udziały: {p} · wartość {v}', 'mk.noStake': 'Nie masz jeszcze udziałów.',
+  'mk.bonus': 'Premia: {fx}', 'mk.toControl': '{p} · kontrola od 51%', 'mk.control': '👑 Kontrola', 'mk.fee': 'Prowizja maklerska: {p}% od każdej transakcji.',
+  'mk.controlToast': 'Przejęto kontrolę: {name}', 'mk.controlText': '51% udziałów: pełna premia dla kategorii {c}',
+  'achNames.ctl': ['Wrogie przejęcie', 'Konglomerat', 'Monopol na giełdzie'], 'ach.ctl': 'Przejmij kontrolę nad {n} {noun}',
+  'achNames.mkt': ['Pierwsza inwestycja', 'Najcenniejsza spółka świata'], 'ach.mktDesc': ['Kup udziały w konkurencie', 'Bądź najcenniejszą spółką na giełdzie'],
+
   'time.d': 'd', 'time.h': 'h', 'time.m': 'min', 'time.s': 's', 'time.y': 'rok',
 };
 
@@ -503,6 +513,16 @@ const EN = {
   'achFun.f_hq': ['Grand Headquarters', 'Fully expand your Warsaw HQ'],
   'achFun.f_view': ['A New View', 'Switch the window view to another office'],
   'noun.offices': { one: 'office', other: 'offices' },
+
+  'ct.market': 'Market',
+  'mk.locked': '📈 The stock market opens after your <b>IPO</b> round, the 8th funding round. That’s when your company goes public.',
+  'mk.lead': 'Your share price is your valuation divided by a billion shares. Competitors grow with the market and their prices swing with investor sentiment. Owning a stake in a competitor boosts your products in its category, and 51% gives you control plus an extra bonus. Stakes are lost when you raise a funding round.',
+  'mk.yours': 'Your company', 'mk.price': 'Share price', 'mk.cap': 'Market cap', 'mk.rank': 'Market rank', 'mk.rankV': '#{n} of {m}',
+  'mk.portfolio': 'Portfolio value', 'mk.companies': 'Companies', 'mk.stake': 'Stake: {p} · worth {v}', 'mk.noStake': 'You don’t own a stake yet.',
+  'mk.bonus': 'Bonus: {fx}', 'mk.toControl': '{p} · control at 51%', 'mk.control': '👑 Control', 'mk.fee': 'Brokerage fee: {p}% on every trade.',
+  'mk.controlToast': 'Control acquired: {name}', 'mk.controlText': '51% stake: full bonus for the {c} category',
+  'achNames.ctl': ['Hostile Takeover', 'Conglomerate', 'Market Monopoly'], 'ach.ctl': 'Take control of {n} {noun}',
+  'achNames.mkt': ['First Investment', 'The World’s Most Valuable Company'], 'ach.mktDesc': ['Buy a stake in a competitor', 'Be the most valuable company on the market'],
 
   'time.d': 'd', 'time.h': 'h', 'time.m': 'm', 'time.s': 's', 'time.y': 'yr',
 };

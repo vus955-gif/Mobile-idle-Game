@@ -287,6 +287,23 @@ export const EN = {
     proxima: { name: 'Proxima b', desc: 'The first office outside the Solar System. 4.2 light-years from home.' },
   },
 
+  competitors: {
+    pear: { name: 'Pear Computers', ticker: 'PEAR' },
+    macrohard: { name: 'Macrohard', ticker: 'MCHD' },
+    goggle: { name: 'Goggle', ticker: 'GOGL' },
+    amazin: { name: 'Amazin’', ticker: 'AMZN' },
+    envydia: { name: 'Envydia', ticker: 'ENVD' },
+    facepage: { name: 'Facepage', ticker: 'FCPG' },
+    closedai: { name: 'ClosedAI', ticker: 'CLAI' },
+    spacey: { name: 'SpaceY', ticker: 'SPCY' },
+    notflix: { name: 'Notflix', ticker: 'NTFX' },
+    qleap: { name: 'Quantum Leap', ticker: 'QLPS' },
+  },
+  marketNews: {
+    up: ['{n} shares +{p}% after a product launch', '{n} hits a record high: +{p}%', 'Analysts love {n}’s earnings: +{p}%'],
+    down: ['{n} shares −{p}% after a server outage', 'Disappointing earnings at {n}: −{p}%', '{n} drops {p}% after a data scandal'],
+  },
+
   bubbles: { viral: 'Viral!', angel: 'Angel Investor', hackathon: 'Hackathon!', eureka: 'Eureka!' },
 
   rounds: ['Pre-seed', 'Seed', 'Series A', 'Series B', 'Series C', 'Series D', 'Series E', 'IPO',

@@ -1,7 +1,7 @@
 // Interfejs: renderowanie zakładek, HUD, efekty kliknięć, modale i toasty.
 import {
   PRODUCTS, DEPTS, TECHS, REPEAT_TECHS, ERAS, ACQUISITIONS, PERKS, CATEGORIES, BUBBLES, DEPT_MILESTONE_X, DEPT_MILESTONES,
-  AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, SCALE_LEVELS, DECISIONS, OFFICES, OFFICE_MAX_LEVEL,
+  AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, SCALE_LEVELS, DECISIONS, OFFICES, OFFICE_MAX_LEVEL, COMPETITORS, MARKET,
 } from './data.js';
 import {
   ACHIEVEMENTS, UPGRADES, UPGRADE_MAP, PRODUCT_MAP, DEPT_MAP, TECH_MAP, ACH_BONUS, INVESTOR_BONUS,
@@ -24,7 +24,17 @@ const SOUND_OFF = '<svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><pa
 const PARTICLES = ['{ }', '</>', '01', ';', '( )', '=>', '#', '[ ]', '&&', 'fn'];
 const PARTICLE_COLORS = ['#a78bfa', '#22d3ee', '#4ade80', '#fbbf24', '#f472b6'];
 const BUY_OPTIONS = [[1, '×1'], [10, '×10'], [100, '×100'], ['max', 'MAX']];
-const COMPANY_TABS = ['investors', 'challenges', 'contracts', 'acq', 'ach', 'stats', 'settings'];
+const COMPANY_TABS = ['investors', 'challenges', 'market', 'contracts', 'acq', 'ach', 'stats', 'settings'];
+// Mały wykres liniowy (np. kurs akcji)
+function spark(values, w = 120, h = 30, color = '#4ade80') {
+  const v = values.filter((x) => x > 0);
+  if (v.length < 2) return '';
+  const lo = Math.min(...v);
+  const hi = Math.max(...v);
+  const span = hi - lo || hi * 0.01 || 1;
+  const pts = v.map((x, i) => `${((i / (v.length - 1)) * w).toFixed(1)},${(h - 2 - ((x - lo) / span) * (h - 4)).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
+}
 const TEAM_TABS = ['depts', 'world'];
 // Kropki lądu jako jedna ścieżka (lżej niż tysiące kółek). Mapa: 1 jednostka = 1° długości.
 let LAND_PATH = null;
@@ -60,6 +70,7 @@ export class UI {
     this.tab = 'office';
     this.companySub = 'investors';
     this.teamSub = 'depts';
+    this.mkStep = 0.01;
     this.focusOffice = null;
     this.sigs = {};
     this.lastSlow = 0;
@@ -174,6 +185,12 @@ export class UI {
       this.pendingNews.unshift(`${L.icon} <b>${esc(TX.scaleName(i))}</b> · ${esc(TX.scaleDesc(i))}`);
       play('achievement');
     });
+    g.on('marketNews', (n) => { this.pendingNews.push(`${n.d > 0 ? '📈' : '📉'} ${esc(TX.marketNewsText(n, Math.floor(Math.random() * 3)))}`); });
+    g.on('control', (id) => {
+      const c = COMPETITORS.find((x) => x.id === id);
+      this.toast(c.icon, t('mk.controlToast', { name: TX.compName(id) }), t('mk.controlText', { c: TX.catName(c.cat) }), 'achievement');
+      play('achievement');
+    });
     g.on('decision', () => { this.pendingNews.push(t('dec.news')); this.syncDecision(); });
     g.on('decided', (d) => { this.toast(d.d.icon, t('dec.made'), TX.decisionEffectText(d.e), 'event'); this.syncDecision(); });
   }
@@ -286,6 +303,9 @@ export class UI {
         break;
       }
       case 'chart-series': this.chartSeries = el.dataset.v; this.updateAll(true); break;
+      case 'mk-step': this.mkStep = Number(el.dataset.v); this.updateAll(true); break;
+      case 'buy-stake': if (g.buyStake(id, this.mkStep)) this.pulse(el); this.updateAll(); break;
+      case 'sell-stake': if (g.sellStake(id, this.mkStep)) play('coin'); this.updateAll(); break;
       case 'chart-range': this.chartRange = el.dataset.v; this.updateAll(true); break;
       case 'scale-info': {
         const i = Number(id);
@@ -1054,6 +1074,7 @@ export class UI {
     switch (this.companySub) {
       case 'investors': return this.renderInvestors();
       case 'challenges': return this.renderChallenges();
+      case 'market': return this.renderMarket();
       case 'contracts': return this.renderContracts();
       case 'acq': return this.renderAcq();
       case 'ach': return this.renderAch();
@@ -1205,6 +1226,81 @@ export class UI {
       const p = Math.min(1, Math.log10(1 + s.runEarned) / Math.log10(goal));
       this.patch({ cbar: { width: `${p * 100}%` }, cprog: `${money(s.runEarned)} / ${money(goal)}` });
     }
+  }
+
+  renderMarket() {
+    const g = this.g;
+    const s = g.s;
+    if (!g.marketUnlocked()) {
+      this.setBody(`mk-locked|${getLang()}`, `<div class="hint">${t('mk.locked')}</div>`);
+      return;
+    }
+    const stakes = s.market.stakes;
+    const sig = `mk|${getLang()}|${this.mkStep}|${Object.keys(stakes).join(',')}|${s.companyName}`;
+    const steps = [[0.01, '1%'], [0.1, '10%']];
+    this.setBody(sig, `
+      <div class="stock-card">
+        <div class="stock-head">
+          <div><div class="lbl">${t('mk.yours')}</div><h3>${esc(s.companyName)} <span class="ticker">${esc(TX.ownTicker(s.companyName))}</span></h3></div>
+          <div class="stock-price"><b data-v="mprice"></b><small>${t('mk.price')}</small></div>
+        </div>
+        <div class="spark big" data-v="mspark"></div>
+        <div class="kv" style="background:none;border:0;padding:6px 0 0;margin:0">
+          <span>${t('mk.cap')}</span><b data-v="mcap"></b>
+          <span>${t('mk.rank')}</span><b data-v="mrank"></b>
+          <span>${t('mk.portfolio')}</span><b data-v="mport"></b>
+        </div>
+      </div>
+      <p class="card-sub" style="margin:10px 2px">${t('mk.lead')}</p>
+      <div class="view-head" style="margin:14px 0 8px">
+        <div class="section-title" style="margin:0">${t('mk.companies')}</div>
+        <div class="seg">${steps.map(([v, l]) => `<button data-act="mk-step" data-v="${v}" class="${v === this.mkStep ? 'on' : ''}">${l}</button>`).join('')}</div>
+      </div>
+      <div class="list">${COMPETITORS.map((c) => `
+        <div class="card comp">
+          <div class="tile" style="${grad(CATEGORIES[c.cat].grad)}">${c.icon}</div>
+          <div class="card-title"><h3>${esc(TX.compName(c.id))} <span class="ticker">${esc(TX.compTicker(c.id))}</span></h3><span class="lvl" data-v="chg-${c.id}"></span></div>
+          <div class="card-sub"><b data-v="cap-${c.id}"></b> · ${esc(TX.catName(c.cat))}</div>
+          <div class="spark" data-v="spark-${c.id}"></div>
+          <div class="card-desc" data-v="st-${c.id}"></div>
+          <div class="card-foot">
+            <div class="prog"><div class="prog-bar"><i data-v="sb-${c.id}"></i></div><div class="prog-label" data-v="sbl-${c.id}"></div></div>
+            <button class="btn btn-small ghost" data-act="sell-stake" data-id="${c.id}" data-v="sell-${c.id}">−${Math.round(this.mkStep * 100)}%</button>
+            <button class="btn btn-small" data-act="buy-stake" data-id="${c.id}" data-v="buy-${c.id}"><span>+${Math.round(this.mkStep * 100)}%</span><small data-v="bc-${c.id}"></small></button>
+          </div>
+        </div>`).join('')}</div>
+      <p class="card-sub" style="margin:10px 2px">${t('mk.fee', { p: Math.round(MARKET.fee * 100) })}</p>`);
+    const own = s.history.short.slice(-48).map((r) => r[2]);
+    const val = g.valuation();
+    const vals = {
+      mprice: g.sharePrice() < 1000 ? `$${num(g.sharePrice())}` : money(g.sharePrice()),
+      mspark: { html: spark([...own, val], 300, 46, '#a78bfa') },
+      mcap: money(val),
+      mrank: t('mk.rankV', { n: g.marketRank(), m: COMPETITORS.length + 1 }),
+      mport: money(g.portfolioValue()),
+    };
+    for (const c of COMPETITORS) {
+      const st = g.comp(c.id);
+      const h = st.hist;
+      const prev = h.length > 1 ? h[h.length - 2] : st.sent;
+      const chg = (st.sent / prev - 1) * 100;
+      const p = g.stake(c.id);
+      const cap = g.compCap(c.id);
+      const bonusX = p > 0 ? (1 + MARKET.stakeBonus * Math.min(p, MARKET.stakeCap)) * (p >= MARKET.control ? MARKET.controlCat : 1) : 0;
+      vals[`chg-${c.id}`] = { html: `<span style="color:${chg >= 0 ? 'var(--money)' : 'var(--danger)'}">${chg >= 0 ? '▲' : '▼'} ${num(Math.abs(chg))}%</span>` };
+      vals[`cap-${c.id}`] = money(cap);
+      vals[`spark-${c.id}`] = { html: spark(h, 300, 30, chg >= 0 ? '#4ade80' : '#fb7185') };
+      vals[`st-${c.id}`] = { html: p > 0
+        ? `${t('mk.stake', { p: `${num(p * 100)}%`, v: money(p * cap) })}<br>${p >= MARKET.control ? `<b style="color:var(--gold)">${t('mk.control')}</b> · ` : ''}${t('mk.bonus', { fx: esc(TX.describeFx([{ t: 'cat', cat: c.cat, x: bonusX }])) })}`
+        : t('mk.noStake') };
+      vals[`sb-${c.id}`] = { width: `${Math.min(1, p / MARKET.control) * 100}%` };
+      vals[`sbl-${c.id}`] = t('mk.toControl', { p: `${num(p * 100)}%` });
+      const step = Math.min(this.mkStep, 1 - p);
+      vals[`buy-${c.id}`] = { off: !(step > 1e-9) || g.stakeCost(c.id, step) > s.cash };
+      vals[`bc-${c.id}`] = step > 1e-9 ? money(g.stakeCost(c.id, step)) : '—';
+      vals[`sell-${c.id}`] = { off: !(p > 0) };
+    }
+    this.patch(vals);
   }
 
   confirmChallenge(id) {

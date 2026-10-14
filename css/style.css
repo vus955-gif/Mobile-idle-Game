@@ -461,6 +461,20 @@ textarea.text-input { min-height: 90px; font-family: ui-monospace, Menlo, monosp
 .chart .axis { font-size: 9px; fill: var(--faint); font-family: var(--font); font-weight: 700; }
 .chart-note { font-size: 11px; color: var(--faint); margin-top: 4px; }
 
+/* ---------- Giełda ---------- */
+.stock-card { padding: 14px; border-radius: 20px; background: linear-gradient(145deg, rgba(124, 92, 255, .2), rgba(74, 222, 128, .08)); border: 1px solid rgba(167, 139, 250, .35); }
+.stock-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.stock-head h3 { margin: 2px 0 0; font-size: 16px; }
+.stock-head .lbl { font-size: 11.5px; font-weight: 800; color: var(--accent2); text-transform: uppercase; letter-spacing: .8px; }
+.stock-price { text-align: right; }
+.stock-price b { display: block; font-size: 24px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.stock-price small { font-size: 11px; color: var(--muted); }
+.ticker { font-size: 10.5px; font-weight: 800; letter-spacing: .6px; color: var(--muted); background: rgba(255, 255, 255, .07); padding: 1px 6px; border-radius: 6px; vertical-align: middle; }
+.spark { grid-column: 2; height: 30px; margin: 2px 0; }
+.spark svg { display: block; width: 100%; height: 100%; }
+.spark.big { height: 46px; margin: 8px 0 2px; }
+.card.comp .card-foot .btn-small { min-width: 64px; }
+
 /* ---------- Świat: mapa biur ---------- */
 .map-card { position: relative; padding: 10px 8px 8px; border-radius: 20px; background: radial-gradient(120% 90% at 50% 0%, #1b2257, #0d1030 70%); border: 1px solid rgba(124, 92, 255, .3); overflow: hidden; }
 .map-card svg { display: block; width: 100%; height: auto; }

@@ -287,3 +287,47 @@ test('mapa świata ma sensowny kształt', async () => {
   assert.equal(bit(135, -25), 1, 'Australia');
   assert.equal(bit(-160, 0), 0, 'Pacyfik');
 });
+
+test('giełda: po IPO, udziały dają premię, 51% to kontrola, rynek nie pompuje sam siebie', async () => {
+  const { MARKET, COMPETITORS } = await import('../js/data.js');
+  const g = newGame();
+  g.s.cash = 1e40;
+  assert.equal(g.buyStake('pear', 0.1), false, 'przed IPO giełda zamknięta');
+  g.s.prestigeCount = MARKET.unlockRounds;
+  g.s.products = { landing: 50, notes: 50 };
+  g.recalc();
+  g.sampleHistory(T0, true);
+  assert.ok(g.s.stats.bestCore > 0);
+  const base = g.marketBase();
+  const mobileBefore = g.m.cat.mobile || 1;
+  assert.ok(g.buyStake('pear', 0.1));
+  assert.ok(Math.abs(g.stake('pear') - 0.1) < 1e-9);
+  assert.ok((g.m.cat.mobile || 1) > mobileBefore, 'premia dla kategorii');
+  let ctl = 0;
+  g.on('control', () => ctl++);
+  g.buyStake('pear', 0.41);
+  assert.equal(ctl, 1, 'przejęcie kontroli');
+  assert.equal(g.controlCount(), 1);
+  // pełne udziały we wszystkim nie powodują lawinowego wzrostu wyceny
+  for (const c of COMPETITORS) g.buyStake(c.id, 1);
+  for (let i = 0; i < 20; i++) g.sampleHistory(T0 + i * 1000);
+  assert.ok(Math.abs(g.marketBase() - base) / base < 1e-6, 'baza rynku stała');
+  // sprzedaż zwraca gotówkę minus prowizja, ale nie liczy się do zarobków
+  const earned = g.s.totalEarned;
+  const cash = g.s.cash;
+  const value = g.stakeValue('qleap');
+  assert.ok(g.sellStake('qleap', 1));
+  assert.ok(Math.abs(g.s.cash - cash - value * (1 - MARKET.fee)) / value < 1e-9);
+  assert.equal(g.s.totalEarned, earned);
+  // kurs się zmienia, ale w granicach
+  let t = T0;
+  for (let i = 0; i < 200; i++) { t += MARKET.every; g.updateMarket(t); }
+  for (const c of COMPETITORS) {
+    const sent = g.comp(c.id).sent;
+    assert.ok(sent >= MARKET.sentMin && sent <= MARKET.sentMax, c.id);
+  }
+  // runda finansowania kasuje udziały
+  g.s.totalEarned = 1e30;
+  g.doPrestige(t);
+  assert.deepEqual(g.s.market.stakes, {});
+});

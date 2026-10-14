@@ -2,7 +2,7 @@
 import {
   PRODUCTS, DEPTS, TECHS, REPEAT_TECHS, CULTURE_UPGRADES, CLICK_UPGRADES, ACQUISITIONS, PERKS, ERAS,
   CATEGORIES, BUBBLES, ROUND_NAMES, COMPANY_STAGES, NEWS, TREND_TEMPLATES, CONTRACT_CLIENTS, CONTRACT_TASKS,
-  PRODUCT_UP_NAMED, AUTOPILOT, CHALLENGES, SCALE_LEVELS, DECISIONS, OFFICES,
+  PRODUCT_UP_NAMED, AUTOPILOT, CHALLENGES, SCALE_LEVELS, DECISIONS, OFFICES, COMPETITORS, MARKET_NEWS,
 } from './data.js';
 import { EN } from './lang/en.js';
 import { getLang, t, noun } from './i18n.js';
@@ -21,6 +21,7 @@ const PK = byId(PERKS);
 const AP = byId(AUTOPILOT);
 const CH = byId(CHALLENGES);
 const OF = byId(OFFICES);
+const CO = byId(COMPETITORS);
 
 export const prodName = (id) => (en() ? EN.products[id].name : P[id].name);
 export const prodDesc = (id) => (en() ? EN.products[id].desc : P[id].desc);
@@ -38,6 +39,20 @@ export const catName = (cat) => (en() ? EN.categories[cat] : CATEGORIES[cat].nam
 export const bubbleName = (type) => (en() ? EN.bubbles[type] : BUBBLES[type].name);
 export const eraName = (id) => (en() ? EN.eras[id] : ERAS.find((e) => e.id === id).name);
 export const newsList = () => (en() ? EN.news : NEWS);
+export const compName = (id) => (en() ? EN.competitors[id].name : CO[id].name);
+export const compTicker = (id) => (en() ? EN.competitors[id].ticker : CO[id].ticker);
+export function marketNewsText(n, seed = 0) {
+  const pool = (en() ? EN.marketNews : MARKET_NEWS)[n.d > 0 ? 'up' : 'down'];
+  return pool[seed % pool.length].replace('{n}', compName(n.id)).replace('{p}', Math.round(Math.abs(n.d) * 100));
+}
+// Symbol giełdowy własnej firmy: pierwsze litery nazwy, bez polskich znaków.
+export function ownTicker(name) {
+  const plain = String(name).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ł/g, 'l').replace(/Ł/g, 'L');
+  const words = plain.toUpperCase().replace(/[^A-Z ]/g, '').split(' ').filter(Boolean);
+  if (!words.length) return 'CO';
+  if (words.length >= 3) return words.map((w) => w[0]).join('').slice(0, 4);
+  return (words[0].slice(0, 3) + (words[1] ? words[1][0] : words[0].slice(3, 4))).slice(0, 4);
+}
 export const officeName = (id) => (en() ? EN.offices[id].name : OF[id].name);
 export const officeDesc = (id) => (en() ? EN.offices[id].desc : OF[id].desc);
 export const apName = (id) => (en() ? EN.autopilot[id].name : AP[id].name);
@@ -155,6 +170,8 @@ export function achDesc(a) {
     case 'ap': return t('ach.ap', { n: v, noun: noun('modules', v) });
     case 'off': return t('ach.off', { n: v, noun: noun('offices', v) });
     case 'spc': return t('ach.spc', { n: v, noun: noun('offices', v) });
+    case 'ctl': return t('ach.ctl', { n: v, noun: noun('companies', v) });
+    case 'mkt': return t('ach.mktDesc')[a.i];
     case 'scale': return t('ach.scale', { name: scaleName(a.i) });
     default: return '';
   }
