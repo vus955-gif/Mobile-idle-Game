@@ -4,7 +4,7 @@ import {
   DEPTS, DEPT_MILESTONES, DEPT_MILESTONE_X, DEPT_UP_TIERS, DEPT_UP_EXTRA_ICONS,
   TECHS, REPEAT_TECHS, CULTURE_UPGRADES, CLICK_UPGRADES, ACQUISITIONS, PERKS,
   BUBBLES, CONTRACT_CLIENTS, CONTRACT_TASKS, CONTRACT_DURATIONS, TREND_TEMPLATES,
-  AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, SCALE_LEVELS, ENERGY_W_PER_USD, DECISIONS,
+  AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, CHALLENGE_FACTORS, SCALE_LEVELS, ENERGY_W_PER_USD, DECISIONS,
   OFFICES, OFFICE_MAX_LEVEL, OFFICE_LEVEL_COST, MARKET, COMPETITORS, BOARD, ROLES, QUIRKS, EXEC_NAMES,
 } from './data.js';
 import { fmt, money, num } from './format.js';
@@ -45,7 +45,7 @@ export function scaleTrait(tr, k) {
 }
 
 // Decyzje i historia wykresu
-export const DECISION_FIRST = 8 * 60000;
+export const DECISION_FIRST = 15 * 60000;
 export const HISTORY = { shortEvery: 5 * 60000, shortMax: 288, longEvery: 2 * 3600000, longMax: 360, roundsMax: 100 };
 
 // Skala cywilizacji: próg rocznego przychodu dla każdego poziomu.
@@ -469,13 +469,14 @@ export class Game {
     m.boostIncome = bx('income') * bx('dIncome');
     m.boostClick = bx('click') * bx('dClick');
     m.rp *= bx('dRp');
-    m.global = m.all * (1 + m.incomePct) * m.achMult * m.invMult * m.boostIncome * (ch && ch.rule === 'incomeMult' ? ch.v : 1);
+    m.global = m.all * (1 + m.incomePct) * m.achMult * m.invMult * m.boostIncome;
+    m.noMilestones = !!ch && ch.rule === 'noMilestones';
     this.m = m;
 
     let total = 0;
     for (const p of PRODUCTS) {
       const lvl = s.products[p.id] || 0;
-      const v = lvl > 0 ? this.productUnit(p.id) * lvl * Math.pow(2, milestoneCount(lvl)) : 0;
+      const v = lvl > 0 ? this.productUnit(p.id) * lvl * this.msMult(lvl) : 0;
       this.prodIncome[p.id] = v;
       total += v;
     }
@@ -498,10 +499,12 @@ export class Game {
     if (tr && tr.until > this.now && tr.pid === id) v *= tr.x;
     return v;
   }
+  // Mnożnik z kamieni milowych (w wyzwaniu „Kryzys” nie działa).
+  msMult(lvl) { return this.m.noMilestones ? 1 : Math.pow(2, milestoneCount(lvl)); }
   // O ile wzrośnie przychód po dokupieniu n poziomów (z kamieniami milowymi).
   productDelta(id, n = 1) {
     const l = this.s.products[id] || 0;
-    const f = (x) => x * Math.pow(2, milestoneCount(x));
+    const f = (x) => x * this.msMult(x);
     return this.productUnit(id) * (f(l + n) - f(l));
   }
 
@@ -1408,17 +1411,21 @@ export class Game {
 
   // ---------- wyzwania inwestorów ----------
   challengesUnlocked() { return this.s.prestigeCount > 0; }
+  // Cel rośnie razem z Tobą: liczy się od rzędu wielkości Twojej najlepszej rundy.
   challengeGoal(id) {
     const tier = this.s.challenges[id] || 0;
-    return tier < CHALLENGE_GOALS.length ? CHALLENGE_GOALS[tier] : null;
+    if (tier >= CHALLENGE_GOALS.length) return null;
+    const L = Math.log10(Math.max(1e10, this.s.stats.bestRun, this.s.runEarned));
+    return Math.max(CHALLENGE_GOALS[tier], Math.pow(10, L * CHALLENGE_FACTORS[tier]));
   }
   // Rozpoczęcie wyzwania zaczyna firmę od nowa (z kapitałem z rundy, jeśli jest).
   startChallenge(id, now = this.now) {
     const s = this.s;
     if (!CHALLENGE_MAP[id] || !this.challengesUnlocked() || this.challengeGoal(id) === null) return false;
+    const goal = this.challengeGoal(id);
     if (this.prestigeGain() >= 1) this.doPrestige(now);
     else this.resetRun(now);
-    s.challenge = { id, tier: s.challenges[id] || 0, start: now };
+    s.challenge = { id, tier: s.challenges[id] || 0, start: now, goal };
     this.recalc();
     this.emit('challenge', { id, started: true });
     this.emit('structure');
@@ -1436,7 +1443,7 @@ export class Game {
     const s = this.s;
     const c = s.challenge;
     if (!c) return false;
-    const goal = CHALLENGE_GOALS[c.tier];
+    const goal = c.goal || CHALLENGE_GOALS[c.tier];
     if (goal === undefined) { s.challenge = null; this.recalc(); return false; }
     if (s.runEarned < goal) return false;
     s.challenges[c.id] = Math.max(s.challenges[c.id] || 0, c.tier + 1);

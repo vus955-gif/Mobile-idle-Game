@@ -583,7 +583,7 @@ export class UI {
     }
     if (s.challenge) {
       const ch = CHALLENGE_MAP[s.challenge.id];
-      const goal = CHALLENGE_GOALS[s.challenge.tier];
+      const goal = s.challenge.goal || CHALLENGE_GOALS[s.challenge.tier];
       parts.push(`<span class="scene-badge click" data-act="goto" data-tab="company" data-sub="challenges">${t('badge.challenge', { icon: ch.icon, name: esc(TX.challengeName(ch.id)), p: `${money(s.runEarned)} / ${money(goal)}` })}</span>`);
     }
     const html = parts.join('');
@@ -1310,13 +1310,13 @@ export class UI {
         <div class="tile" style="${grad(['#0ea5e9', '#7c3aed'])}">${ch.icon}</div>
         <div class="card-title"><h3>${esc(TX.challengeName(ch.id))}</h3><span class="tier-dots">${dots}</span></div>
         <div class="card-sub">${esc(TX.challengeDesc(ch.id))}</div>
-        <div class="card-desc">${done ? t('chal.allDone') : `${t('chal.goal', { v: money(CHALLENGE_GOALS[tier]) })}<br>${t('chal.reward', { fx: esc(TX.describeFx(ch.fx)) })}`}${have}</div>
+        <div class="card-desc">${done ? t('chal.allDone') : `${t('chal.goal', { v: money(g.challengeGoal(ch.id)) })}<br>${t('chal.reward', { fx: esc(TX.describeFx(ch.fx)) })}`}${have}</div>
         <div class="card-foot"><div class="prog"></div>${done ? '' : `<button class="btn violet ${active ? 'off' : ''}" data-act="chal-start" data-id="${ch.id}">${t('chal.start')}</button>`}</div>
       </div>`;
     }).join('') + '</div>';
     this.setBody(sig, html);
     if (active) {
-      const goal = CHALLENGE_GOALS[active.tier];
+      const goal = active.goal || CHALLENGE_GOALS[active.tier];
       const p = Math.min(1, Math.log10(1 + s.runEarned) / Math.log10(goal));
       this.patch({ cbar: { width: `${p * 100}%` }, cprog: `${money(s.runEarned)} / ${money(goal)}` });
     }
@@ -1410,7 +1410,7 @@ export class UI {
       <h2>${esc(t('chal.confirmTitle', { name: TX.challengeName(id) }))}</h2>
       <p style="text-align:center">${t('chal.confirmRule', { rule: esc(TX.challengeDesc(id)) })}</p>
       <ul>
-        <li>${t('chal.goal', { v: money(CHALLENGE_GOALS[tier]) })} (${t('chal.tier', { n: tier + 1, m: CHALLENGE_GOALS.length })})</li>
+        <li>${t('chal.goal', { v: money(g.challengeGoal(id)) })} (${t('chal.tier', { n: tier + 1, m: CHALLENGE_GOALS.length })})</li>
         <li>${t('chal.reward', { fx: `<b>${esc(TX.describeFx(ch.fx))}</b>` })}</li>
         <li>${gain >= 1 ? t('chal.confirmGain', { n: fmt(gain) }) : t('chal.confirmNoGain')}</li>
       </ul>

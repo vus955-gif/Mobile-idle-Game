@@ -215,7 +215,7 @@ export const EN = {
     solo: { name: 'One-Person Army', desc: 'You can’t open any department except Engineering.' },
     bootstrap: { name: 'Bootstrapping', desc: 'Investor capital doesn’t boost your revenue.' },
     minimal: { name: 'Minimalism', desc: 'You can’t buy upgrades.' },
-    crisis: { name: 'Market Crash', desc: 'Every product earns 10× less.' },
+    crisis: { name: 'Market Crash', desc: 'Product milestones don’t double your revenue.' },
   },
 
   scale: [

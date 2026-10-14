@@ -120,12 +120,12 @@ test('wyzwania: limit produktów, tylko programiści, bez ulepszeń, kryzys', ()
   assert.equal(g.buyUpgrade('u_landing_0'), false);
 
   g.abandonChallenge();
-  g.s.products = { landing: 10 };
+  g.s.products = { landing: 25 };
   g.recalc();
   const normal = g.income;
   g.s.challenge = { id: 'crisis', tier: 0, start: T0 };
   g.recalc();
-  assert.ok(Math.abs(g.income / normal - CHALLENGE_MAP.crisis.v) < 1e-9);
+  assert.ok(Math.abs(g.income / normal - 0.5) < 1e-9, 'kryzys: bez kamieni milowych');
 });
 
 test('wyzwania: cel daje trwałą nagrodę i kończy ograniczenie', () => {
@@ -142,6 +142,9 @@ test('wyzwania: cel daje trwałą nagrodę i kończy ograniczenie', () => {
   g.recalc();
   assert.ok(Math.abs(g.income / base - 1.15) < 1e-6, 'nagroda: przychód ×1,15');
   assert.equal(g.challengeGoal('noclick'), CHALLENGE_GOALS[1]);
+  // cele rosną razem z najlepszą rundą
+  g.s.stats.bestRun = 1e40;
+  assert.ok(Math.abs(Math.log10(g.challengeGoal('noclick')) - 40 * 0.65) < 1e-9);
   // runda finansowania przerywa wyzwanie
   g.startChallenge('solo', T0);
   g.s.totalEarned = 1e14;

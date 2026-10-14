@@ -215,7 +215,7 @@ const PL = {
   'ap.locked': '🤖 Autopilot odblokujesz po pierwszej rundzie finansowania. Przyda się, gdy firmę trzeba będzie odbudowywać po każdej rundzie.',
   'ap.on': 'Włączony', 'ap.off': 'Wyłączony', 'ap.owned': 'Masz',
 
-  'chal.lead': 'Wyzwanie to runda z jednym ograniczeniem. Start zaczyna firmę od nowa — jak runda finansowania, więc zebrany kapitał trafia do inwestorów. Zarób cel w tej rundzie, a nagroda zostanie z Tobą na zawsze. Potem runda toczy się dalej bez ograniczeń.',
+  'chal.lead': 'Wyzwanie to runda z jednym ograniczeniem. Start zaczyna firmę od nowa — jak runda finansowania, więc zebrany kapitał trafia do inwestorów. Zarób cel w tej rundzie, a nagroda zostanie z Tobą na zawsze. Potem runda toczy się dalej bez ograniczeń. Cele rosną razem z Twoją najlepszą rundą, a ostatni poziom to pobicie jej rekordu.',
   'chal.locked': '🏅 Wyzwania odblokujesz po pierwszej rundzie finansowania.',
   'chal.tier': 'Poziom {n}/{m}', 'chal.goal': 'Cel: zarób {v} w jednej rundzie', 'chal.reward': 'Nagroda za poziom: {fx}',
   'chal.have': 'Masz już: {fx}', 'chal.start': 'Rozpocznij', 'chal.abandon': 'Przerwij wyzwanie', 'chal.allDone': '✓ Wszystkie poziomy ukończone',
@@ -483,7 +483,7 @@ const EN = {
   'ap.locked': '🤖 Autopilot unlocks after your first funding round, right when rebuilding the company after every round starts to feel like a chore.',
   'ap.on': 'On', 'ap.off': 'Off', 'ap.owned': 'Owned',
 
-  'chal.lead': 'A challenge is a round with one restriction. Starting one restarts the company just like a funding round, so any capital you have earned goes to your investors. Hit the earnings goal within that round and the reward is yours forever. After that, the round carries on with no restriction.',
+  'chal.lead': 'A challenge is a round with one restriction. Starting one restarts the company just like a funding round, so any capital you have earned goes to your investors. Hit the earnings goal within that round and the reward is yours forever. After that, the round carries on with no restriction. Goals grow with your best round, and the final tier means beating that record.',
   'chal.locked': '🏅 Challenges unlock after your first funding round.',
   'chal.tier': 'Tier {n}/{m}', 'chal.goal': 'Goal: earn {v} in a single round', 'chal.reward': 'Reward per tier: {fx}',
   'chal.have': 'You have: {fx}', 'chal.start': 'Start', 'chal.abandon': 'Abandon challenge', 'chal.allDone': '✓ Every tier cleared',
