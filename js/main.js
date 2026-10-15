@@ -2,8 +2,9 @@
 import { Game, createState, sanitizeState } from './engine.js';
 import { UI } from './ui.js';
 import { setLang, detectLang } from './i18n.js';
+import { startMusic, stopMusic } from './music.js';
 
-export const VERSION = '1.1.0';
+export const VERSION = '1.2.0';
 const SAVE_KEY = 'krzemowe-imperium-save';
 const BACKUP_KEY = 'krzemowe-imperium-backup';
 
@@ -97,8 +98,13 @@ requestAnimationFrame(loop);
 
 setInterval(save, 10000);
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden) save();
-  else game.tick(Date.now());
+  if (document.hidden) {
+    save();
+    stopMusic(false);
+  } else {
+    game.tick(Date.now());
+    if (game.s.settings.music) startMusic();
+  }
 });
 window.addEventListener('pagehide', save);
 window.addEventListener('beforeunload', save);

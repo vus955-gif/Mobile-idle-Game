@@ -1,9 +1,11 @@
 // Silnik gry — czysta logika bez DOM. Używany przez UI i przez symulator balansu.
 import {
   PRODUCTS, PRODUCT_GROWTH, MILESTONES, PRODUCT_UP_TIERS,
-  DEPTS, DEPT_MILESTONES, DEPT_MILESTONE_X, DEPT_UP_TIERS,
+  DEPTS, DEPT_MILESTONES, DEPT_MILESTONE_X, DEPT_UP_TIERS, DEPT_UP_EXTRA_ICONS,
   TECHS, REPEAT_TECHS, CULTURE_UPGRADES, CLICK_UPGRADES, ACQUISITIONS, PERKS,
   BUBBLES, CONTRACT_CLIENTS, CONTRACT_TASKS, CONTRACT_DURATIONS, TREND_TEMPLATES,
+  AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, CHALLENGE_FACTORS, SCALE_LEVELS, ENERGY_W_PER_USD, DECISIONS,
+  OFFICES, OFFICE_MAX_LEVEL, OFFICE_LEVEL_COST, MARKET, COMPETITORS, BOARD, ROLES, QUIRKS, EXEC_NAMES, RD_BUDGET,
 } from './data.js';
 import { fmt, money, num } from './format.js';
 import { t, noun, getLang } from './i18n.js';
@@ -27,6 +29,37 @@ export const TECH_MAP = Object.fromEntries(TECHS.map((t) => [t.id, t]));
 export const REPEAT_MAP = Object.fromEntries(REPEAT_TECHS.map((t) => [t.id, t]));
 export const ACQ_MAP = Object.fromEntries(ACQUISITIONS.map((a) => [a.id, a]));
 export const PERK_MAP = Object.fromEntries(PERKS.map((p) => [p.id, p]));
+export const AP_MAP = Object.fromEntries(AUTOPILOT.map((a) => [a.id, a]));
+export const CHALLENGE_MAP = Object.fromEntries(CHALLENGES.map((c) => [c.id, c]));
+export const OFFICE_MAP = Object.fromEntries(OFFICES.map((o) => [o.id, o]));
+const EARTH_OFFICES = OFFICES.filter((o) => o.kind === 'earth' && !o.hq).length;
+const SPACE_OFFICES = OFFICES.filter((o) => o.kind === 'space').length;
+export const COMP_MAP = Object.fromEntries(COMPETITORS.map((c) => [c.id, c]));
+export const ROLE_MAP = Object.fromEntries(ROLES.map((r) => [r.id, r]));
+export const QUIRK_MAP = Object.fromEntries(QUIRKS.map((q) => [q.id, q]));
+// Siła cechy po uwzględnieniu poziomu i dziwactwa (mnożniki rosną, obniżki kosztów też się pogłębiają).
+export function scaleTrait(tr, k) {
+  if (tr.x !== undefined) return { ...tr, x: tr.x >= 1 ? 1 + (tr.x - 1) * k : Math.max(0.05, 1 - (1 - tr.x) * k) };
+  if (tr.v !== undefined) return { ...tr, v: tr.v * k };
+  return tr;
+}
+
+// Decyzje i historia wykresu
+export const DECISION_FIRST = 15 * 60000;
+export const HISTORY = { shortEvery: 5 * 60000, shortMax: 288, longEvery: 2 * 3600000, longMax: 360, roundsMax: 100 };
+
+// Skala cywilizacji: próg rocznego przychodu dla każdego poziomu.
+export const SCALE_THRESHOLDS = SCALE_LEVELS.map((L) => (L.v !== undefined ? L.v : Math.pow(10, 10 * L.k + 6) / ENERGY_W_PER_USD));
+// Stopień w skali Kardaszowa (wzór Sagana) dla rocznego przychodu przeliczonego na moc.
+export function kardashev(annualRevenue) {
+  if (!(annualRevenue > 0)) return null;
+  return (Math.log10(annualRevenue * ENERGY_W_PER_USD) - 6) / 10;
+}
+export function scaleIndex(annualRevenue) {
+  let idx = -1;
+  SCALE_THRESHOLDS.forEach((v, i) => { if (annualRevenue >= v) idx = i; });
+  return idx;
+}
 
 // ---------------------------------------------------------------------------
 // Lista wszystkich ulepszeń za gotówkę
@@ -44,7 +77,7 @@ for (const p of PRODUCTS) {
 for (const d of DEPTS) {
   DEPT_UP_TIERS.forEach((t, i) => {
     UPGRADES.push({
-      id: `u_${d.id}_${i}`, kind: 'dept', did: d.id, tier: i, icon: d.upIcons[i],
+      id: `u_${d.id}_${i}`, kind: 'dept', did: d.id, tier: i, icon: d.upIcons[i] || DEPT_UP_EXTRA_ICONS[i - d.upIcons.length],
       cost: d.base * Math.pow(d.g, t.at) * t.costHires, fx: [{ t: 'dept', id: d.id, x: t.x }],
       req: { dept: d.id, heads: t.at },
     });
@@ -75,25 +108,38 @@ const ach = (id, icon, type, v, i, check, extra = {}) => ACHIEVEMENTS.push({ id,
   [1e24, '💎'], [1e27, '💎'], [1e30, '👑'], [1e35, '👑'], [1e40, '🌌'], [1e50, '🌌'], [1e60, '♾️']]
   .forEach(([v, icon], i) => ach(`earn${i}`, icon, 'earn', v, i, (g) => g.s.totalEarned >= v));
 
-[10, 1e3, 1e6, 1e9, 1e12, 1e15, 1e18, 1e21, 1e24, 1e27, 1e30, 1e35]
+[10, 1e3, 1e6, 1e9, 1e12, 1e15, 1e18, 1e21, 1e24, 1e27, 1e30, 1e35, 1e40, 1e45, 1e50]
   .forEach((v, i) => ach(`inc${i}`, '📈', 'inc', v, i, (g) => g.s.stats.maxIncome >= v));
 
 [100, 1000, 5000, 25000, 100000].forEach((v, i) => ach(`click${i}`, '👆', 'click', v, i, (g) => g.s.stats.clicks >= v));
 
 for (const p of PRODUCTS) {
-  [1, 50, 100, 200, 300].forEach((v, i) =>
+  [1, 50, 100, 200, 300, 500, 1000].forEach((v, i) =>
     ach(`p_${p.id}_${i}`, p.icon, 'prod', v, i, (g) => (g.s.products[p.id] || 0) >= v, { pid: p.id }));
 }
 
-[10, 50, 100, 250, 500, 1000, 2500].forEach((v, i) => ach(`emp${i}`, '👥', 'emp', v, i, (g) => g.totalHeads() >= v));
+[10, 50, 100, 250, 500, 1000, 2500, 5000, 10000].forEach((v, i) => ach(`emp${i}`, '👥', 'emp', v, i, (g) => g.totalHeads() >= v));
 [3, 6, 10, 13].forEach((v, i) => ach(`dept${i}`, '🏢', 'dept', v, i, (g) => g.deptCount() >= v));
 [1, 10, 20, 35, TECHS.length].forEach((v, i) => ach(`tech${i}`, '🔬', 'tech', v, i, (g) => g.techCount() >= v));
-[10, 50, 100, 150, 200].forEach((v, i) => ach(`upg${i}`, '⬆️', 'upg', v, i, (g) => g.upgradeCount() >= v));
-[1, 3, 5, 10, 25].forEach((v, i) => ach(`pres${i}`, '🦄', 'pres', v, i, (g) => g.s.prestigeCount >= v));
-[10, 100, 1000, 10000, 100000].forEach((v, i) => ach(`inv${i}`, '💼', 'inv', v, i, (g) => g.s.investors >= v));
+[10, 50, 100, 150, 200, 250, 300].forEach((v, i) => ach(`upg${i}`, '⬆️', 'upg', v, i, (g) => g.upgradeCount() >= v));
+[1, 3, 5, 10, 25, 50, 100].forEach((v, i) => ach(`pres${i}`, '🦄', 'pres', v, i, (g) => g.s.prestigeCount >= v));
+[10, 100, 1000, 10000, 100000, 1e6, 1e8, 1e10, 1e12].forEach((v, i) => ach(`inv${i}`, '💼', 'inv', v, i, (g) => g.s.investors >= v));
 [1, 10, 50, 200, 1000].forEach((v, i) => ach(`bub${i}`, '🔥', 'bub', v, i, (g) => g.s.stats.bubbles >= v));
 [1, 10, 50, 200, 1000].forEach((v, i) => ach(`con${i}`, '🤝', 'con', v, i, (g) => g.s.stats.contracts >= v));
 [1, 5, ACQUISITIONS.length].forEach((v, i) => ach(`acq${i}`, '🦈', 'acq', v, i, (g) => g.acqCount() >= v));
+[1, 5, 10, 20, CHALLENGES.length * CHALLENGE_GOALS.length]
+  .forEach((v, i) => ach(`chal${i}`, '🏅', 'chal', v, i, (g) => g.challengeTiers() >= v));
+[1, 10, 50, 150].forEach((v, i) => ach(`dec${i}`, '📨', 'dec', v, i, (g) => g.s.stats.decisions >= v));
+[1, AUTOPILOT.length].forEach((v, i) => ach(`ap${i}`, '🤖', 'ap', v, i, (g) => g.apCount() >= v));
+SCALE_LEVELS.forEach((L, i) => ach(`scale${i}`, L.icon, 'scale', i, i, (g) => g.s.scaleMax >= i));
+[1, 5, 10, EARTH_OFFICES].forEach((v, i) => ach(`off${i}`, '🌍', 'off', v, i, (g) => g.officeCount('earth') >= v));
+[1, 3, SPACE_OFFICES].forEach((v, i) => ach(`spc${i}`, '🚀', 'spc', v, i, (g) => g.officeCount('space') >= v));
+[1, 3, COMPETITORS.length].forEach((v, i) => ach(`ctl${i}`, '🦁', 'ctl', v, i, (g) => g.controlCount() >= v));
+[1, ROLES.length].forEach((v, i) => ach(`exec${i}`, '👔', 'exec', v, i, (g) => Object.keys(g.s.board).length >= v));
+ach('exec2', '🌟', 'exec', 0, 2, (g) => !!g.s.flags.legendHired);
+ach('exec3', '🎖️', 'exec', 0, 3, (g) => Object.values(g.s.board).some((e) => g.execLevel(e) >= BOARD.maxLevel));
+ach('mkt0', '📈', 'mkt', 0, 0, (g) => g.marketUnlocked() && Object.keys(g.s.market.stakes).length > 0);
+ach('mkt1', '🥇', 'mkt', 1, 1, (g) => g.marketUnlocked() && g.marketRank() === 1);
 
 const fun = (id, icon, check) => ach(id, icon, 'fun', 0, 0, check, { hidden: true });
 fun('f_night', '🦉', (g) => { const h = new Date(g.now).getHours(); return h >= 0 && h < 4 && g.s.stats.playTime > 60; });
@@ -102,6 +148,14 @@ fun('f_frenzy', '🌪️', (g) => !!g.s.flags.frenzy);
 fun('f_patience', '🧘', (g) => !!g.s.flags.patience);
 fun('f_combo', '🎯', (g) => !!(g.boostActive('income') && g.boostActive('click')));
 fun('f_trend', '🏄', (g) => !!g.s.flags.trendBest);
+fun('f_zen', '🪷', (g) => g.s.stats.zenTime >= 120);
+fun('f_music', '🎧', (g) => g.s.stats.musicTime >= 600);
+fun('f_snow', '☃️', (g) => !!g.s.flags.snow);
+fun('f_halloween', '🎃', (g) => !!g.s.flags.halloween);
+fun('f_xmas', '🎄', (g) => !!g.s.flags.xmas);
+fun('f_master', '🥋', (g) => Object.values(g.s.challenges).some((v) => v >= CHALLENGE_GOALS.length));
+fun('f_hq', '🏰', (g) => (g.s.offices.waw || 0) >= OFFICE_MAX_LEVEL);
+fun('f_view', '🪟', (g) => !!g.s.flags.viewChanged);
 
 export const ACH_MAP = Object.fromEntries(ACHIEVEMENTS.map((a) => [a.id, a]));
 
@@ -170,15 +224,33 @@ export function createState(now = Date.now()) {
     trend: null,
     nextTrendAt: now + 150000,
     contracts: { offers: [], active: [], nextOfferAt: 0, seq: 0 },
+    autopilot: { owned: {}, off: {} },
+    offices: { waw: 1 },
+    market: { comps: {}, stakes: {}, lastTick: 0 },
+    board: {},
+    candidates: [],
+    nextCandidateAt: 0,
+    execSeq: 0,
+    challenge: null,
+    challenges: {},
+    decision: null,
+    nextDecisionAt: now + DECISION_FIRST,
+    recentDecisions: [],
+    pending: [],
+    scaleMax: -1,
+    history: { short: [], long: [], rounds: [], lastShort: 0, lastLong: 0 },
     flags: {},
     stats: {
       clicks: 0, runClicks: 0, autoClicks: 0, bubbles: 0, contracts: 0, playTime: 0, maxIncome: 0,
       hired: 0, upgradesBought: 0, rpTotal: 0, bestRun: 0, startedAt: now, runStartedAt: now,
+      decisions: 0, autoBuys: 0, zenTime: 0, musicTime: 0, bestValuation: 0, bestCore: 0,
     },
-    settings: { sound: false, buyAmount: 1, lang: getLang() },
+    settings: { sound: false, music: false, buyAmount: 1, lang: getLang(), view: 'waw', rdBudget: 0 },
     lastTick: now,
   };
 }
+
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 
 // Uzupełnia brakujące pola i odrzuca niepoprawne liczby (np. ze starego zapisu).
 export function sanitizeState(raw, now = Date.now()) {
@@ -193,10 +265,42 @@ export function sanitizeState(raw, now = Date.now()) {
   s.contracts = { ...base.contracts, ...(raw.contracts || {}) };
   if (!Array.isArray(s.contracts.offers)) s.contracts.offers = [];
   if (!Array.isArray(s.contracts.active)) s.contracts.active = [];
+  const ap = isObj(raw.autopilot) ? raw.autopilot : {};
+  s.autopilot = { owned: isObj(ap.owned) ? { ...ap.owned } : {}, off: isObj(ap.off) ? { ...ap.off } : {} };
+  s.challenges = isObj(raw.challenges) ? { ...raw.challenges } : {};
+  s.offices = { waw: 1 };
+  if (isObj(raw.offices)) {
+    for (const [id, l] of Object.entries(raw.offices)) if (OFFICE_MAP[id] && l > 0) s.offices[id] = Math.min(OFFICE_MAX_LEVEL, Math.floor(l));
+  }
+  if (!OFFICE_MAP[s.settings.view] || !s.offices[s.settings.view]) s.settings.view = 'waw';
+  const validExec = (e) => isObj(e) && ROLE_MAP[e.role] && Array.isArray(e.traits) && BOARD.rarity[e.r] && e.n >= 0;
+  s.board = {};
+  if (isObj(raw.board)) for (const [role, e] of Object.entries(raw.board)) if (ROLE_MAP[role] && validExec(e)) s.board[role] = { ...e, role };
+  s.candidates = Array.isArray(raw.candidates) ? raw.candidates.filter(validExec).slice(0, BOARD.poolMax) : [];
+  s.execSeq = raw.execSeq > 0 ? raw.execSeq : 0;
+  s.nextCandidateAt = raw.nextCandidateAt > 0 ? raw.nextCandidateAt : 0;
+  const mk = isObj(raw.market) ? raw.market : {};
+  s.market = { comps: {}, stakes: {}, lastTick: mk.lastTick > 0 ? mk.lastTick : 0 };
+  for (const c of COMPETITORS) {
+    const rc = isObj(mk.comps) && isObj(mk.comps[c.id]) ? mk.comps[c.id] : null;
+    if (rc && rc.sent > 0) s.market.comps[c.id] = { sent: rc.sent, hist: Array.isArray(rc.hist) ? rc.hist.filter((x) => x > 0).slice(-MARKET.histMax) : [] };
+    const st = isObj(mk.stakes) ? mk.stakes[c.id] : 0;
+    if (st > 0) s.market.stakes[c.id] = Math.min(1, st);
+  }
+  s.challenge = isObj(raw.challenge) && CHALLENGE_MAP[raw.challenge.id] ? { ...raw.challenge } : null;
+  s.decision = isObj(raw.decision) && DECISIONS[raw.decision.i] ? { ...raw.decision } : null;
+  s.recentDecisions = Array.isArray(raw.recentDecisions) ? raw.recentDecisions.filter((i) => Number.isInteger(i)) : [];
+  s.pending = Array.isArray(raw.pending) ? raw.pending.filter((p) => isObj(p) && p.at > 0 && p.cash >= 0) : [];
+  const h = isObj(raw.history) ? raw.history : {};
+  const series = (a) => (Array.isArray(a) ? a.filter((r) => Array.isArray(r) && r.length >= 3) : []);
+  s.history = {
+    short: series(h.short), long: series(h.long), rounds: Array.isArray(h.rounds) ? h.rounds.filter((x) => x > 0) : [],
+    lastShort: h.lastShort > 0 ? h.lastShort : 0, lastLong: h.lastLong > 0 ? h.lastLong : 0,
+  };
   s.deptUnlocked.dev = true;
   if (!(s.depts.dev >= 0)) s.depts.dev = 0;
   const fix = (v, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : (v === null ? Number.MAX_VALUE : d));
-  for (const k of ['cash', 'rp', 'runEarned', 'totalEarned', 'investors', 'shares', 'claimedRaw', 'prestigeCount', 'lastTick', 'nextBubbleAt', 'nextTrendAt']) {
+  for (const k of ['cash', 'rp', 'runEarned', 'totalEarned', 'investors', 'shares', 'claimedRaw', 'prestigeCount', 'lastTick', 'nextBubbleAt', 'nextTrendAt', 'nextDecisionAt', 'scaleMax']) {
     s[k] = fix(s[k], base[k]);
   }
   for (const k of Object.keys(s.stats)) s.stats[k] = fix(s.stats[k], base.stats[k] || 0);
@@ -216,6 +320,8 @@ export class Game {
     this.listeners = {};
     this.prodIncome = {};
     this.income = 0;
+    this.netIncome = 0;
+    this.rpBudget = 0;
     this.rpRate = 0;
     this.clickValue = 1;
     this.autoAcc = 0;
@@ -226,7 +332,14 @@ export class Game {
   }
 
   on(ev, fn) { (this.listeners[ev] ||= []).push(fn); return this; }
-  emit(ev, data) { for (const fn of this.listeners[ev] || []) fn(data); }
+  emit(ev, data) {
+    // Autopilot kupuje po cichu: bez dźwięków, toastów i przerysowań przy każdym zakupie.
+    if (this.quiet && (ev === 'buy' || ev === 'structure' || ev === 'toast')) {
+      if (ev === 'structure') this.quietStructure = true;
+      return;
+    }
+    for (const fn of this.listeners[ev] || []) fn(data);
+  }
   toast(icon, title, text = '', kind = 'info') { this.emit('toast', { icon, title, text, kind }); }
 
   // ---------- liczniki ----------
@@ -236,7 +349,12 @@ export class Game {
   upgradeCount() { return Object.keys(this.s.upgrades).length; }
   acqCount() { return Object.keys(this.s.acquisitions).length; }
   achCount() { return Object.keys(this.s.achievements).length; }
+  apCount() { return AUTOPILOT.filter((a) => this.s.autopilot.owned[a.id]).length; }
+  challengeTiers() { let n = 0; for (const k in this.s.challenges) n += this.s.challenges[k] || 0; return n; }
+  ownedProductCount() { return PRODUCTS.filter((p) => (this.s.products[p.id] || 0) > 0).length; }
   boostActive(k) { const b = this.s.boosts[k]; return b && b.until > this.now ? b : null; }
+  // Aktywna reguła wyzwania (albo null)
+  rule() { const c = this.s.challenge; return c ? CHALLENGE_MAP[c.id] : null; }
 
   // ---------- przeliczanie modyfikatorów ----------
   recalc() {
@@ -248,7 +366,7 @@ export class Game {
       hireCost: 1, prodCost: 1, acqCost: 1,
       offlineCap: BASE_OFFLINE_CAP, offlineEff: BASE_OFFLINE_EFF,
       eventFreq: 1, eventPower: 1, contract: 1, slots: 1, auto: 0,
-      prestige: 1, investorPct: 0, startCash: 0, startLevels: 0,
+      prestige: 1, investorPct: 0, startCash: 0, startLevels: 0, valMult: 0,
       unlockProduct: {}, unlockDept: {},
     };
     const apply = (fx, times = 1) => {
@@ -279,6 +397,7 @@ export class Game {
           case 'investorPct': m.investorPct += add; break;
           case 'startCash': m.startCash += add; break;
           case 'startLevels': m.startLevels += add; break;
+          case 'valMult': m.valMult += add; break;
           case 'unlockProduct': m.unlockProduct[e.id] = true; break;
           case 'unlockDept': m.unlockDept[e.id] = true; break;
           default: break;
@@ -290,6 +409,24 @@ export class Game {
     for (const id in s.upgrades) if (s.upgrades[id] && UPGRADE_MAP[id]) apply(UPGRADE_MAP[id].fx);
     for (const id in s.acquisitions) if (s.acquisitions[id] && ACQ_MAP[id]) apply(ACQ_MAP[id].fx);
     for (const id in s.perks) { const l = s.perks[id] || 0; if (l > 0 && PERK_MAP[id]) apply(PERK_MAP[id].fx, l); }
+    for (const id in s.challenges) { const l = s.challenges[id] || 0; if (l > 0 && CHALLENGE_MAP[id]) apply(CHALLENGE_MAP[id].fx, l); }
+    for (const id in s.offices) { const l = s.offices[id] || 0; if (l > 0 && OFFICE_MAP[id]) apply(OFFICE_MAP[id].fx, l); }
+    // zarząd: cechy wzmocnione doświadczeniem i dziwactwem
+    for (const role in s.board) {
+      const e = s.board[role];
+      const k = this.execPower(e);
+      apply(e.traits.map((tr) => scaleTrait(tr, k)));
+    }
+    // udziały w konkurentach: premia dla ich kategorii, a przy 51% przejęcie kontroli
+    for (const id in s.market.stakes) {
+      const c = COMP_MAP[id];
+      const p = s.market.stakes[id] || 0;
+      if (!c || !(p > 0)) continue;
+      let x = 1 + MARKET.stakeBonus * Math.min(p, MARKET.stakeCap);
+      if (p >= MARKET.control) { x *= MARKET.controlCat; m.all *= MARKET.controlAll; }
+      m.cat[c.cat] = (m.cat[c.cat] || 1) * x;
+    }
+    const ch = this.rule();
 
     let eventAdd = 0; let contractAdd = 0; let hireRed = 0; let prodRed = 0; let offAdd = 0; let acqRed = 0; let presAdd = 0;
     for (const d of DEPTS) {
@@ -328,30 +465,60 @@ export class Game {
     m.slots = Math.min(MAX_SLOTS, m.slots);
 
     m.achMult = 1 + ACH_BONUS * this.achCount();
-    m.invMult = 1 + s.investors * (INVESTOR_BONUS + m.investorPct);
-    const bi = this.boostActive('income');
-    const bc = this.boostActive('click');
-    m.boostIncome = bi ? bi.x : 1;
-    m.boostClick = bc ? bc.x : 1;
+    m.invMult = ch && ch.rule === 'noInvestors' ? 1 : 1 + s.investors * (INVESTOR_BONUS + m.investorPct);
+    const bx = (k) => { const b = this.boostActive(k); return b ? b.x : 1; };
+    // income/click — bąbelki (viral, hackathon); dIncome/dClick/dRp — wybrane decyzje
+    m.boostIncome = bx('income') * bx('dIncome');
+    m.boostClick = bx('click') * bx('dClick');
+    m.rp *= bx('dRp');
     m.global = m.all * (1 + m.incomePct) * m.achMult * m.invMult * m.boostIncome;
+    m.noMilestones = !!ch && ch.rule === 'noMilestones';
+    this.m = m;
 
-    const trend = s.trend && s.trend.until > this.now ? s.trend : null;
     let total = 0;
     for (const p of PRODUCTS) {
       const lvl = s.products[p.id] || 0;
-      let v = 0;
-      if (lvl > 0) {
-        v = p.rps * lvl * Math.pow(2, milestoneCount(lvl)) * (m.prod[p.id] || 1) * (m.cat[p.cat] || 1)
-          * (1 + (m.catAdd[p.cat] || 0)) * m.global;
-        if (trend && trend.pid === p.id) v *= trend.x;
-      }
+      const v = lvl > 0 ? this.productUnit(p.id) * lvl * this.msMult(lvl) : 0;
       this.prodIncome[p.id] = v;
       total += v;
     }
     this.income = Number.isFinite(total) ? total : Number.MAX_VALUE;
-    this.clickValue = ((1 + m.clickFlat) * m.click * (1 + m.clickMultAdd) * m.achMult * m.invMult + m.clickPct * this.income) * m.boostClick;
-    this.rpRate = m.rpBase * m.rp;
-    this.m = m;
+    if (ch && ch.rule === 'noclick') {
+      m.auto = 0;
+      this.clickValue = 0;
+    } else {
+      this.clickValue = ((1 + m.clickFlat) * m.click * (1 + m.clickMultAdd) * m.achMult * m.invMult + m.clickPct * this.income) * m.boostClick;
+    }
+    // budżet badawczy: część przychodu zamienia się w punkty badań
+    const share = s.deptUnlocked.rnd && RD_BUDGET.shares.includes(s.settings.rdBudget) ? s.settings.rdBudget : 0;
+    m.rdShare = share;
+    this.netIncome = this.income * (1 - share);
+    this.rpBudget = share > 0 && this.income > 0 ? RD_BUDGET.k * Math.pow(this.income * share, RD_BUDGET.p) * m.rp : 0;
+    this.rpRate = m.rpBase * m.rp + this.rpBudget;
+  }
+  setRdBudget(share) {
+    if (!RD_BUDGET.shares.includes(share)) return false;
+    this.s.settings.rdBudget = share;
+    this.recalc();
+    return true;
+  }
+
+  // Przychód z jednego poziomu produktu (bez kamieni milowych), z premiami i trendem.
+  productUnit(id) {
+    const p = PRODUCT_MAP[id];
+    const m = this.m;
+    let v = p.rps * (m.prod[id] || 1) * (m.cat[p.cat] || 1) * (1 + (m.catAdd[p.cat] || 0)) * m.global;
+    const tr = this.s.trend;
+    if (tr && tr.until > this.now && tr.pid === id) v *= tr.x;
+    return v;
+  }
+  // Mnożnik z kamieni milowych (w wyzwaniu „Kryzys” nie działa).
+  msMult(lvl) { return this.m.noMilestones ? 1 : Math.pow(2, milestoneCount(lvl)); }
+  // O ile wzrośnie przychód po dokupieniu n poziomów (z kamieniami milowymi).
+  productDelta(id, n = 1) {
+    const l = this.s.products[id] || 0;
+    const f = (x) => x * this.msMult(x);
+    return this.productUnit(id) * (f(l + n) - f(l));
   }
 
   earn(x) {
@@ -376,7 +543,7 @@ export class Game {
     if (s.trend && s.trend.until <= now) { s.trend = null; dirty = true; this.emit('trend', null); }
     if (dirty) this.recalc();
 
-    this.earn(this.income * dt);
+    this.earn(this.netIncome * dt);
     const rp = this.rpRate * dt;
     s.rp += rp;
     s.stats.rpTotal += rp;
@@ -397,14 +564,31 @@ export class Game {
     this.updateBubble(now);
     this.updateTrend(now);
     this.updateContracts(now);
+    this.updateDecision(now);
+    this.updatePending(now);
+    this.updateMarket(now);
+    this.updateCandidates(now);
+
+    this.apTimer = (this.apTimer || 0) + dt;
+    if (this.apTimer >= 1) { this.apTimer = 0; this.autopilotStep(now); }
 
     this.achTimer += dt;
-    if (this.achTimer >= 1) { this.achTimer = 0; this.checkAchievements(); }
+    if (this.achTimer >= 1) {
+      this.achTimer = 0;
+      // poziomy zarządu i dziwactwa zależne od godziny zmieniają się powoli — sprawdzamy raz na sekundę
+      const bs = this.boardSignature();
+      if (bs !== this.lastBoardSig) { this.lastBoardSig = bs; this.recalc(); }
+      this.updateChallenge(now);
+      this.updateScale();
+      this.sampleHistory(now);
+      this.checkAchievements();
+    }
   }
 
   click(now = this.now) {
     const s = this.s;
     const v = this.clickValue;
+    if (!(v > 0)) return 0;
     this.earn(v);
     s.stats.clicks++;
     s.stats.runClicks++;
@@ -419,6 +603,12 @@ export class Game {
     const p = PRODUCT_MAP[id];
     return !p.tech || !!this.s.techs[p.tech];
   }
+  // Wyzwanie „Pełne skupienie” ogranicza liczbę różnych produktów.
+  canOwnProduct(id) {
+    const ch = this.rule();
+    if (!ch || ch.rule !== 'maxProducts' || (this.s.products[id] || 0) > 0) return true;
+    return this.ownedProductCount() < ch.v;
+  }
   productCost(id, n = 1) {
     const p = PRODUCT_MAP[id];
     return geomSum(p.cost, PRODUCT_GROWTH, this.s.products[id] || 0, n) * this.m.prodCost;
@@ -432,7 +622,7 @@ export class Game {
     return amount;
   }
   buyProduct(id, amount = 1) {
-    if (!this.productUnlocked(id)) return 0;
+    if (!this.productUnlocked(id) || !this.canOwnProduct(id)) return 0;
     const n = amount === 'max' ? this.productMax(id) : amount;
     if (n <= 0) return 0;
     const cost = this.productCost(id, n);
@@ -454,6 +644,8 @@ export class Game {
   // ---------- działy ----------
   deptAvailable(id) {
     const d = DEPT_MAP[id];
+    const ch = this.rule();
+    if (ch && ch.rule === 'onlyDev' && id !== 'dev') return false;
     return !d.tech || !!this.s.techs[d.tech];
   }
   unlockDept(id) {
@@ -506,13 +698,15 @@ export class Game {
     if (r.earned !== undefined) return s.runEarned >= r.earned;
     return true;
   }
+  upgradesBlocked() { const ch = this.rule(); return !!ch && ch.rule === 'noUpgrades'; }
   availableUpgrades() {
+    if (this.upgradesBlocked()) return [];
     return UPGRADES.filter((u) => !this.s.upgrades[u.id] && this.upgradeVisible(u)).sort((a, b) => a.cost - b.cost);
   }
   buyUpgrade(id) {
     const u = UPGRADE_MAP[id];
     const s = this.s;
-    if (!u || s.upgrades[id] || !this.upgradeVisible(u) || s.cash < u.cost) return false;
+    if (!u || s.upgrades[id] || this.upgradesBlocked() || !this.upgradeVisible(u) || s.cash < u.cost) return false;
     s.cash -= u.cost;
     s.upgrades[id] = true;
     s.stats.upgradesBought++;
@@ -647,11 +841,13 @@ export class Game {
     }
     for (const id in s.upgrades) if (UPGRADE_MAP[id]) v += UPGRADE_MAP[id].cost * 0.25;
     for (const id in s.acquisitions) if (ACQ_MAP[id]) v += ACQ_MAP[id].cost * 0.75;
+    if (this.marketUnlocked()) v += this.portfolioValue();
     return Math.min(Number.MAX_VALUE, v);
   }
   valuationMultiple() {
     const V = VALUATION;
-    return Math.min(V.maxMultiple, V.baseMultiple + V.perTech * this.techCount() + V.perRound * this.s.prestigeCount);
+    const extra = this.m.valMult || 0;
+    return Math.min(V.maxMultiple + extra, V.baseMultiple + extra + V.perTech * this.techCount() + V.perRound * this.s.prestigeCount);
   }
   valuationParts() {
     const assets = this.assetValue();
@@ -667,11 +863,14 @@ export class Game {
     const gain = this.prestigeGain();
     if (gain < 1) return 0;
     const s = this.s;
+    this.sampleHistory(now, true);
     s.claimedRaw += whole;
     s.investors += gain;
     s.shares += gain;
     s.prestigeCount++;
     s.stats.bestRun = Math.max(s.stats.bestRun, s.runEarned);
+    s.history.rounds.push(now);
+    if (s.history.rounds.length > HISTORY.roundsMax) s.history.rounds.splice(0, s.history.rounds.length - HISTORY.roundsMax);
     this.resetRun(now);
     this.emit('prestige', { gain });
     this.emit('structure');
@@ -688,6 +887,8 @@ export class Game {
     s.bubble = null;
     s.trend = null;
     s.contracts = { offers: [], active: [], nextOfferAt: 0, seq: s.contracts.seq || 0 };
+    s.challenge = null;
+    s.market.stakes = {};
     s.runEarned = 0;
     s.stats.runClicks = 0;
     s.stats.runStartedAt = now;
@@ -876,27 +1077,492 @@ export class Game {
     const elapsed = (now - s.lastTick) / 1000;
     this.now = now;
     if (!(elapsed > 0)) { s.lastTick = Math.max(s.lastTick, now); return null; }
+    // Premie nie liczą się offline. Bąbelki przepadają, a decyzje, których czas jeszcze trwa, wracają po przerwie.
+    const kept = {};
+    for (const k of ['dIncome', 'dClick', 'dRp']) if (s.boosts[k] && s.boosts[k].until > now) kept[k] = s.boosts[k];
     s.boosts = {};
     s.bubble = null;
     if (s.trend && s.trend.until <= now) s.trend = null;
     this.recalc();
     const counted = Math.min(elapsed, this.m.offlineCap);
     const eff = this.m.offlineEff;
-    const cash = (this.income + this.m.auto * this.clickValue) * counted * eff;
+    const cash = (this.netIncome + this.m.auto * this.clickValue) * counted * eff;
     const rp = this.rpRate * counted * eff;
     this.earn(cash);
     s.rp += rp;
     s.stats.rpTotal += rp;
     const contracts = this.updateContracts(now);
+    const pending = this.updatePending(now);
+    if (this.marketUnlocked()) this.updateMarket(now, Math.min(20, Math.floor(elapsed / (MARKET.every / 1000))));
     if (elapsed >= 8 * 3600) s.flags.patience = true;
     s.lastTick = now;
+    s.boosts = kept;
     s.nextBubbleAt = now + 20000 + this.rng() * 30000;
     if (s.nextTrendAt < now) s.nextTrendAt = now + 60000;
+    if (this.boardUnlocked() && s.nextCandidateAt < now + 2 * 60000) s.nextCandidateAt = now + 2 * 60000;
+    // Po dłuższej przerwie decyzja czeka chwilę po powrocie, a nie od razu.
+    if (!s.decision && s.nextDecisionAt < now + 3 * 60000) s.nextDecisionAt = now + 3 * 60000;
     this.recalc();
     this.checkAchievements();
-    const res = { elapsed, counted, cash, rp, eff, cap: this.m.offlineCap, contracts };
+    this.sampleHistory(now, true);
+    const res = { elapsed, counted, cash, rp, eff, cap: this.m.offlineCap, contracts, pending };
     this.emit('offline', res);
+    this.autopilotStep(now);
     return res;
+  }
+
+  // ---------- ekspansja: biura na świecie ----------
+  officeLevel(id) { return this.s.offices[id] || 0; }
+  officeCount(kind) { return OFFICES.filter((o) => o.kind === kind && !o.hq && this.officeLevel(o.id) > 0).length; }
+  officeAvailable(id) { const o = OFFICE_MAP[id]; return !o.req || !!this.s.techs[o.req]; }
+  officeCost(id) {
+    const o = OFFICE_MAP[id];
+    const l = this.officeLevel(id);
+    if (l >= OFFICE_MAX_LEVEL) return Infinity;
+    return o.cost * Math.pow(OFFICE_LEVEL_COST, l - (o.hq ? 1 : 0));
+  }
+  openOffice(id) {
+    const o = OFFICE_MAP[id];
+    const s = this.s;
+    if (!o || !this.officeAvailable(id)) return false;
+    const cost = this.officeCost(id);
+    if (!(cost <= s.cash)) return false;
+    s.cash -= cost;
+    const l = this.officeLevel(id) + 1;
+    s.offices[id] = l;
+    this.recalc();
+    this.toast(o.icon, t(l === 1 ? 'off.opened' : 'off.upgraded', { name: TX.officeName(id), n: l }), TX.describeFx(o.fx), 'unlock');
+    this.emit('buy', { kind: 'office', id });
+    this.emit('structure');
+    return true;
+  }
+  setView(id) {
+    if (!this.officeLevel(id)) return false;
+    this.s.settings.view = id;
+    if (id !== 'waw') this.s.flags.viewChanged = true;
+    this.emit('structure');
+    return true;
+  }
+
+  // ---------- zarząd ----------
+  boardUnlocked() { return this.s.prestigeCount > 0; }
+  execLevel(e, now = this.now) {
+    const fast = e.q === 'fast' ? 2 : 1;
+    const hours = Math.max(0, (now - (e.hiredAt || now)) / 3.6e6) * fast;
+    return Math.min(BOARD.maxLevel, 1 + Math.floor(Math.log2(1 + hours)));
+  }
+  quirkActive(e, now = this.now) {
+    const q = QUIRK_MAP[e.q];
+    if (!q) return false;
+    const d = new Date(now);
+    const h = d.getHours();
+    switch (q.when) {
+      case 'night': return h >= 22 || h < 6;
+      case 'morning': return h >= 5 && h < 10;
+      case 'weekend': return d.getDay() === 0 || d.getDay() === 6;
+      case 'rain': return this.weather === 'rain' || this.weather === 'snow';
+      case 'winter': return d.getMonth() === 11 || d.getMonth() <= 1;
+      case 'always': return true;
+      default: return false;
+    }
+  }
+  execPower(e, now = this.now) {
+    const q = QUIRK_MAP[e.q];
+    const lvl = 1 + BOARD.levelStep * (this.execLevel(e, now) - 1);
+    return lvl * (q && q.when !== 'xp' && this.quirkActive(e, now) ? q.x : 1);
+  }
+  boardSignature() {
+    let sig = '';
+    for (const role in this.s.board) { const e = this.s.board[role]; sig += `${role}${this.execLevel(e)}${this.quirkActive(e) ? 1 : 0}`; }
+    return sig;
+  }
+  candidateCost(c) { return Math.ceil(BOARD.rarity[c.r].cost * (1 + this.s.investors * BOARD.costPerInvestor)); }
+  makeCandidate(now = this.now) {
+    const s = this.s;
+    const empty = ROLES.filter((r) => !s.board[r.id] && !s.candidates.some((c) => c.role === r.id));
+    const pool = empty.length && this.rng() < 0.7 ? empty : ROLES;
+    const role = pool[Math.floor(this.rng() * pool.length)];
+    let roll = this.rng() * BOARD.rarity.reduce((a, b) => a + b.w, 0);
+    let r = 0;
+    for (let i = 0; i < BOARD.rarity.length; i++) { roll -= BOARD.rarity[i].w; if (roll < 0) { r = i; break; } }
+    const R = BOARD.rarity[r];
+    const left = [...role.traits];
+    const traits = [];
+    for (let i = 0; i < R.traits && left.length; i++) {
+      const tr = left.splice(Math.floor(this.rng() * left.length), 1)[0];
+      traits.push(scaleTrait(tr, R.mult));
+    }
+    const used = new Set([...Object.values(s.board), ...s.candidates].map((e) => e.n));
+    const free = EXEC_NAMES.map((_, i) => i).filter((i) => !used.has(i));
+    const n = free[Math.floor(this.rng() * free.length)] ?? 0;
+    const q = this.rng() < 0.75 ? QUIRKS[Math.floor(this.rng() * QUIRKS.length)].id : null;
+    s.execSeq = (s.execSeq || 0) + 1;
+    return { id: s.execSeq, role: role.id, r, traits, q, n, seed: Math.floor(this.rng() * 1e9), at: now };
+  }
+  updateCandidates(now) {
+    const s = this.s;
+    if (!this.boardUnlocked()) return false;
+    if (!s.nextCandidateAt) s.nextCandidateAt = now + BOARD.firstAfter;
+    if (now < s.nextCandidateAt) return false;
+    s.nextCandidateAt = now + (BOARD.everyMin + this.rng() * (BOARD.everyMax - BOARD.everyMin)) * 60000;
+    if (s.candidates.length >= BOARD.poolMax) return false;
+    const c = this.makeCandidate(now);
+    s.candidates.push(c);
+    this.emit('candidate', c);
+    return true;
+  }
+  hireExec(cid, now = this.now) {
+    const s = this.s;
+    const i = s.candidates.findIndex((c) => c.id === cid);
+    if (i < 0 || !this.boardUnlocked()) return false;
+    const c = s.candidates[i];
+    const cost = this.candidateCost(c);
+    if (s.shares < cost) return false;
+    s.shares -= cost;
+    s.candidates.splice(i, 1);
+    s.board[c.role] = { ...c, hiredAt: now };
+    if (c.r === BOARD.rarity.length - 1) s.flags.legendHired = true;
+    this.recalc();
+    this.emit('buy', { kind: 'exec', id: c.role });
+    this.emit('structure');
+    return true;
+  }
+  fireExec(role) {
+    if (!this.s.board[role]) return false;
+    delete this.s.board[role];
+    this.recalc();
+    this.emit('structure');
+    return true;
+  }
+  dismissCandidate(cid) {
+    const s = this.s;
+    const n = s.candidates.length;
+    s.candidates = s.candidates.filter((c) => c.id !== cid);
+    return s.candidates.length < n;
+  }
+
+  // ---------- giełda ----------
+  marketUnlocked() { return this.s.prestigeCount >= MARKET.unlockRounds; }
+  // Wielkość rynku liczymy od najwyższej wyceny bez portfela akcji — inaczej udziały pompowałyby same siebie.
+  marketBase() { return Math.max(1e6, this.s.stats.bestCore || 0) * MARKET.baseShare; }
+  comp(id) {
+    const m = this.s.market;
+    if (!m.comps[id]) m.comps[id] = { sent: 1, hist: [1] };
+    return m.comps[id];
+  }
+  compCap(id) { return this.marketBase() * COMP_MAP[id].k * this.comp(id).sent; }
+  stake(id) { return this.s.market.stakes[id] || 0; }
+  stakeValue(id) { return this.stake(id) * this.compCap(id); }
+  portfolioValue() { let v = 0; for (const id in this.s.market.stakes) if (COMP_MAP[id]) v += this.stakeValue(id); return v; }
+  controlCount() { return Object.values(this.s.market.stakes).filter((p) => p >= MARKET.control).length; }
+  sharePrice() { return this.valuation() / MARKET.sharesOut; }
+  // Miejsce Twojej firmy wśród spółek na giełdzie (1 = najcenniejsza).
+  marketRank() {
+    const v = this.valuation();
+    return 1 + COMPETITORS.filter((c) => this.compCap(c.id) > v).length;
+  }
+  stakeCost(id, pct) { return pct * this.compCap(id) * (1 + MARKET.fee); }
+  buyStake(id, pct) {
+    if (!this.marketUnlocked() || !COMP_MAP[id]) return false;
+    const have = this.stake(id);
+    const p = Math.min(pct, 1 - have);
+    if (!(p > 1e-9)) return false;
+    const cost = this.stakeCost(id, p);
+    if (cost > this.s.cash) return false;
+    this.s.cash -= cost;
+    this.s.market.stakes[id] = Math.round((have + p) * 1e6) / 1e6;
+    this.recalc();
+    this.emit('buy', { kind: 'stake', id });
+    if (have < MARKET.control && have + p >= MARKET.control) this.emit('control', id);
+    return true;
+  }
+  sellStake(id, pct) {
+    const have = this.stake(id);
+    const p = Math.min(pct, have);
+    if (!(p > 1e-9)) return false;
+    this.earnRaw(p * this.compCap(id) * (1 - MARKET.fee));
+    const left = Math.round((have - p) * 1e6) / 1e6;
+    if (left > 0) this.s.market.stakes[id] = left; else delete this.s.market.stakes[id];
+    this.recalc();
+    this.emit('buy', { kind: 'stake', id });
+    return true;
+  }
+  // Sprzedaż udziałów to nie zarobek — nie liczy się do rund finansowania.
+  earnRaw(x) { if (x > 0) this.s.cash = Math.min(Number.MAX_VALUE, this.s.cash + x); }
+  updateMarket(now, steps = 1) {
+    if (!this.marketUnlocked() || steps <= 0) return 0;
+    const mk = this.s.market;
+    if (!mk.lastTick) mk.lastTick = now;
+    if (now - mk.lastTick < MARKET.every && steps === 1) return 0;
+    mk.lastTick = now;
+    let changed = 0;
+    for (let k = 0; k < steps; k++) {
+      for (const c of COMPETITORS) {
+        const st = this.comp(c.id);
+        const z = (this.rng() + this.rng() + this.rng() - 1.5) * 2;
+        let sent = st.sent + (1 - st.sent) * MARKET.revert + z * c.vol;
+        if (this.rng() < MARKET.shockChance) {
+          const d = (0.08 + this.rng() * 0.1) * (this.rng() < 0.5 ? -1 : 1);
+          sent *= 1 + d;
+          if (steps === 1) this.emit('marketNews', { id: c.id, d });
+        }
+        st.sent = Math.min(MARKET.sentMax, Math.max(MARKET.sentMin, sent));
+        st.hist.push(+st.sent.toFixed(4));
+        if (st.hist.length > MARKET.histMax) st.hist.splice(0, st.hist.length - MARKET.histMax);
+      }
+      changed++;
+    }
+    if (Object.keys(mk.stakes).length) this.recalc();
+    this.emit('market');
+    return changed;
+  }
+
+  // ---------- autopilot ----------
+  apOwned(id) { return !!this.s.autopilot.owned[id]; }
+  apOn(id) { return this.apOwned(id) && !this.s.autopilot.off[id]; }
+  apUnlocked() { return this.s.prestigeCount > 0; }
+  buyAutopilot(id) {
+    const a = AP_MAP[id];
+    const s = this.s;
+    if (!a || this.apOwned(id) || !this.apUnlocked() || s.shares < a.cost) return false;
+    s.shares -= a.cost;
+    s.autopilot.owned[id] = true;
+    delete s.autopilot.off[id];
+    this.emit('buy', { kind: 'perk', id });
+    this.emit('structure');
+    return true;
+  }
+  toggleAutopilot(id) {
+    if (!this.apOwned(id)) return false;
+    const off = this.s.autopilot.off;
+    if (off[id]) delete off[id]; else off[id] = true;
+    return !off[id];
+  }
+  // Jeden krok autopilota (co sekundę). Zwraca liczbę wykonanych zakupów.
+  autopilotStep(now = this.now) {
+    const s = this.s;
+    if (!this.apCount()) return 0;
+    let n = 0;
+    const researched = [];
+    this.quiet = true;
+    this.quietStructure = false;
+    try {
+      if (this.apOn('research')) {
+        for (let guard = 0; guard < 5; guard++) {
+          const avail = TECHS.filter((x) => !s.techs[x.id] && this.techAvailable(x.id)).sort((a, b) => a.cost - b.cost);
+          if (avail.length) {
+            if (s.rp >= avail[0].cost && this.research(avail[0].id)) { n++; researched.push(avail[0].id); continue; }
+            break;
+          }
+          const reps = REPEAT_TECHS.filter((r) => this.techAvailable(r.id)).sort((a, b) => this.repeatCost(a.id) - this.repeatCost(b.id));
+          if (reps.length && s.rp >= this.repeatCost(reps[0].id) && this.researchRepeat(reps[0].id)) { n++; continue; }
+          break;
+        }
+      }
+      if (this.apOn('upgrades')) {
+        let k = 0;
+        for (const u of this.availableUpgrades()) {
+          if (u.cost > s.cash) break;
+          if (this.buyUpgradeSilent(u)) k++;
+        }
+        if (k) { n += k; this.recalc(); this.quietStructure = true; }
+      }
+      if (this.apOn('hire')) {
+        for (const d of DEPTS) {
+          if (!s.deptUnlocked[d.id] && this.deptAvailable(d.id) && s.cash >= d.unlock * 2 && this.unlockDept(d.id)) n++;
+        }
+        const budget = s.cash * 0.12;
+        for (const d of DEPTS) {
+          if (!s.deptUnlocked[d.id]) continue;
+          const share = d.id === 'rnd' || d.id === 'data' ? 0.3 : 0.07;
+          const k = this.hireMax(d.id, budget * share);
+          if (k > 0 && this.hire(d.id, k)) n++;
+        }
+      }
+      if (this.apOn('products')) {
+        for (let guard = 0; guard < 25; guard++) {
+          let best = null;
+          for (const p of PRODUCTS) {
+            if (!this.productUnlocked(p.id) || !this.canOwnProduct(p.id)) continue;
+            const d = this.productDelta(p.id);
+            if (!(d > 0)) continue;
+            const cost = this.productCost(p.id, 1);
+            const score = cost / d;
+            if (!best || score < best.score) best = { id: p.id, score, cost };
+          }
+          if (!best || best.cost > s.cash) break;
+          const lvl = s.products[best.id] || 0;
+          const next = nextMilestone(lvl);
+          const want = next ? next - lvl : 25;
+          const k = Math.max(1, Math.min(want, this.productMax(best.id, s.cash * 0.6)));
+          if (this.buyProduct(best.id, k)) n++; else break;
+        }
+      }
+      if (this.apOn('contracts') && this.contractsUnlocked()) {
+        const c = s.contracts;
+        while (c.active.length < this.m.slots && c.offers.length) {
+          const best = c.offers.reduce((a, o) => (this.contractReward(o).cash > this.contractReward(a).cash ? o : a));
+          if (!this.acceptContract(best.id, now)) break;
+          n++;
+        }
+      }
+    } finally {
+      this.quiet = false;
+    }
+    // Bąbelek łapiemy „po ludzku”: z toastem, ale dopiero po chwili, żeby było go widać.
+    if (this.apOn('bubbles') && s.bubble && now - (s.bubble.until - BUBBLE_LIFETIME) >= 1500) {
+      if (this.popBubble(now)) n++;
+    }
+    if (n) {
+      this.recalc();
+      s.stats.autoBuys += n;
+      this.emit('autopilot', { n, researched });
+      if (this.quietStructure) this.emit('structure');
+    }
+    return n;
+  }
+
+  // ---------- wyzwania inwestorów ----------
+  challengesUnlocked() { return this.s.prestigeCount > 0; }
+  // Cel rośnie razem z Tobą: liczy się od rzędu wielkości Twojej najlepszej rundy.
+  challengeGoal(id) {
+    const tier = this.s.challenges[id] || 0;
+    if (tier >= CHALLENGE_GOALS.length) return null;
+    const L = Math.log10(Math.max(1e10, this.s.stats.bestRun, this.s.runEarned));
+    return Math.max(CHALLENGE_GOALS[tier], Math.pow(10, L * CHALLENGE_FACTORS[tier]));
+  }
+  // Rozpoczęcie wyzwania zaczyna firmę od nowa (z kapitałem z rundy, jeśli jest).
+  startChallenge(id, now = this.now) {
+    const s = this.s;
+    if (!CHALLENGE_MAP[id] || !this.challengesUnlocked() || this.challengeGoal(id) === null) return false;
+    const goal = this.challengeGoal(id);
+    if (this.prestigeGain() >= 1) this.doPrestige(now);
+    else this.resetRun(now);
+    s.challenge = { id, tier: s.challenges[id] || 0, start: now, goal };
+    this.recalc();
+    this.emit('challenge', { id, started: true });
+    this.emit('structure');
+    return true;
+  }
+  abandonChallenge() {
+    if (!this.s.challenge) return false;
+    this.s.challenge = null;
+    this.recalc();
+    this.emit('challenge', { abandoned: true });
+    this.emit('structure');
+    return true;
+  }
+  updateChallenge(now = this.now) {
+    const s = this.s;
+    const c = s.challenge;
+    if (!c) return false;
+    const goal = c.goal || CHALLENGE_GOALS[c.tier];
+    if (goal === undefined) { s.challenge = null; this.recalc(); return false; }
+    if (s.runEarned < goal) return false;
+    s.challenges[c.id] = Math.max(s.challenges[c.id] || 0, c.tier + 1);
+    s.challenge = null;
+    this.recalc();
+    const ch = CHALLENGE_MAP[c.id];
+    this.toast(ch.icon, t('chal.done', { name: TX.challengeName(c.id), n: c.tier + 1 }), TX.describeFx(ch.fx), 'achievement');
+    this.emit('challenge', { id: c.id, done: true, tier: c.tier + 1, at: now });
+    this.emit('structure');
+    return true;
+  }
+
+  // ---------- skala cywilizacji ----------
+  annualRevenue() { return this.steadyIncome() * SECONDS_PER_GAME_YEAR; }
+  updateScale() {
+    const s = this.s;
+    const idx = scaleIndex(this.annualRevenue());
+    if (idx <= s.scaleMax) return false;
+    s.scaleMax = idx;
+    this.emit('scale', idx);
+    return true;
+  }
+
+  // ---------- decyzje ----------
+  updateDecision(now) {
+    const s = this.s;
+    if (s.decision) return;
+    if (!s.nextDecisionAt) s.nextDecisionAt = now + DECISION_FIRST;
+    if (now < s.nextDecisionAt || !(this.income > 0)) return;
+    const recent = s.recentDecisions || [];
+    const pool = DECISIONS.map((d, i) => i).filter((i) => !recent.includes(i));
+    const i = pool[Math.floor(this.rng() * pool.length)];
+    s.decision = { i, at: now };
+    s.recentDecisions = [...recent, i].slice(-8);
+    s.nextDecisionAt = now + (15 + this.rng() * 15) * 60000;
+    this.emit('decision', s.decision);
+  }
+  // Efekt decyzji po uwzględnieniu stanu gry (np. bez działu badań punkty zamieniają się w gotówkę).
+  decisionEffect(fx) {
+    const noRp = !(this.rpRate > 0);
+    let f = fx;
+    if (fx.t === 'rp' && noRp) f = { t: 'cash', min: fx.min };
+    if (fx.t === 'rpBoost' && noRp) f = { t: 'boost', x: 1.5, s: fx.s };
+    const inc = Math.max(this.steadyIncome(), this.clickValue, 1);
+    switch (f.t) {
+      case 'cash': case 'delayed': return { ...f, cash: inc * f.min * 60 };
+      case 'rp': return { ...f, rp: this.rpRate * f.min * 60 };
+      default: return { ...f };
+    }
+  }
+  chooseDecision(which, now = this.now) {
+    const s = this.s;
+    if (!s.decision || (which !== 'a' && which !== 'b')) return null;
+    const d = DECISIONS[s.decision.i];
+    const e = this.decisionEffect(d[which].fx);
+    switch (e.t) {
+      case 'cash': this.earn(e.cash); break;
+      case 'rp': s.rp += e.rp; s.stats.rpTotal += e.rp; break;
+      case 'delayed': s.pending.push({ at: now + e.s * 1000, cash: e.cash, icon: d.icon, di: s.decision.i }); break;
+      case 'boost': s.boosts.dIncome = { x: e.x, until: now + e.s * 1000, dur: e.s }; break;
+      case 'click': s.boosts.dClick = { x: e.x, until: now + e.s * 1000, dur: e.s }; break;
+      case 'rpBoost': s.boosts.dRp = { x: e.x, until: now + e.s * 1000, dur: e.s }; break;
+      default: break;
+    }
+    s.decision = null;
+    s.stats.decisions++;
+    this.recalc();
+    this.emit('decided', { d, which, e });
+    this.checkAchievements();
+    return e;
+  }
+  // Odroczone nagrody (np. grant, artykuł o kocie) wypłacane, gdy nadejdzie ich czas.
+  updatePending(now) {
+    const s = this.s;
+    if (!s.pending.length) return 0;
+    let paid = 0;
+    s.pending = s.pending.filter((p) => {
+      if (p.at > now) return true;
+      this.earn(p.cash);
+      paid++;
+      const d = DECISIONS[p.di];
+      this.toast(p.icon || '📨', t('dec.paid'), `${d ? TX.decisionTitle(p.di) : ''}: +${money(p.cash)}`, 'contract');
+      return false;
+    });
+    return paid;
+  }
+
+  // ---------- historia (wykres) ----------
+  sampleHistory(now = this.now, force = false) {
+    const s = this.s;
+    const h = s.history;
+    const val = this.valuation();
+    if (val > s.stats.bestValuation) s.stats.bestValuation = val;
+    const core = val - (this.marketUnlocked() ? this.portfolioValue() : 0);
+    if (core > (s.stats.bestCore || 0)) s.stats.bestCore = core;
+    const row = () => [now, +this.steadyIncome().toPrecision(4), +val.toPrecision(4)];
+    if (force || now - h.lastShort >= HISTORY.shortEvery) {
+      h.short.push(row());
+      h.lastShort = now;
+      if (h.short.length > HISTORY.shortMax) h.short.splice(0, h.short.length - HISTORY.shortMax);
+    }
+    if (now - h.lastLong >= HISTORY.longEvery) {
+      h.long.push(row());
+      h.lastLong = now;
+      if (h.long.length > HISTORY.longMax) h.long.splice(0, h.long.length - HISTORY.longMax);
+    }
   }
 
   // ---------- opisy efektów (dla UI) ----------

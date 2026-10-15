@@ -93,7 +93,8 @@ PRODUCTS.forEach((p, i) => {
   p.rps = nice(p.cost / (PRODUCT_PAYBACK0 * Math.pow(PRODUCT_PAYBACK_GROWTH, i)));
 });
 
-// Progi i mnożniki kosztu ulepszeń produktów (po 7 na produkt).
+// Progi i mnożniki kosztu ulepszeń produktów. Pierwsze 7 ma własne nazwy (p.ups),
+// kolejne to „wersje” produktu na późną grę — nazwy z szablonu w i18n (up.tierN).
 export const PRODUCT_UP_TIERS = [
   { at: 1, cost: 10, x: 2 },
   { at: 10, cost: 200, x: 2 },
@@ -102,7 +103,14 @@ export const PRODUCT_UP_TIERS = [
   { at: 100, cost: 1e9, x: 2 },
   { at: 150, cost: 1e12, x: 2 },
   { at: 200, cost: 1e15, x: 3 },
+  { at: 300, cost: 1e21, x: 3 },
+  { at: 400, cost: 1e27, x: 3 },
+  { at: 500, cost: 1e33, x: 3 },
+  { at: 600, cost: 1e39, x: 3 },
+  { at: 800, cost: 1e51, x: 3 },
+  { at: 1000, cost: 1e63, x: 4 },
 ];
+export const PRODUCT_UP_NAMED = 7;
 
 // ---------------------------------------------------------------------------
 // DZIAŁY — piętra w budynku, każdy pracownik daje efekt
@@ -169,7 +177,12 @@ export const DEPT_UP_TIERS = [
   { at: 10, costHires: 40, x: 1.3 },
   { at: 40, costHires: 60, x: 1.3 },
   { at: 100, costHires: 80, x: 1.5 },
+  { at: 200, costHires: 100, x: 1.5 },
+  { at: 300, costHires: 120, x: 1.5 },
+  { at: 500, costHires: 150, x: 2 },
 ];
+// Ikony ulepszeń działów ponad trzy nazwane (wspólne dla wszystkich działów).
+export const DEPT_UP_EXTRA_ICONS = ['🏅', '🌍', '👑'];
 
 // ---------------------------------------------------------------------------
 // TECHNOLOGIE — drzewko badań. Zostają po rundzie finansowania!
@@ -296,6 +309,10 @@ export const REPEAT_TECHS = [
     desc: '+25% siły kodowania za każdy poziom.' },
   { id: 'r_science', name: 'Metoda naukowa', icon: '🔭', base: 2000, g: 3.5, req: ['agile'], fx: [{ t: 'rp', x: 1.15 }],
     desc: '+15% punktów badań za każdy poziom.' },
+  { id: 'r_ops', name: 'Sprawne procesy', icon: '🗂️', base: 5e4, g: 4, req: ['microservices'], fx: [{ t: 'hireCost', x: 0.95 }],
+    desc: 'Rekrutacja tańsza o 5% za każdy poziom.' },
+  { id: 'r_deals', name: 'Sztuka negocjacji', icon: '🤝', base: 2e5, g: 4, req: ['payments'], fx: [{ t: 'contract', x: 1.15 }],
+    desc: '+15% nagród z kontraktów za każdy poziom.' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -318,6 +335,12 @@ export const CULTURE_UPGRADES = [
   { id: 'c_moon', name: 'Filia na Księżycu', icon: '🌙', cost: 1e30, x: 1.75, desc: 'Najlepszy widok na Ziemię.' },
   { id: 'c_teleport', name: 'Teleport do biura', icon: '🌀', cost: 1e34, x: 2, desc: 'Dojazd: 0 sekund.' },
   { id: 'c_happy', name: 'Zespół szczęśliwych ludzi', icon: '💖', cost: 1e38, x: 2, desc: 'Najlepsza technologia ze wszystkich.' },
+  { id: 'c_zerog', name: 'Joga w stanie nieważkości', icon: '🧘', cost: 1e42, x: 2, desc: 'Pozycja lotosu jeszcze nigdy nie była tak łatwa.' },
+  { id: 'c_olympus', name: 'Biuro z widokiem na Olympus Mons', icon: '🏔️', cost: 1e46, x: 2, desc: 'Najwyższa góra Układu Słonecznego za oknem sali konferencyjnej.' },
+  { id: 'c_rings', name: 'Ogród na pierścieniach Saturna', icon: '🪐', cost: 1e50, x: 2.5, desc: 'Pomidory rosną tu w kształcie elips.' },
+  { id: 'c_sundays', name: 'Tydzień z ośmioma niedzielami', icon: '🕰️', cost: 1e55, x: 2.5, desc: 'Fizycy z działu R&D znaleźli sposób.' },
+  { id: 'c_pleiades', name: 'Integracja w Plejadach', icon: '✨', cost: 1e60, x: 3, desc: 'Siedem gwiazd, jedna firma, zero roamingu.' },
+  { id: 'c_peace', name: 'Święty spokój', icon: '🕊️', cost: 1e66, x: 3, desc: 'Żadnych powiadomień. Nigdy.' },
 ];
 
 export const CLICK_UPGRADES = [
@@ -333,6 +356,9 @@ export const CLICK_UPGRADES = [
   { id: 'k_neuro', name: 'Neurołącze do IDE', icon: '🧠', cost: 5e19, x: 1, pct: 0.01, desc: 'Myśl szybciej niż piszesz.' },
   { id: 'k_flow', name: 'Stan flow', icon: '🌊', cost: 5e23, x: 10, desc: 'Czas przestaje istnieć. Kod płynie.' },
   { id: 'k_midas', name: 'Palec Midasa', icon: '👆', cost: 5e27, x: 1, pct: 0.02, desc: 'Czego dotkniesz, zamienia się w przychód.' },
+  { id: 'k_swarm', name: 'Rój mikrobotów piszących kod', icon: '🐝', cost: 5e32, x: 10, desc: 'Bzyczą w rytmie stand-upów.' },
+  { id: 'k_loop', name: 'Klawiatura z pętlą czasu', icon: '⏳', cost: 5e38, x: 1, pct: 0.02, desc: 'Każde kliknięcie odbywa się dwa razy. Wczoraj i dziś.' },
+  { id: 'k_enter', name: 'Kosmiczny klawisz Enter', icon: '🌠', cost: 5e45, x: 25, desc: 'Wciśnięty raz, zatwierdza całą galaktykę.' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -473,4 +499,269 @@ export const TREND_TEMPLATES = [
   'Influencerzy zachwyceni: {p} ×{x}',
   'Hossa w branży: {p} ×{x}',
   'Wszyscy o tym mówią: {p} ×{x}',
+];
+
+// ---------------------------------------------------------------------------
+// BUDŻET BADAWCZY — część przychodu idzie na badania. Badacze w działach rosną tylko
+// logarytmicznie z gotówką, a budżet potęgowo: PB/s = k × (kwota/s)^p × mnożnik badań.
+// Dzięki temu bogata firma bada szybciej, ale z malejącym zwrotem.
+// ---------------------------------------------------------------------------
+export const RD_BUDGET = { shares: [0, 0.1, 0.25, 0.5], k: 0.001, p: 0.2 };
+
+// ---------------------------------------------------------------------------
+// AUTOPILOT — moduły kupowane raz za udziały (💎), zostają na zawsze
+// ---------------------------------------------------------------------------
+export const AUTOPILOT = [
+  { id: 'products', icon: '📦', cost: 2, name: 'Product manager na autopilocie',
+    desc: 'Rozwija produkty, wybierając te, które najszybciej się zwracają.' },
+  { id: 'upgrades', icon: '⬆️', cost: 2, name: 'Asystent zakupów',
+    desc: 'Kupuje ulepszenia, gdy tylko Cię na nie stać.' },
+  { id: 'hire', icon: '🧑‍💼', cost: 4, name: 'Rekruter AI',
+    desc: 'Otwiera nowe działy i zatrudnia ludzi, zostawiając większość pieniędzy na produkty.' },
+  { id: 'contracts', icon: '🤝', cost: 3, name: 'Opiekun klientów',
+    desc: 'Przyjmuje najlepsze zapytania ofertowe, gdy zwolni się miejsce.' },
+  { id: 'research', icon: '🔬', cost: 6, name: 'Dyrektor ds. badań',
+    desc: 'Odkrywa najtańszą dostępną technologię, gdy starczy punktów badań.' },
+  { id: 'bubbles', icon: '🫧', cost: 5, name: 'Łowca okazji',
+    desc: 'Łapie bąbelki wydarzeń, gdy gra jest otwarta. Przydaje się w trybie zen.' },
+];
+
+// ---------------------------------------------------------------------------
+// WYZWANIA INWESTORÓW — rundy z ograniczeniem i trwałą nagrodą za każdy poziom
+// ---------------------------------------------------------------------------
+// Cel poziomu: rząd wielkości Twojej najlepszej rundy × współczynnik (ale nie mniej niż próg minimalny).
+export const CHALLENGE_GOALS = [1e9, 1e12, 1e15, 1e18, 1e21];
+export const CHALLENGE_FACTORS = [0.5, 0.65, 0.8, 0.9, 1];
+export const CHALLENGES = [
+  { id: 'noclick', icon: '🙅', rule: 'noclick', name: 'Bez klawiatury',
+    desc: 'Kodowanie i automatyczne kliknięcia nic nie dają.', fx: [{ t: 'all', x: 1.15 }] },
+  { id: 'focus', icon: '🎯', rule: 'maxProducts', v: 5, name: 'Pełne skupienie',
+    desc: 'Możesz wydać najwyżej 5 różnych produktów.', fx: [{ t: 'prodCost', x: 0.95 }] },
+  { id: 'solo', icon: '🧑‍💻', rule: 'onlyDev', name: 'Jednoosobowa armia',
+    desc: 'Nie możesz otwierać działów poza programistami.', fx: [{ t: 'deptAll', x: 1.1 }] },
+  { id: 'bootstrap', icon: '🥾', rule: 'noInvestors', name: 'Bootstrapping',
+    desc: 'Kapitał inwestorów nie zwiększa przychodu.', fx: [{ t: 'investorPct', v: 0.002 }] },
+  { id: 'minimal', icon: '🪶', rule: 'noUpgrades', name: 'Minimalizm',
+    desc: 'Nie możesz kupować ulepszeń.', fx: [{ t: 'rp', x: 1.2 }] },
+  { id: 'crisis', icon: '📉', rule: 'noMilestones', name: 'Kryzys na rynkach',
+    desc: 'Kamienie milowe produktów nie podwajają przychodu.', fx: [{ t: 'prestige', x: 1.1 }] },
+];
+
+// ---------------------------------------------------------------------------
+// EKSPANSJA — biura na świecie i w kosmosie. Zostają na zawsze (także po rundach).
+// Każdy kolejny poziom kosztuje ×OFFICE_LEVEL_COST więcej, a efekt działa tyle razy, ile jest poziomów.
+// ---------------------------------------------------------------------------
+export const OFFICE_MAX_LEVEL = 3;
+export const OFFICE_LEVEL_COST = 1e6;
+export const OFFICES = [
+  { id: 'waw', icon: '🇵🇱', kind: 'earth', lat: 52.23, lon: 21.01, cost: 5e5, hq: true, fx: [{ t: 'dept', id: 'dev', x: 1.15 }],
+    name: 'Warszawa', desc: 'Tu wszystko się zaczęło. Świetni programiści i najlepsze pierogi w promieniu tysiąca kilometrów.' },
+  { id: 'ber', icon: '🇩🇪', kind: 'earth', lat: 52.52, lon: 13.4, cost: 2e6, req: 'agile', fx: [{ t: 'dept', id: 'design', x: 1.2 }, { t: 'all', x: 1.03 }],
+    name: 'Berlin', desc: 'Startupy, galerie i kawa z owsianym mlekiem.' },
+  { id: 'tyo', icon: '🇯🇵', kind: 'earth', lat: 35.68, lon: 139.69, cost: 5e8, req: 'game2d', fx: [{ t: 'cat', cat: 'mobile', x: 1.15 }],
+    name: 'Tokio', desc: 'Stolica gier mobilnych i pociągów, które nigdy się nie spóźniają.' },
+  { id: 'sfo', icon: '🌉', kind: 'earth', lat: 37.77, lon: -122.42, cost: 3e9, req: 'saasModel', fx: [{ t: 'cat', cat: 'biz', x: 1.15 }, { t: 'investorPct', v: 0.0005 }],
+    name: 'San Francisco', desc: 'Dolina Krzemowa za rogiem. Inwestorzy na każdej kawie.' },
+  { id: 'sel', icon: '🇰🇷', kind: 'earth', lat: 37.57, lon: 126.98, cost: 2e10, req: 'socialGraph', fx: [{ t: 'cat', cat: 'social', x: 1.15 }],
+    name: 'Seul', desc: 'Najszybszy internet świata i fani, którzy zrobią z Twojej aplikacji hit.' },
+  { id: 'blr', icon: '🇮🇳', kind: 'earth', lat: 12.97, lon: 77.59, cost: 3e10, req: 'microservices', fx: [{ t: 'hireCost', x: 0.95 }],
+    name: 'Bengaluru', desc: 'Indyjska Dolina Krzemowa. Ogromna pula talentów.' },
+  { id: 'sao', icon: '🇧🇷', kind: 'earth', lat: -23.55, lon: -46.63, cost: 1e11, req: 'socialGraph', fx: [{ t: 'eventFreq', x: 1.05 }, { t: 'dept', id: 'marketing', x: 1.15 }],
+    name: 'São Paulo', desc: 'Największy rynek Ameryki Południowej. Kampanie roznoszą się tu jak samba.' },
+  { id: 'lon', icon: '🇬🇧', kind: 'earth', lat: 51.51, lon: -0.13, cost: 5e11, req: 'payments', fx: [{ t: 'prod', id: 'fintech', x: 1.4 }, { t: 'contract', x: 1.1 }],
+    name: 'Londyn', desc: 'Finansowe serce Europy. Herbata o piątej, przelewy natychmiast.' },
+  { id: 'nyc', icon: '🗽', kind: 'earth', lat: 40.71, lon: -74.0, cost: 2e12, req: 'payments', fx: [{ t: 'valMult', v: 0.5 }, { t: 'acqCost', x: 0.9 }],
+    name: 'Nowy Jork', desc: 'Wall Street wycenia Cię wyżej, kiedy masz biuro na Manhattanie.' },
+  { id: 'lag', icon: '🇳🇬', kind: 'earth', lat: 6.52, lon: 3.38, cost: 3e12, req: 'payments', fx: [{ t: 'cat', cat: 'mobile', x: 1.1 }, { t: 'prod', id: 'fintech', x: 1.25 }],
+    name: 'Lagos', desc: 'Najszybciej rosnący rynek mobilnych płatności na świecie.' },
+  { id: 'syd', icon: '🇦🇺', kind: 'earth', lat: -33.87, lon: 151.21, cost: 1e13, req: 'video', fx: [{ t: 'offlineCap', v: 3600 }, { t: 'offlineEff', v: 0.04 }],
+    name: 'Sydney', desc: 'Gdy Europa śpi, Sydney pracuje. Firma działa całą dobę.' },
+  { id: 'sto', icon: '🇸🇪', kind: 'earth', lat: 59.33, lon: 18.07, cost: 3e13, req: 'video', fx: [{ t: 'prod', id: 'streaming', x: 1.4 }, { t: 'prod', id: 'game', x: 1.25 }],
+    name: 'Sztokholm', desc: 'Muzyka w streamingu, gry i bardzo długie zimowe wieczory na kodowanie.' },
+  { id: 'sin', icon: '🇸🇬', kind: 'earth', lat: 1.35, lon: 103.82, cost: 5e13, req: 'virtualization', fx: [{ t: 'prod', id: 'cloud', x: 1.4 }, { t: 'offlineEff', v: 0.03 }],
+    name: 'Singapur', desc: 'Węzeł chmury dla całej Azji.' },
+  { id: 'rkv', icon: '🇮🇸', kind: 'earth', lat: 64.15, lon: -21.94, cost: 1e14, req: 'bigdata', fx: [{ t: 'cat', cat: 'infra', x: 1.15 }, { t: 'prodCost', x: 0.98 }],
+    name: 'Reykjavik', desc: 'Darmowe chłodzenie serwerów i zorza polarna nad parkingiem.' },
+  { id: 'dxb', icon: '🇦🇪', kind: 'earth', lat: 25.2, lon: 55.27, cost: 3e15, req: 'serverless', fx: [{ t: 'contract', x: 1.15 }, { t: 'acqCost', x: 0.95 }],
+    name: 'Dubaj', desc: 'Kontrakty podpisywane na 120. piętrze.' },
+  { id: 'yyz', icon: '🇨🇦', kind: 'earth', lat: 43.65, lon: -79.38, cost: 1e17, req: 'dl', fx: [{ t: 'cat', cat: 'ai', x: 1.15 }, { t: 'rp', x: 1.05 }],
+    name: 'Toronto', desc: 'Kolebka głębokiego uczenia. Badacze AI na każdym uniwersytecie.' },
+  { id: 'zrh', icon: '🇨🇭', kind: 'earth', lat: 47.37, lon: 8.54, cost: 1e22, req: 'qubits', fx: [{ t: 'cat', cat: 'deep', x: 1.15 }, { t: 'prestige', x: 1.03 }],
+    name: 'Zurych', desc: 'Laboratoria kwantowe, banki i widok na Alpy.' },
+  { id: 'tlv', icon: '🇮🇱', kind: 'earth', lat: 32.08, lon: 34.78, cost: 1e24, req: 'qcrypto', fx: [{ t: 'dept', id: 'security', x: 1.2 }, { t: 'rp', x: 1.05 }],
+    name: 'Tel Awiw', desc: 'Startupy cyberbezpieczeństwa na każdym rogu.' },
+  // kosmos
+  { id: 'leo', icon: '🛰️', kind: 'space', cost: 1e36, req: 'rockets', fx: [{ t: 'cat', cat: 'space', x: 1.15 }],
+    name: 'Stacja orbitalna', desc: 'Biuro z widokiem na Ziemię. Szesnaście wschodów słońca dziennie.' },
+  { id: 'moon', icon: '🌙', kind: 'space', cost: 1e38, req: 'satellites', fx: [{ t: 'all', x: 1.1 }, { t: 'rp', x: 1.05 }],
+    name: 'Baza na Księżycu', desc: 'Kampus pod kopułą, ⅙ grawitacji i zero korków.' },
+  { id: 'mars', icon: '🔴', kind: 'space', cost: 1e41, req: 'orbitalDC', fx: [{ t: 'all', x: 1.15 }],
+    name: 'Kolonia na Marsie', desc: 'Pierwsze miasto na innej planecie. Ping do Ziemi: 20 minut.' },
+  { id: 'ceres', icon: '☄️', kind: 'space', cost: 1e44, req: 'asiTech', fx: [{ t: 'prodCost', x: 0.95 }],
+    name: 'Ceres', desc: 'Kopalnia surowców w Pasie Planetoid. Serwery tanieją.' },
+  { id: 'europa', icon: '🧊', kind: 'space', cost: 1e47, req: 'dyson', fx: [{ t: 'rp', x: 1.1 }],
+    name: 'Europa', desc: 'Laboratorium pod lodem księżyca Jowisza.' },
+  { id: 'titan', icon: '🪐', kind: 'space', cost: 1e50, req: 'dyson', fx: [{ t: 'all', x: 1.25 }],
+    name: 'Tytan', desc: 'Pomarańczowe niebo, metanowe jeziora i Saturn nad horyzontem.' },
+  { id: 'proxima', icon: '✨', kind: 'space', cost: 1e56, req: 'dyson', fx: [{ t: 'all', x: 1.5 }, { t: 'prestige', x: 1.1 }],
+    name: 'Proxima b', desc: 'Pierwsze biuro poza Układem Słonecznym. 4,2 roku świetlnego od domu.' },
+];
+
+// ---------------------------------------------------------------------------
+// GIEŁDA — po rundzie IPO. Konkurenci rosną razem z rynkiem (ich kapitalizacja to ułamek
+// Twojej najwyższej wyceny), a kurs waha się z nastrojami inwestorów.
+// Udziały dają premię dla kategorii konkurenta; 51% to przejęcie kontroli.
+// ---------------------------------------------------------------------------
+export const MARKET = {
+  unlockRounds: 8, baseShare: 0.6, fee: 0.02, every: 30000, histMax: 60,
+  sentMin: 0.7, sentMax: 1.35, revert: 0.04, shockChance: 0.015, sharesOut: 1e9,
+  stakeBonus: 2, stakeCap: 0.5, control: 0.51, controlCat: 1.25, controlAll: 1.03,
+};
+export const COMPETITORS = [
+  { id: 'pear', icon: '🍐', cat: 'mobile', k: 1.4, vol: 0.025, name: 'Gruszka Computers', ticker: 'GRSZ' },
+  { id: 'macrohard', icon: '🪟', cat: 'infra', k: 1.2, vol: 0.02, name: 'Makrotwardy', ticker: 'MKTW' },
+  { id: 'goggle', icon: '🔎', cat: 'web', k: 1.1, vol: 0.025, name: 'Gogle', ticker: 'GOGL' },
+  { id: 'amazin', icon: '📦', cat: 'biz', k: 1, vol: 0.03, name: 'Amazonka', ticker: 'AMZK' },
+  { id: 'envydia', icon: '🟩', cat: 'deep', k: 0.9, vol: 0.05, name: 'Envydia', ticker: 'ENVD' },
+  { id: 'facepage', icon: '👍', cat: 'social', k: 0.7, vol: 0.035, name: 'Twarzoksiążka', ticker: 'TWKS' },
+  { id: 'closedai', icon: '🤖', cat: 'ai', k: 0.5, vol: 0.06, name: 'ZamknięteAI', ticker: 'ZAI' },
+  { id: 'spacey', icon: '🚀', cat: 'space', k: 0.4, vol: 0.06, name: 'SpaceY', ticker: 'SPCY' },
+  { id: 'notflix', icon: '🍿', cat: 'social', k: 0.3, vol: 0.04, name: 'Nietflix', ticker: 'NTFX' },
+  { id: 'qleap', icon: '⚛️', cat: 'deep', k: 0.1, vol: 0.07, name: 'Skok Kwantowy', ticker: 'SKOK' },
+];
+export const MARKET_NEWS = {
+  up: ['{n}: akcje +{p}% po premierze nowego produktu', '{n} bije rekordy na giełdzie: +{p}%', 'Analitycy zachwyceni wynikami {n}: +{p}%'],
+  down: ['{n}: akcje −{p}% po awarii serwerów', 'Rozczarowujące wyniki {n}: −{p}%', '{n} traci {p}% po aferze z danymi'],
+};
+
+// ---------------------------------------------------------------------------
+// ZARZĄD — pięć foteli (C-suite). Kandydaci przychodzą od headhuntera, płacisz udziałami (💎).
+// Członkowie zarządu zostają na zawsze i nabierają doświadczenia z czasem (także offline).
+// Cechy: efekty jak w reszcie gry; „x” to mnożnik, „v” dodatek. Dziwactwa wzmacniają cechy w określonych warunkach.
+// ---------------------------------------------------------------------------
+export const BOARD = {
+  poolMax: 3, everyMin: 20, everyMax: 40, firstAfter: 60000, maxLevel: 10, levelStep: 0.1, costPerInvestor: 0.002,
+  rarity: [
+    { id: 'common', w: 70, mult: 1, traits: 1, cost: 3 },
+    { id: 'rare', w: 25, mult: 1.6, traits: 2, cost: 10 },
+    { id: 'legend', w: 5, mult: 2.5, traits: 2, cost: 30 },
+  ],
+};
+export const ROLES = [
+  { id: 'cto', icon: '🧑‍💻', color: '#6c8cff', name: 'CTO', area: 'technologia',
+    traits: [{ t: 'click', x: 1.5 }, { t: 'rp', x: 1.15 }, { t: 'dept', id: 'dev', x: 1.3 }, { t: 'auto', v: 2 }] },
+  { id: 'cfo', icon: '💼', color: '#ffd54f', name: 'CFO', area: 'finanse',
+    traits: [{ t: 'prodCost', x: 0.93 }, { t: 'offlineEff', v: 0.05 }, { t: 'offlineCap', v: 3600 }, { t: 'valMult', v: 0.3 }] },
+  { id: 'cmo', icon: '📣', color: '#ffb74d', name: 'CMO', area: 'marketing',
+    traits: [{ t: 'eventFreq', x: 1.1 }, { t: 'eventPower', x: 1.15 }, { t: 'dept', id: 'marketing', x: 1.3 }, { t: 'cat', cat: 'social', x: 1.3 }] },
+  { id: 'coo', icon: '⚙️', color: '#4dd0a1', name: 'COO', area: 'operacje',
+    traits: [{ t: 'hireCost', x: 0.93 }, { t: 'contract', x: 1.2 }, { t: 'deptAll', x: 1.08 }, { t: 'offlineEff', v: 0.04 }] },
+  { id: 'cpo', icon: '🧩', color: '#f472b6', name: 'CPO', area: 'produkt',
+    traits: [{ t: 'all', x: 1.12 }, { t: 'cat', cat: 'web', x: 1.3 }, { t: 'cat', cat: 'mobile', x: 1.3 }, { t: 'cat', cat: 'ai', x: 1.3 }, { t: 'cat', cat: 'biz', x: 1.3 }] },
+];
+// Dziwactwa: when = warunek, x = siła cech, gdy warunek jest spełniony (xp = szybsza nauka).
+export const QUIRKS = [
+  { id: 'night', icon: '🦉', when: 'night', x: 2, name: 'Nocna zmiana', desc: 'Cechy działają podwójnie między 22:00 a 6:00.' },
+  { id: 'morning', icon: '🐦', when: 'morning', x: 2, name: 'Poranny rytm', desc: 'Cechy działają podwójnie między 5:00 a 10:00.' },
+  { id: 'weekend', icon: '🏖️', when: 'weekend', x: 1.75, name: 'Weekendowa energia', desc: 'Cechy ×1,75 w soboty i niedziele.' },
+  { id: 'rain', icon: '🌧️', when: 'rain', x: 2, name: 'Deszczowe natchnienie', desc: 'Cechy działają podwójnie, gdy nad biurem pada deszcz albo śnieg.' },
+  { id: 'winter', icon: '❄️', when: 'winter', x: 2, name: 'Zimowa forma', desc: 'Cechy działają podwójnie od grudnia do lutego.' },
+  { id: 'coffee', icon: '☕', when: 'always', x: 1.15, name: 'Kawa przede wszystkim', desc: 'Cechy zawsze ×1,15.' },
+  { id: 'fast', icon: '📚', when: 'xp', x: 2, name: 'Szybka nauka', desc: 'Zdobywa doświadczenie dwa razy szybciej.' },
+];
+// Imiona i nazwiska międzynarodowego zespołu (takie same w obu językach).
+export const EXEC_NAMES = [
+  'Anna Nowak', 'Kenji Watanabe', 'Priya Sharma', 'Lucas Martin', 'Zofia Wiśniewska', 'Diego Álvarez', 'Amara Okafor',
+  'Ingrid Larsen', 'Tomasz Kowalczyk', 'Mei Chen', 'Oliver Brown', 'Fatima Haddad', 'Jakub Lewandowski', 'Sofia Rossi',
+  'Noah Fischer', 'Aiko Tanaka', 'Mateusz Wójcik', 'Leila Moradi', 'Ethan Walker', 'Olga Petrova', 'Kwame Mensah',
+  'Julia Mazur', 'Rafael Costa', 'Hanna Berg', 'Arjun Patel', 'Maja Kaczmarek', 'Lars Johansson', 'Chloé Dubois',
+  'Piotr Zając', 'Nadia Rahman', 'Mateo García', 'Ewa Lis', 'Samuel Adeyemi', 'Yuna Park', 'Elena Popescu', 'Wiktor Krawczyk',
+];
+
+// ---------------------------------------------------------------------------
+// SKALA CYWILIZACJI — roczny przychód porównany ze światem, potem skala Kardaszowa.
+// Progi z „v” są w dolarach rocznie; progi z „k” to stopień w skali Kardaszowa.
+// ---------------------------------------------------------------------------
+// Ludzkość zużywa ok. 20 TW przy PKB ok. $110 bln rocznie → ok. 0,18 W na dolara rocznego PKB.
+export const ENERGY_W_PER_USD = 0.18;
+export const SCALE_LEVELS = [
+  { v: 1e3, icon: '🪙', name: 'Kieszonkowe', desc: 'Tyle zarabia stoisko z lemoniadą przez wakacje.' },
+  { v: 1e5, icon: '🥐', name: 'Osiedlowa piekarnia', desc: 'Przychody małej, lokalnej firmy.' },
+  { v: 1e7, icon: '🏪', name: 'Sieć sklepów', desc: 'Średnia firma z kilkudziesięcioma pracownikami.' },
+  { v: 1e9, icon: '🏢', name: 'Duża firma', desc: 'Miliard dolarów przychodu rocznie.' },
+  { v: 1e11, icon: '🦄', name: 'Gigant technologiczny', desc: 'Pierwsza liga światowego biznesu.' },
+  { v: 6e11, icon: '🏬', name: 'Największa firma świata', desc: 'Przychody największej korporacji na Ziemi (ponad $600 mld).' },
+  { v: 9e11, icon: '🇵🇱', name: 'PKB Polski', desc: 'Cała polska gospodarka w ciągu roku (ok. $900 mld).' },
+  { v: 2.9e13, icon: '🇺🇸', name: 'PKB USA', desc: 'Największa gospodarka świata (ok. $29 bln).' },
+  { v: 1.1e14, icon: '🌍', name: 'PKB Ziemi', desc: 'Cała ludzkość razem wzięta (ok. $110 bln). ONZ prosi o spotkanie.' },
+  { k: 1, icon: '⚡', name: 'Cywilizacja typu I', desc: 'Skala Kardaszowa 1: cała energia docierająca do planety.' },
+  { k: 1.5, icon: '🪐', name: 'Imperium międzyplanetarne', desc: 'Gospodarka obejmuje planety i księżyce Układu Słonecznego.' },
+  { k: 2, icon: '☀️', name: 'Cywilizacja typu II', desc: 'Skala Kardaszowa 2: cała energia gwiazdy. Sfera Dysona gotowa.' },
+  { k: 2.5, icon: '✨', name: 'Gromada gwiazd', desc: 'Tysiące słońc pracuje dla jednej firmy.' },
+  { k: 3, icon: '🌌', name: 'Cywilizacja typu III', desc: 'Skala Kardaszowa 3: energia całej galaktyki.' },
+  { k: 3.5, icon: '🔭', name: 'Grupa Lokalna', desc: 'Droga Mleczna, Andromeda i kilkadziesiąt mniejszych galaktyk.' },
+  { k: 4, icon: '🕳️', name: 'Typ IV: wszechświat', desc: 'Firma zarządza całym obserwowalnym wszechświatem.' },
+  { k: 5, icon: '♾️', name: 'Multiwersum', desc: 'Konkurencja? W tym wszechświecie już jej nie ma.' },
+];
+
+// ---------------------------------------------------------------------------
+// DECYZJE — co jakiś czas firma staje przed wyborem. Obie opcje są dobre, tylko inne.
+// fx: cash/rp = tyle minut przychodu/badań od ręki, delayed = gotówka po s sekundach,
+//     boost/click/rpBoost = mnożnik x przez s sekund.
+// ---------------------------------------------------------------------------
+export const DECISIONS = [
+  { id: 'bigtech', icon: '🐋', title: 'Gigant chce kupić Twój projekt poboczny',
+    text: 'Mała aplikacja do planowania lunchu, napisana po godzinach, wpadła w oko korporacji z Doliny Krzemowej.',
+    a: { label: 'Sprzedaj', fx: { t: 'cash', min: 20 } }, b: { label: 'Rozwijaj dalej', fx: { t: 'boost', x: 2, s: 1200 } } },
+  { id: 'intern', icon: '🎓', title: 'Uczelnia proponuje program staży',
+    text: 'Dziesięcioro studentów informatyki chce spędzić lato w Twojej firmie.',
+    a: { label: 'Przyjmij stażystów', fx: { t: 'rp', min: 15 } }, b: { label: 'Zorganizuj hackathon', fx: { t: 'click', x: 10, s: 180 } } },
+  { id: 'coffee', icon: '☕', title: 'Ekspres do kawy się zepsuł',
+    text: 'Produktywność spada, a w kuchni zbiera się tłum. Ktoś już założył o tym wątek na firmowym czacie.',
+    a: { label: 'Kup ekspres premium', fx: { t: 'boost', x: 1.5, s: 1800 } }, b: { label: 'Zrób z tego mema', fx: { t: 'delayed', min: 40, s: 900 } } },
+  { id: 'influencer', icon: '📸', title: 'Influencerka chce zrecenzować Twoją aplikację',
+    text: 'Ma trzy miliony obserwujących i bardzo szczere opinie.',
+    a: { label: 'Daj jej dostęp przed premierą', fx: { t: 'boost', x: 3, s: 300 } }, b: { label: 'Zaproś ją do biura', fx: { t: 'cash', min: 12 } } },
+  { id: 'conference', icon: '🎤', title: 'Zaproszenie na konferencję',
+    text: 'Organizatorzy największej konferencji technologicznej w Europie mają jeszcze jedno wolne miejsce na scenie.',
+    a: { label: 'Wystąp z prezentacją', fx: { t: 'delayed', min: 50, s: 1200 } }, b: { label: 'Wyślij zespół na warsztaty', fx: { t: 'rp', min: 15 } } },
+  { id: 'opensource', icon: '🐙', title: 'Otworzyć kod biblioteki?',
+    text: 'Zespół napisał świetną bibliotekę do animacji. Mogłaby być open source.',
+    a: { label: 'Open source!', fx: { t: 'rpBoost', x: 2, s: 900 } }, b: { label: 'Sprzedawaj licencje', fx: { t: 'cash', min: 15 } } },
+  { id: 'grant', icon: '🏛️', title: 'Grant na badania i rozwój',
+    text: 'Fundusz innowacji ogłosił nabór. Wniosek ma tylko 84 strony.',
+    a: { label: 'Złóż wniosek', fx: { t: 'delayed', min: 60, s: 1800 } }, b: { label: 'Szkoda czasu na papiery', fx: { t: 'boost', x: 2, s: 600 } } },
+  { id: 'outage', icon: '🔥', title: 'Awaria u konkurencji',
+    text: 'Serwery największego rywala leżą od rana. Ich klienci szukają alternatywy.',
+    a: { label: 'Przyjmij nowych klientów', fx: { t: 'cash', min: 25 } }, b: { label: 'Pomóż im wstać', fx: { t: 'rp', min: 15 } } },
+  { id: 'dog', icon: '🐕', title: 'Pies w biurze!',
+    text: 'Ktoś przyprowadził do pracy golden retrievera. Nikt nie pracuje, wszyscy są szczęśliwi.',
+    a: { label: 'Zostaje na stałe', fx: { t: 'boost', x: 1.25, s: 3600 } }, b: { label: 'Sesja zdjęciowa do social mediów', fx: { t: 'delayed', min: 30, s: 600 } } },
+  { id: 'frontpage', icon: '🗞️', title: 'Jesteście na pierwszej stronie',
+    text: 'Wpis Twojego CTO trafił na szczyt najpopularniejszego serwisu dla programistów.',
+    a: { label: 'Odpowiadaj na komentarze', fx: { t: 'rp', min: 10 } }, b: { label: 'Ogłoś rekrutację', fx: { t: 'boost', x: 2, s: 900 } } },
+  { id: 'pivot', icon: '🔄', title: 'Doradca sugeruje pivot',
+    text: '„A może zróbmy to samo, tylko dla psów?”',
+    a: { label: 'Zostańmy przy swoim', fx: { t: 'boost', x: 1.5, s: 1800 } }, b: { label: 'Przetestujmy nowy rynek', fx: { t: 'delayed', min: 60, s: 1800 } } },
+  { id: 'loan', icon: '🤵', title: 'Fundusz proponuje finansowanie pomostowe',
+    text: 'Pieniądze od ręki, warunki jak z podręcznika. Podejrzanie dobre.',
+    a: { label: 'Bierzemy', fx: { t: 'cash', min: 30 } }, b: { label: 'Rośniemy organicznie', fx: { t: 'boost', x: 1.5, s: 2400 } } },
+  { id: 'retreat', icon: '🏕️', title: 'Zespół marzy o wyjeździe integracyjnym',
+    text: 'Głosowanie na czacie jest wyrównane: góry kontra plaża.',
+    a: { label: 'Jedziemy w góry', fx: { t: 'rp', min: 15 } }, b: { label: 'Hackathon na plaży', fx: { t: 'click', x: 8, s: 240 } } },
+  { id: 'award', icon: '🏆', title: 'Nominacja do nagrody Startup Roku',
+    text: 'Jury zachwyciło się Waszym produktem. Teraz decydują głosy internautów.',
+    a: { label: 'Ruszamy z kampanią', fx: { t: 'boost', x: 2, s: 900 } }, b: { label: 'Skupmy się na produkcie', fx: { t: 'cash', min: 15 } } },
+  { id: 'aitests', icon: '🤖', title: 'Nowy model AI pisze testy',
+    text: 'Programiści są podzieleni: połowa się cieszy, połowa się boi.',
+    a: { label: 'Wdrażamy w całym zespole', fx: { t: 'click', x: 10, s: 180 } }, b: { label: 'Najpierw to zbadajmy', fx: { t: 'rp', min: 15 } } },
+  { id: 'rain', icon: '🌧️', title: 'Ulewa nad miastem',
+    text: 'Leje jak z cebra. Nikt nie wychodzi na lunch.',
+    a: { label: 'Pizza dla wszystkich', fx: { t: 'boost', x: 1.5, s: 1200 } }, b: { label: 'Burza mózgów przy herbacie', fx: { t: 'rp', min: 10 } } },
+  { id: 'mentor', icon: '🧓', title: 'Legendarny programista chce zostać mentorem',
+    text: 'Napisał kompilator, zanim to było modne. Ma dwa warunki: kawa z ekspresu przelewowego i święty spokój.',
+    a: { label: 'Mentoring dla juniorów', fx: { t: 'rpBoost', x: 2, s: 1200 } }, b: { label: 'Code review wszystkiego', fx: { t: 'boost', x: 1.5, s: 1800 } } },
+  { id: 'cat', icon: '🐈', title: 'Kot przeszedł po klawiaturze',
+    text: '…i przypadkiem zoptymalizował zapytanie do bazy danych. Czas odpowiedzi spadł o połowę.',
+    a: { label: 'Zatrudnij kota', fx: { t: 'boost', x: 1.5, s: 1800 } }, b: { label: 'Napisz o tym artykuł', fx: { t: 'delayed', min: 35, s: 900 } } },
 ];

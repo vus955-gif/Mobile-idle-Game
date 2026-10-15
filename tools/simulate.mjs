@@ -2,14 +2,25 @@
 // Użycie: node tools/simulate.mjs [profil] [dni]
 //   profil: active (ciągła gra), casual (sesje 20 min co 3 h), idle (bez klikania)
 import {
-  Game, PRODUCT_MAP, DEPT_MAP, TECH_MAP, UPGRADES, milestoneCount,
+  Game, PRODUCT_MAP, DEPT_MAP, TECH_MAP, UPGRADES, milestoneCount, kardashev, sanitizeState,
 } from '../js/engine.js';
-import { PRODUCTS, DEPTS, TECHS, REPEAT_TECHS, ACQUISITIONS, PERKS } from '../js/data.js';
+import {
+  PRODUCTS, DEPTS, TECHS, REPEAT_TECHS, ACQUISITIONS, PERKS, OFFICES, AUTOPILOT, COMPETITORS, MARKET, BOARD,
+  CHALLENGES, CHALLENGE_GOALS, RD_BUDGET,
+} from '../js/data.js';
 import { fmt, fmtTime } from '../js/format.js';
 
 const profile = process.argv[2] || 'casual';
 const days = Number(process.argv[3] || 3);
 const verbose = process.argv.includes('-v');
+const off = new Set((process.argv.find((a) => a.startsWith('--no=')) || '').slice(5).split(',').filter(Boolean));
+// Kalibracja bez edycji danych: RDK/RDP — parametry budżetu, TECHMUL="6:0.1,7:0.25" — mnożniki kosztów er.
+if (process.env.RDK) RD_BUDGET.k = Number(process.env.RDK);
+if (process.env.RDP) RD_BUDGET.p = Number(process.env.RDP);
+for (const pair of (process.env.TECHMUL || '').split(',').filter(Boolean)) {
+  const [era, mul] = pair.split(':').map(Number);
+  for (const tch of TECHS) if (tch.era === era) tch.cost *= mul;
+}
 
 let seed = 12345;
 const rng = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
@@ -58,6 +69,15 @@ function decide() {
     for (const d of DEPTS) {
       if (!s.deptUnlocked[d.id] && g.deptAvailable(d.id) && s.cash >= d.unlock * 1.5) { g.unlockDept(d.id); bought = true; }
     }
+    // biura (trwałe) — gdy kosztują niewiele w porównaniu z gotówką
+    if (!off.has('offices')) for (const o of OFFICES) {
+      if (g.officeAvailable(o.id) && g.officeCost(o.id) <= s.cash * 0.3 && g.openOffice(o.id)) bought = true;
+    }
+    // giełda: udziały do progu kontroli, najtańsze najpierw
+    if (g.marketUnlocked() && !off.has('market')) {
+      const cands = COMPETITORS.filter((c) => g.stake(c.id) < MARKET.control).sort((a, b) => g.compCap(a.id) - g.compCap(b.id));
+      for (const c of cands) if (g.stakeCost(c.id, 0.1) <= s.cash * 0.2 && g.buyStake(c.id, 0.1)) bought = true;
+    }
     // przejęcia
     for (const a of ACQUISITIONS) {
       if (g.acqUnlocked() && !s.acquisitions[a.id] && g.acqCost(a.id) < s.cash * 0.5) { g.buyAcq(a.id); bought = true; }
@@ -78,7 +98,7 @@ function decide() {
       if (!best || score < best.score) best = { score, cost, act };
     };
     for (const p of PRODUCTS) {
-      if (!g.productUnlocked(p.id)) continue;
+      if (!g.productUnlocked(p.id) || !g.canOwnProduct(p.id)) continue;
       const lvl = s.products[p.id] || 0;
       let d;
       if (lvl > 0) {
@@ -110,7 +130,22 @@ function decide() {
       if (dd <= 0 && s.cash >= u.cost * 3) { g.buyUpgrade(u.id); bought = true; continue; }
       consider(u.cost, dd, () => g.buyUpgrade(u.id));
     }
-    if (best && best.cost <= s.cash) { best.act(); bought = true; }
+    if (best && best.cost <= s.cash) { const c0 = s.cash; best.act(); bought = s.cash !== c0; }
+  }
+  // budżet badawczy: rośnie z kolejnymi erami (gracz podkręca go, gdy gotówka się przelewa)
+  if (!off.has('budget')) {
+    const want = g.techCount() < 18 ? 0.1 : g.techCount() < 30 ? 0.25 : 0.5;
+    if (g.s.settings.rdBudget !== want) g.setRdBudget(want);
+  }
+  // decyzje: bierzemy pierwszą opcję
+  if (g.s.decision) { if (off.has('decisions')) g.s.decision = null; else g.chooseDecision('a', now); }
+  // moduły autopilota (gracz kupi je jako pierwsze) i zarząd
+  if (g.apUnlocked()) for (const a of AUTOPILOT) if (!g.apOwned(a.id) && g.s.shares >= a.cost) g.buyAutopilot(a.id);
+  if (off.has('board')) g.s.candidates = [];
+  for (const c of [...g.s.candidates]) {
+    const cur = g.s.board[c.role];
+    if ((!cur || c.r > cur.r) && g.s.shares >= g.candidateCost(c)) g.hireExec(c.id, now);
+    else if (cur && c.r <= cur.r) g.dismissCandidate(c.id);
   }
   // perki
   if (g.s.shares > 0) {
@@ -129,6 +164,7 @@ function report() {
   for (const p of PRODUCTS) if ((s.products[p.id] || 0) > 0 && !seenProducts.has(p.id)) { seenProducts.add(p.id); note(`PRODUKT ${p.icon} ${p.name} (income $${fmt(g.income)}/s)`); }
   for (const d of DEPTS) if (s.deptUnlocked[d.id] && !seenDepts.has(d.id)) { seenDepts.add(d.id); note(`DZIAŁ ${d.icon} ${d.name}`); }
   for (const tch of TECHS) if (s.techs[tch.id] && !seenEras.has(tch.era)) { seenEras.add(tch.era); note(`ERA ${tch.era} (pierwsza tech: ${tch.name}) rp/s=${fmt(g.rpRate)}`); }
+  if (!seenEras.has('all') && g.techCount() === TECHS.length) { seenEras.add('all'); note('PEŁNE DRZEWKO TECHNOLOGII'); }
 }
 
 const rpSrc = { tick: 0, bubble: 0, contract: 0, offline: 0 };
@@ -174,7 +210,7 @@ while (now < end) {
   if (now >= nextReport) {
     nextReport += (verbose ? 10 : (now - T0 < 3 * 3600e3 ? 15 : 120)) * 60000;
     const prods = PRODUCTS.filter((p) => g.s.products[p.id]).map((p) => `${p.icon}${g.s.products[p.id]}`).join(' ');
-    note(`stan: cash $${fmt(g.s.cash)} | $${fmt(g.income)}/s | klik $${fmt(g.clickValue)} | rp ${fmt(g.s.rp)} (+${fmt(g.rpRate)}/s) | techs ${g.techCount()} | ups ${g.upgradeCount()} | ludzie ${g.totalHeads()} | ach ${g.achCount()} | inv ${g.s.investors}`);
+    note(`stan: cash $${fmt(g.s.cash)} | $${fmt(g.income)}/s | klik $${fmt(g.clickValue)} | rp ${fmt(g.s.rp)} (+${fmt(g.rpRate)}/s) | techs ${g.techCount()} | ups ${g.upgradeCount()} | ludzie ${g.totalHeads()} | ach ${g.achCount()} | inv ${fmt(g.s.investors)} | biura ${Object.keys(g.s.offices).length} | zarząd ${Object.keys(g.s.board).length} | K ${(kardashev(g.annualRevenue()) ?? 0).toFixed(2)}`);
     if (verbose) {
       note(`      ${prods}`);
       const m = g.m;
@@ -187,4 +223,26 @@ while (now < end) {
 }
 
 console.log(`Profil: ${profile}, ${days} dni\n`);
-console.log(`\nKoniec: techs ${g.techCount()}/${TECHS.length}, osiągnięcia ${g.achCount()}, rundy ${g.s.prestigeCount}, kapitał ${g.s.investors}`);
+console.log(`\nKoniec: techs ${g.techCount()}/${TECHS.length}, osiągnięcia ${g.achCount()}, rundy ${g.s.prestigeCount}, kapitał ${fmt(g.s.investors)}, biura ${Object.keys(g.s.offices).length}/${OFFICES.length}, zarząd ${Object.keys(g.s.board).length}, skala ${g.s.scaleMax}`);
+
+// --chal: na koniec bot próbuje każdego wyzwania przez 2 h aktywnej gry
+if (process.argv.includes('--chal')) {
+  const saved = g.serialize();
+  for (const ch of CHALLENGES) {
+    g.s = sanitizeState(JSON.parse(saved), now);
+    g.recalc();
+    const startTier = g.s.challenges[ch.id] || 0;
+    const t0 = now;
+    g.startChallenge(ch.id, now);
+    let tnow = now;
+    for (let i = 0; i < 2 * 3600; i++) {
+      tnow += 1000;
+      g.tick(tnow);
+      for (let k = 0; k < 4; k++) g.click(tnow);
+      if (i % 5 === 0) decide();
+      if (!g.s.challenge && (g.s.challenges[ch.id] || 0) < CHALLENGE_GOALS.length && i % 60 === 0) g.startChallenge(ch.id, tnow);
+    }
+    console.log(`wyzwanie ${ch.id}: poziomy ${startTier} → ${g.s.challenges[ch.id] || 0} w 2 h (run $${fmt(g.s.runEarned)})`);
+    void t0;
+  }
+}

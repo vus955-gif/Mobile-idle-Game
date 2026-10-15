@@ -1,16 +1,22 @@
 // Interfejs: renderowanie zakładek, HUD, efekty kliknięć, modale i toasty.
 import {
   PRODUCTS, DEPTS, TECHS, REPEAT_TECHS, ERAS, ACQUISITIONS, PERKS, CATEGORIES, BUBBLES, DEPT_MILESTONE_X, DEPT_MILESTONES,
+  AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, SCALE_LEVELS, DECISIONS, OFFICES, OFFICE_MAX_LEVEL, COMPETITORS, MARKET,
+  ROLES, BOARD, RD_BUDGET,
 } from './data.js';
 import {
   ACHIEVEMENTS, UPGRADES, UPGRADE_MAP, PRODUCT_MAP, DEPT_MAP, TECH_MAP, ACH_BONUS, INVESTOR_BONUS,
   nextMilestone, prevMilestone, nextDeptMilestone, deptMilestoneMult, MAX_SLOTS,
+  CHALLENGE_MAP, SCALE_THRESHOLDS, kardashev, scaleIndex, OFFICE_MAP, ROLE_MAP, QUIRK_MAP, scaleTrait,
 } from './engine.js';
-import { fmt, money, fmtInt, fmtTime, fmtClock, fmtPct, num } from './format.js';
+import { avatar, emptyAvatar } from './avatar.js';
+import { WORLD } from './worldmap.js';
+import { fmt, money, fmtInt, fmtTime, fmtClock, fmtPct, num, decimal } from './format.js';
 import { t, noun, getLang, setLang, LANGS, DICT } from './i18n.js';
 import * as TX from './text.js';
 import { Scene } from './scene.js';
 import { play, setSound, unlockAudio } from './audio.js';
+import { startMusic, stopMusic, musicAudible } from './music.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -20,8 +26,44 @@ const SOUND_OFF = '<svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><pa
 const PARTICLES = ['{ }', '</>', '01', ';', '( )', '=>', '#', '[ ]', '&&', 'fn'];
 const PARTICLE_COLORS = ['#a78bfa', '#22d3ee', '#4ade80', '#fbbf24', '#f472b6'];
 const BUY_OPTIONS = [[1, '×1'], [10, '×10'], [100, '×100'], ['max', 'MAX']];
-const COMPANY_TABS = ['investors', 'contracts', 'acq', 'ach', 'stats', 'settings'];
+const COMPANY_TABS = ['investors', 'challenges', 'market', 'contracts', 'acq', 'ach', 'stats', 'settings'];
+// Mały wykres liniowy (np. kurs akcji)
+function spark(values, w = 120, h = 30, color = '#4ade80') {
+  const v = values.filter((x) => x > 0);
+  if (v.length < 2) return '';
+  const lo = Math.min(...v);
+  const hi = Math.max(...v);
+  const span = hi - lo || hi * 0.01 || 1;
+  const pts = v.map((x, i) => `${((i / (v.length - 1)) * w).toFixed(1)},${(h - 2 - ((x - lo) / span) * (h - 4)).toFixed(1)}`).join(' ');
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
+}
+const TEAM_TABS = ['depts', 'world', 'board'];
+// Kropki lądu jako jedna ścieżka (lżej niż tysiące kółek). Mapa: 1 jednostka = 1° długości.
+let LAND_PATH = null;
+function landPath() {
+  if (LAND_PATH) return LAND_PATH;
+  const r = 1.05;
+  let d = '';
+  WORLD.rows.forEach((row, y) => {
+    let bits = '';
+    for (const h of row) bits += parseInt(h, 16).toString(2).padStart(4, '0');
+    for (let x = 0; x < bits.length; x++) {
+      if (bits[x] !== '1') continue;
+      const cx = x * WORLD.step + WORLD.step / 2;
+      const cy = y * WORLD.step + WORLD.step / 2;
+      d += `M${(cx - r).toFixed(2)} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0`;
+    }
+  });
+  LAND_PATH = d;
+  return d;
+}
+const mapX = (lon) => lon - WORLD.lon0;
+const mapY = (lat) => WORLD.lat0 - lat;
+const MAP_H = WORLD.rows.length * WORLD.step;
 const DEPT_MS_PREV = [0, ...DEPT_MILESTONES];
+// Efekt nagrody po n poziomach (mnożniki potęgujemy, dodatki mnożymy).
+const scaledFx = (fx, n) => fx.map((e) => ({ ...e, ...(e.x !== undefined ? { x: Math.pow(e.x, n) } : {}), ...(e.v !== undefined ? { v: e.v * n } : {}) }));
+const minus = (str) => str.replace(/^-/, '−');
 
 export class UI {
   constructor(game, hooks = {}) {
@@ -29,6 +71,9 @@ export class UI {
     this.hooks = hooks;
     this.tab = 'office';
     this.companySub = 'investors';
+    this.teamSub = 'depts';
+    this.mkStep = 0.01;
+    this.focusOffice = null;
     this.sigs = {};
     this.lastSlow = 0;
     this.lastHud = 0;
@@ -43,6 +88,11 @@ export class UI {
     this.newsIdx = Math.floor(Math.random() * TX.newsList().length);
     this.tickerAnim = null;
     this.pendingNews = [];
+    this.zen = false;
+    this.envelopeEl = null;
+    this.chartSeries = 'income';
+    this.chartRange = 'day';
+    this.lastSec = 0;
   }
 
   init() {
@@ -51,12 +101,15 @@ export class UI {
     window.addEventListener('resize', () => this.placeToasts());
     this.renderBuySegs();
     this.renderCompanyTabs();
+    this.renderTeamTabs();
     this.bindEvents();
     this.bindGame();
     setSound(!!this.g.s.settings.sound);
+    if (this.g.s.settings.music) startMusic();
     this.updateSoundBtn();
     this.scene.render(this.g, true);
     this.syncBubble();
+    this.syncDecision();
     this.nextTicker();
     this.updateAll(true);
   }
@@ -87,6 +140,13 @@ export class UI {
     tap.addEventListener('pointercancel', release);
     tap.addEventListener('pointerleave', release);
     tap.addEventListener('contextmenu', (e) => e.preventDefault());
+    // W trybie zen dowolne dotknięcie (poza bąbelkiem i kopertą) wraca do gry.
+    app.addEventListener('pointerdown', (e) => {
+      if (!this.zen || e.target.closest('.bubble, .envelope, .modal')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this.exitZen();
+    }, true);
     document.addEventListener('gesturestart', (e) => e.preventDefault());
     document.addEventListener('dblclick', (e) => e.preventDefault(), { passive: false });
   }
@@ -108,6 +168,34 @@ export class UI {
     });
     g.on('offline', (r) => this.showOffline(r));
     g.on('prestige', () => play('prestige'));
+    g.on('autopilot', (a) => {
+      for (const id of a.researched || []) {
+        const tech = TECH_MAP[id];
+        if (tech) this.toast(tech.icon, t('toast.researched', { name: TX.techName(id) }), TX.describeFx(tech.fx), 'tech');
+      }
+      this.scene.render(g);
+    });
+    g.on('challenge', (c) => {
+      if (c.started) this.toast(CHALLENGE_MAP[c.id].icon, t('chal.started'), t('chal.startedText', { v: money(g.challengeGoal(c.id)) }), 'info');
+      if (c.abandoned) this.toast('🏳️', t('chal.abandoned'), t('chal.abandonedText'), 'info');
+      if (c.done) play('achievement');
+      this.sigs = {};
+    });
+    g.on('scale', (i) => {
+      const L = SCALE_LEVELS[i];
+      this.toast(L.icon, t('sc.toast', { name: TX.scaleName(i) }), TX.scaleDesc(i), 'achievement');
+      this.pendingNews.unshift(`${L.icon} <b>${esc(TX.scaleName(i))}</b> · ${esc(TX.scaleDesc(i))}`);
+      play('achievement');
+    });
+    g.on('marketNews', (n) => { this.pendingNews.push(`${n.d > 0 ? '📈' : '📉'} ${esc(TX.marketNewsText(n, Math.floor(Math.random() * 3)))}`); });
+    g.on('control', (id) => {
+      const c = COMPETITORS.find((x) => x.id === id);
+      this.toast(c.icon, t('mk.controlToast', { name: TX.compName(id) }), t('mk.controlText', { c: TX.catName(c.cat) }), 'achievement');
+      play('achievement');
+    });
+    g.on('candidate', (c) => { this.pendingNews.push(t('bd.news', { role: ROLE_MAP[c.role].name })); });
+    g.on('decision', () => { this.pendingNews.push(t('dec.news')); this.syncDecision(); });
+    g.on('decided', (d) => { this.toast(d.d.icon, t('dec.made'), TX.decisionEffectText(d.e), 'event'); this.syncDecision(); });
   }
 
   action(act, el) {
@@ -123,6 +211,7 @@ export class UI {
       case 'hire': if (g.hire(id, this.buyAmount())) this.pulse(el); this.updateAll(); break;
       case 'research': g.research(id); this.updateAll(true); break;
       case 'research-repeat': g.researchRepeat(id); this.updateAll(true); break;
+      case 'rd-budget': g.setRdBudget(Number(el.dataset.v)); this.updateAll(true); break;
       case 'buy-upgrade': g.buyUpgrade(id); this.updateAll(true); break;
       case 'buy-all': { const n = g.buyAllUpgrades(); if (n) this.toast('⬆️', t('up.bought', { n, noun: noun('upgrades', n) }), '', 'info'); this.updateAll(true); break; }
       case 'buy-perk': g.buyPerk(id); this.updateAll(true); break;
@@ -130,6 +219,22 @@ export class UI {
       case 'accept-contract': if (g.acceptContract(Number(id), Date.now())) play('coin'); this.updateAll(true); break;
       case 'decline-contract': g.declineContract(Number(id)); this.updateAll(true); break;
       case 'company-sub': this.companySub = el.dataset.sub; this.renderCompanyTabs(); this.updateAll(true); break;
+      case 'team-sub': this.teamSub = el.dataset.sub; this.renderTeamTabs(); this.updateAll(true); $('view-team').scrollTop = 0; break;
+      case 'open-office': if (g.openOffice(id)) { play('unlock'); this.scene.render(g); } this.updateAll(true); break;
+      case 'set-view': if (g.setView(id)) { this.scene.render(g, true); this.toast(OFFICE_MAP[id].icon, t('off.viewing'), TX.officeName(id), 'info'); } this.updateAll(true); break;
+      case 'hire-exec': if (g.hireExec(Number(id), Date.now())) { play('unlock'); const e = Object.values(s.board).find((x) => x.id === Number(id)); if (e) this.toast(ROLE_MAP[e.role].icon, t('bd.hired', { name: TX.execName(e.n) }), TX.describeFx(e.traits), 'achievement'); } this.updateAll(true); break;
+      case 'dismiss-cand': g.dismissCandidate(Number(id)); this.updateAll(true); break;
+      case 'fire-exec': this.confirmFire(id); break;
+      case 'fire-confirm': this.closeModal(); g.fireExec(id); this.updateAll(true); break;
+      case 'office-focus': {
+        this.focusOffice = id;
+        const card = $(`office-${id}`);
+        if (card) {
+          card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          card.animate([{ boxShadow: '0 0 0 2px rgba(34,211,238,.9)' }, { boxShadow: '0 0 0 0 rgba(34,211,238,0)' }], { duration: 1400 });
+        }
+        break;
+      }
       case 'prestige': this.confirmPrestige(); break;
       case 'prestige-confirm': {
         const gain = g.doPrestige(Date.now());
@@ -177,6 +282,45 @@ export class UI {
         break;
       }
       case 'install-help': this.showInstallHelp(); break;
+      case 'buy-ap': if (g.buyAutopilot(id)) play('unlock'); this.updateAll(true); break;
+      case 'toggle-ap': g.toggleAutopilot(id); this.updateAll(true); break;
+      case 'chal-start': this.confirmChallenge(id); break;
+      case 'chal-confirm': {
+        this.closeModal();
+        if (g.startChallenge(id, Date.now())) {
+          this.scene.render(g, true);
+          this.showTab('office');
+          this.hooks.save?.();
+        }
+        break;
+      }
+      case 'chal-abandon': g.abandonChallenge(); this.updateAll(true); break;
+      case 'decision-open': this.showDecision(); break;
+      case 'decide': {
+        this.closeModal();
+        if (g.chooseDecision(el.dataset.v, Date.now())) play('coin');
+        this.updateAll(true);
+        this.hooks.save?.();
+        break;
+      }
+      case 'zen': this.enterZen(); break;
+      case 'toggle-music': {
+        s.settings.music = !s.settings.music;
+        if (s.settings.music) startMusic(); else stopMusic();
+        this.updateAll(true);
+        break;
+      }
+      case 'chart-series': this.chartSeries = el.dataset.v; this.updateAll(true); break;
+      case 'mk-step': this.mkStep = Number(el.dataset.v); this.updateAll(true); break;
+      case 'buy-stake': if (g.buyStake(id, this.mkStep)) this.pulse(el); this.updateAll(); break;
+      case 'sell-stake': if (g.sellStake(id, this.mkStep)) play('coin'); this.updateAll(); break;
+      case 'chart-range': this.chartRange = el.dataset.v; this.updateAll(true); break;
+      case 'scale-info': {
+        const i = Number(id);
+        const reached = s.scaleMax >= i;
+        this.toast(reached ? SCALE_LEVELS[i].icon : '🔒', TX.scaleName(i), `${TX.scaleDesc(i)} · ${money(SCALE_THRESHOLDS[i])}/${t('time.y')}`, reached ? 'achievement' : 'info');
+        break;
+      }
       default: break;
     }
   }
@@ -202,6 +346,7 @@ export class UI {
     this.applyStatic();
     this.renderBuySegs();
     this.renderCompanyTabs();
+    this.renderTeamTabs();
     this.sigs = {};
     this.scene.render(this.g, true);
     this.syncBubble(true);
@@ -260,7 +405,7 @@ export class UI {
   showTab(tab, sub) {
     if (!tab) return;
     this.tab = tab;
-    if (sub) { this.companySub = sub; this.renderCompanyTabs(); }
+    if (sub && tab === 'team') { this.teamSub = sub; this.renderTeamTabs(); } else if (sub) { this.companySub = sub; this.renderCompanyTabs(); }
     document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === tab));
     document.querySelectorAll('.view').forEach((v) => v.classList.toggle('active', v.dataset.view === tab));
     // Scena nie jest widoczna poza Biurem — wstrzymujemy jej animacje (bateria).
@@ -277,6 +422,11 @@ export class UI {
     });
   }
 
+  renderTeamTabs() {
+    $('team-tabs').innerHTML = TEAM_TABS.map((k) =>
+      `<button class="pill ${k === this.teamSub ? 'on' : ''}" data-act="team-sub" data-sub="${k}">${t(`team.${k}`)}<i class="dot" data-dot="t-${k}" hidden></i></button>`).join('');
+  }
+
   renderCompanyTabs() {
     $('company-tabs').innerHTML = COMPANY_TABS.map((k) =>
       `<button class="pill ${k === this.companySub ? 'on' : ''}" data-act="company-sub" data-sub="${k}">${t(`ct.${k}`)}<i class="dot" data-dot="${k}" hidden></i></button>`).join('');
@@ -288,6 +438,46 @@ export class UI {
   frame(now) {
     if (now - this.lastHud > 60) { this.lastHud = now; this.updateHud(); }
     if (now - this.lastSlow > 250) { this.lastSlow = now; this.updateAll(); }
+    if (now - this.lastSec >= 1000) {
+      const dt = this.lastSec ? Math.min(5, (now - this.lastSec) / 1000) : 0;
+      this.lastSec = now;
+      this.everySecond(dt);
+    }
+  }
+
+  // Rzeczy, które wystarczy odświeżać raz na sekundę: zegar zen, liczniki, flagi pór roku.
+  everySecond(dt) {
+    const s = this.g.s;
+    if (this.zen) {
+      s.stats.zenTime += dt;
+      const d = new Date();
+      this.setText($('zen-clock'), `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`);
+      this.setText($('zen-sub'), `${s.companyName} · ${money(this.g.income)}/s`);
+    }
+    if (musicAudible()) s.stats.musicTime += dt;
+    const env = this.scene.env;
+    // pogoda ze sceny wpływa na dziwactwo „deszczowe natchnienie” w zarządzie
+    if (env && this.g.weather !== env.weather) { this.g.weather = env.weather; this.g.recalc(); }
+    if (env && this.tab === 'office') {
+      const d = new Date();
+      if (env.weather === 'snow') s.flags.snow = true;
+      if (d.getMonth() === 9 && d.getDate() === 31) s.flags.halloween = true;
+      if (d.getMonth() === 11 && d.getDate() >= 24 && d.getDate() <= 26) s.flags.xmas = true;
+    }
+  }
+
+  enterZen() {
+    this.zen = true;
+    this.showTab('office');
+    $('app').classList.add('zen');
+    this.lastSec = 0;
+    this.everySecond(0);
+  }
+
+  exitZen() {
+    this.zen = false;
+    $('app').classList.remove('zen');
+    this.placeToasts();
   }
 
   updateAll(force = false) {
@@ -313,7 +503,8 @@ export class UI {
     const g = this.g;
     const s = g.s;
     this.setText($('hud-cash'), money(s.cash));
-    this.setText($('hud-income'), money(g.income));
+    this.setText($('hud-income'), money(g.netIncome));
+    $('hud-income').parentElement.classList.toggle('rd', (g.m.rdShare || 0) > 0);
     $('hud-income').parentElement.classList.toggle('boosted', g.m.boostIncome > 1);
     this.setText($('hud-company'), s.companyName);
     this.setText($('hud-stage'), this.stageName());
@@ -322,8 +513,10 @@ export class UI {
     if (rpVis) this.setText($('hud-rp'), fmt(s.rp));
     $('hud-inv-chip').hidden = !(s.investors > 0);
     if (s.investors > 0) this.setText($('hud-inv'), fmt(s.investors));
-    this.setText($('click-value'), '+' + money(g.clickValue));
-    $('tap-btn').classList.toggle('hack', !!g.boostActive('click'));
+    const noClick = !(g.clickValue > 0);
+    this.setText($('click-value'), noClick ? t('tap.off') : '+' + money(g.clickValue));
+    $('tap-btn').classList.toggle('hack', !!g.boostActive('click') || !!g.boostActive('dClick'));
+    $('tap-btn').classList.toggle('off', noClick);
   }
 
   stageName() {
@@ -381,6 +574,19 @@ export class UI {
     if (s.contracts.active.length) {
       const next = Math.min(...s.contracts.active.map((a) => a.end));
       parts.push(`<span class="scene-badge" data-act="goto" data-tab="company" data-sub="contracts">${t('badge.contracts', { n: s.contracts.active.length, t: fmtClock((next - now) / 1000) })}</span>`);
+    }
+    for (const k of ['dIncome', 'dClick', 'dRp']) {
+      const b = g.boostActive(k);
+      if (b) parts.push(`<span class="scene-badge hot">${t(`badge.${k}`, { x: num(b.x), t: fmtClock((b.until - now) / 1000) })}</span>`);
+    }
+    if (s.pending.length) {
+      const p = s.pending.reduce((a, b) => (b.at < a.at ? b : a));
+      parts.push(`<span class="scene-badge trend">${t('badge.pending', { n: '+' + money(p.cash), t: fmtClock((p.at - now) / 1000) })}</span>`);
+    }
+    if (s.challenge) {
+      const ch = CHALLENGE_MAP[s.challenge.id];
+      const goal = s.challenge.goal || CHALLENGE_GOALS[s.challenge.tier];
+      parts.push(`<span class="scene-badge click" data-act="goto" data-tab="company" data-sub="challenges">${t('badge.challenge', { icon: ch.icon, name: esc(TX.challengeName(ch.id)), p: `${money(s.runEarned)} / ${money(goal)}` })}</span>`);
     }
     const html = parts.join('');
     const el = $('scene-badges');
@@ -511,7 +717,8 @@ export class UI {
       this.setText(card.querySelector('[data-f="lvl"]'), t('prod.level', { n: fmtInt(lvl) }));
       const incEl = card.querySelector('[data-f="inc"]');
       const pct = share >= 0.995 ? '100%' : share >= 0.01 ? `${Math.round(share * 100)}%` : '<1%';
-      const incHtml = lvl > 0 ? t('prod.income', { v: money(inc), p: pct }) : t('prod.notReleased');
+      const blocked = !g.canOwnProduct(id);
+      const incHtml = lvl > 0 ? t('prod.income', { v: money(inc), p: pct }) : blocked ? t('prod.focusLimit') : t('prod.notReleased');
       if (incEl.innerHTML !== incHtml) incEl.innerHTML = incHtml;
       const next = nextMilestone(lvl);
       const prev = prevMilestone(lvl);
@@ -527,7 +734,7 @@ export class UI {
       const showN = Math.max(1, n);
       const cost = g.productCost(id, showN);
       const btn = card.querySelector('.btn');
-      btn.classList.toggle('off', cost > s.cash || n < 1);
+      btn.classList.toggle('off', cost > s.cash || n < 1 || blocked);
       this.setText(card.querySelector('[data-f="bn"]'), lvl === 0 && showN === 1 ? t('prod.release') : t('prod.buy', { n: fmtInt(showN) }));
       this.setText(card.querySelector('[data-f="cost"]'), money(cost));
     }
@@ -569,11 +776,17 @@ export class UI {
   }
 
   updateTeam() {
+    const other = this.teamSub !== 'depts';
+    $('team-list').hidden = other;
+    $('world-body').hidden = !other;
+    $('team-buy-seg').style.visibility = other ? 'hidden' : '';
+    if (this.teamSub === 'world') { this.updateWorld(); return; }
+    if (this.teamSub === 'board') { this.updateBoard(); return; }
     const g = this.g;
     const s = g.s;
     const unlocked = DEPTS.filter((d) => s.deptUnlocked[d.id]);
     const next = DEPTS.find((d) => !s.deptUnlocked[d.id]);
-    const sig = unlocked.map((d) => d.id).join(',') + '|' + (next ? next.id + (g.deptAvailable(next.id) ? '1' : '0') : '');
+    const sig = unlocked.map((d) => d.id).join(',') + '|' + (next ? next.id + (g.deptAvailable(next.id) ? '1' : '0') : '') + '|' + (g.rule()?.id || '');
     const root = $('team-list');
     if (this.sigs.team !== sig) {
       this.sigs.team = sig;
@@ -588,14 +801,17 @@ export class UI {
             <button class="btn" data-act="hire" data-id="${d.id}"><span data-f="bn"></span><small data-f="cost"></small></button>
           </div>
         </div>`).join('');
-      if (next) {
+      const solo = g.rule()?.rule === 'onlyDev';
+      if (next && solo) {
+        html += `<div class="hint">${t('team.solo')}</div>`;
+      } else if (next) {
         const avail = g.deptAvailable(next.id);
         const tech = next.tech ? TECH_MAP[next.tech] : null;
         html += `
         <div class="card ${avail ? '' : 'locked'}" data-next="${next.id}">
           <div class="tile" style="${grad([next.color, '#2b2f5c'])}">${next.icon}</div>
           <div class="card-title"><h3>${esc(TX.deptName(next.id))}</h3><span class="lvl">${t('team.newFloor')}</span></div>
-          <div class="card-sub">${avail ? t('team.openHint') : `${t('prod.requires')} <span class="rp">${tech.icon} ${esc(TX.techName(tech.id))}</span>`}</div>
+          <div class="card-sub">${avail || !tech ? t('team.openHint') : `${t('prod.requires')} <span class="rp">${tech.icon} ${esc(TX.techName(tech.id))}</span>`}</div>
           <div class="card-desc">${esc(TX.deptDesc(next.id))}</div>
           <div class="card-foot"><div class="prog"></div>
             ${avail ? `<button class="btn violet" data-act="unlock-dept" data-id="${next.id}"><span>${t('team.open')}</span><small data-f="ucost">${money(next.unlock)}</small></button>`
@@ -639,20 +855,231 @@ export class UI {
   }
 
   // ---------------------------------------------------------------------
+  // Świat: biura na mapie i w kosmosie
+  // ---------------------------------------------------------------------
+  updateWorld() {
+    const g = this.g;
+    const s = g.s;
+    const avail = OFFICES.map((o) => (g.officeAvailable(o.id) ? 1 : 0)).join('');
+    const sig = `world|${JSON.stringify(s.offices)}|${avail}|${s.settings.view}|${getLang()}`;
+    const root = $('world-body');
+    if (this.sigs.world !== sig) {
+      this.sigs.world = sig;
+      const earth = OFFICES.filter((o) => o.kind === 'earth');
+      const space = OFFICES.filter((o) => o.kind === 'space');
+      const opened = earth.filter((o) => !o.hq && g.officeLevel(o.id) > 0).length;
+      root.innerHTML = `
+        <div class="map-card">${this.mapSvg()}</div>
+        <div class="kv"><span>${t('off.title')}</span><b>${t('off.count', { n: opened, m: earth.length - 1 })}</b></div>
+        <p class="card-sub" style="margin:8px 2px 0">${t('off.lead')} ${t('off.viewHint')}</p>
+        <div class="list" style="margin-top:12px">${earth.map((o) => this.officeCard(o)).join('')}</div>
+        <div class="section-title">🚀 ${t('off.space')}</div>
+        <div class="map-card space">${this.spaceSvg()}</div>
+        <div class="list" style="margin-top:12px">${space.map((o) => this.officeCard(o)).join('')}</div>`;
+    }
+    const vals = {};
+    for (const o of OFFICES) {
+      const cost = g.officeCost(o.id);
+      vals[`of-${o.id}`] = { off: !(cost <= s.cash) };
+    }
+    this.patch(vals, root);
+  }
+
+  // ---------------------------------------------------------------------
+  // Zarząd
+  // ---------------------------------------------------------------------
+  updateBoard() {
+    const g = this.g;
+    const s = g.s;
+    const root = $('world-body');
+    if (!g.boardUnlocked()) {
+      if (this.sigs.world !== `bd-locked|${getLang()}`) { this.sigs.world = `bd-locked|${getLang()}`; root.innerHTML = `<div class="hint">${t('bd.locked')}</div>`; }
+      return;
+    }
+    const sig = `bd|${getLang()}|${Object.values(s.board).map((e) => e.id).join(',')}|${s.candidates.map((c) => c.id).join(',')}|${g.boardSignature()}`;
+    if (this.sigs.world !== sig) {
+      this.sigs.world = sig;
+      const seats = ROLES.map((r) => {
+        const e = s.board[r.id];
+        if (!e) {
+          return `<div class="card exec empty"><div class="avatar-wrap">${emptyAvatar()}</div>
+            <div class="card-title"><h3>${t('bd.empty')}</h3><span class="lvl role-badge" style="color:${r.color}">${r.name}</span></div>
+            <div class="card-sub">${esc(TX.roleArea(r.id))} · ${t('bd.emptyHint')}</div></div>`;
+        }
+        return this.execCard(e, true);
+      }).join('');
+      const cands = s.candidates.map((c) => this.execCard(c, false)).join('');
+      root.innerHTML = `
+        <p class="card-sub" style="margin:0 2px 10px">${t('bd.lead')}</p>
+        <div class="list">${seats}</div>
+        <div class="section-title">📇 ${t('bd.candidates')} <span style="color:var(--gold)" data-v="bdshares"></span></div>
+        <div class="list">${cands}</div>
+        <div class="hint" data-v="bdwait" style="margin-top:${cands ? 10 : 0}px"></div>`;
+    }
+    const vals = {
+      bdshares: t('inv.shares', { n: fmt(s.shares) }),
+      bdwait: s.candidates.length >= BOARD.poolMax ? t('bd.poolFull') : t('bd.waiting', { t: fmtTime(Math.max(0, (s.nextCandidateAt - Date.now()) / 1000)) }),
+    };
+    for (const c of s.candidates) vals[`hire-${c.id}`] = { off: s.shares < g.candidateCost(c) };
+    for (const e of Object.values(s.board)) {
+      const lvl = g.execLevel(e);
+      if (lvl < BOARD.maxLevel) {
+        const fast = e.q === 'fast' ? 2 : 1;
+        const nextAt = e.hiredAt + ((Math.pow(2, lvl) - 1) / fast) * 3.6e6;
+        vals[`lvl-${e.id}`] = t('bd.next', { t: fmtTime((nextAt - Date.now()) / 1000) });
+      } else vals[`lvl-${e.id}`] = t('bd.maxLevel');
+    }
+    this.patch(vals, root);
+  }
+
+  execCard(e, hired) {
+    const g = this.g;
+    const role = ROLE_MAP[e.role];
+    const q = e.q ? QUIRK_MAP[e.q] : null;
+    const lvl = hired ? g.execLevel(e) : 1;
+    const k = hired ? g.execPower(e) : 1;
+    const fx = TX.describeFx(e.traits.map((tr) => scaleTrait(tr, k)));
+    const qOn = hired && q && q.when !== 'xp' && g.quirkActive(e);
+    const current = !hired ? g.s.board[e.role] : null;
+    const quirk = q ? `<div class="quirk ${qOn ? 'on' : ''}">${q.icon} <b>${esc(TX.quirkName(q.id))}</b>: ${esc(TX.quirkDesc(q.id))}${qOn ? ` <span class="q-on">· ${t('bd.quirkOn')}</span>` : ''}</div>` : '';
+    const foot = hired
+      ? `<div class="prog"><div class="prog-label" data-v="lvl-${e.id}"></div></div><button class="btn btn-small ghost" data-act="fire-exec" data-id="${e.role}">${t('bd.fire')}</button>`
+      : `<div class="prog"><div class="prog-label">${current ? esc(t('bd.seat', { role: role.name, name: TX.execName(current.n) })) : ''}</div></div>
+         <button class="btn btn-small ghost" data-act="dismiss-cand" data-id="${e.id}">${t('bd.dismiss')}</button>
+         <button class="btn gold btn-small" data-act="hire-exec" data-id="${e.id}" data-v="hire-${e.id}"><span>${current ? t('bd.replace') : t('bd.hire')}</span><small>${fmt(g.candidateCost(e))} 💎</small></button>`;
+    return `<div class="card exec r${e.r}">
+      <div class="avatar-wrap">${avatar(e.seed, role.color, e.r)}</div>
+      <div class="card-title"><h3>${esc(TX.execName(e.n))}</h3><span class="lvl role-badge" style="color:${role.color}">${role.name}${hired ? ` · ${t('bd.level', { n: lvl, m: BOARD.maxLevel })}` : ''}</span></div>
+      <div class="card-sub"><span class="rarity r${e.r}">${t('bd.rarity')[e.r]}</span> · ${esc(TX.roleArea(e.role))}</div>
+      <div class="card-desc"><b class="fx-line">${esc(fx)}</b>${quirk}</div>
+      <div class="card-foot">${foot}</div>
+    </div>`;
+  }
+
+  confirmFire(role) {
+    const e = this.g.s.board[role];
+    if (!e) return;
+    this.openModal(`
+      <div class="hero" style="display:flex;justify-content:center">${avatar(e.seed, ROLE_MAP[role].color, e.r, 72)}</div>
+      <h2>${esc(t('bd.fireTitle', { name: TX.execName(e.n) }))}</h2>
+      <p style="text-align:center">${esc(t('bd.fireText', { role: ROLE_MAP[role].name }))}</p>
+      <div class="actions">
+        <button class="btn danger btn-wide" data-act="fire-confirm" data-id="${role}">${t('bd.fireOk')}</button>
+        <button class="btn ghost btn-wide" data-act="modal-close">${t('cancel')}</button>
+      </div>`);
+  }
+
+  officeCard(o) {
+    const g = this.g;
+    const lvl = g.officeLevel(o.id);
+    const maxed = lvl >= OFFICE_MAX_LEVEL;
+    const avail = g.officeAvailable(o.id);
+    const tech = o.req ? TECH_MAP[o.req] : null;
+    const viewing = this.g.s.settings.view === o.id;
+    const lvlName = lvl > 0 ? `${o.hq ? t('off.hq') : t('off.levelNames')[lvl - 1]} · ` : '';
+    const fxNow = lvl > 1 ? ` · ${t('off.now', { fx: esc(TX.describeFx(scaledFx(o.fx, lvl))) })}` : '';
+    let action;
+    if (maxed) action = `<span class="lvl" style="color:var(--money)">${t('off.max')}</span>`;
+    else if (avail) action = `<button class="btn violet" data-act="open-office" data-id="${o.id}" data-v="of-${o.id}"><span>${lvl ? t('off.upgrade') : t('off.open')}</span><small>${money(g.officeCost(o.id))}</small></button>`;
+    else action = `<button class="btn violet" data-act="goto" data-tab="research">${t('goResearch')}</button>`;
+    const viewBtn = lvl > 0 ? `<button class="btn btn-small ghost ${viewing ? 'on-view' : ''}" data-act="set-view" data-id="${o.id}">${viewing ? '👁' : '🪟'} ${viewing ? t('off.viewing') : t('off.view')}</button>` : '';
+    return `<div class="card office ${lvl ? '' : avail ? '' : 'locked'}" id="office-${o.id}">
+      <div class="tile" style="${grad(o.kind === 'space' ? ['#1e1b4b', '#7c3aed'] : ['#0ea5e9', '#22c55e'])}">${o.icon}</div>
+      <div class="card-title"><h3>${esc(TX.officeName(o.id))}</h3><span class="lvl">${lvlName}${t('off.level', { n: lvl, m: OFFICE_MAX_LEVEL })}</span></div>
+      <div class="card-sub">${avail || lvl ? `${t('off.perLevel', { fx: esc(TX.describeFx(o.fx)) })}${fxNow}` : `${t('prod.requires')} <span class="rp">${tech.icon} ${esc(TX.techName(tech.id))}</span>`}</div>
+      <div class="card-desc">${esc(TX.officeDesc(o.id))}</div>
+      <div class="card-foot">${viewBtn}<div class="prog"></div>${action}</div>
+    </div>`;
+  }
+
+  mapSvg() {
+    const g = this.g;
+    const hq = OFFICE_MAP.waw;
+    const hx = mapX(hq.lon);
+    const hy = mapY(hq.lat);
+    let arcs = '';
+    let marks = '';
+    for (const o of OFFICES) {
+      if (o.kind !== 'earth') continue;
+      const x = mapX(o.lon);
+      const y = mapY(o.lat);
+      const lvl = g.officeLevel(o.id);
+      const avail = g.officeAvailable(o.id);
+      if (lvl > 0 && !o.hq) {
+        const mx = (hx + x) / 2;
+        const my = (hy + y) / 2 - Math.hypot(x - hx, y - hy) * 0.28;
+        arcs += `<path class="arc" d="M${hx} ${hy} Q${mx.toFixed(1)} ${my.toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)}"/>`;
+      }
+      const cls = lvl > 0 ? 'm-on' : avail ? 'm-avail' : 'm-lock';
+      const r = lvl > 0 ? 2.4 + lvl * 0.6 : 2.3;
+      marks += `<g class="marker ${cls}" data-act="office-focus" data-id="${o.id}">
+        ${lvl > 0 ? `<circle class="ping" cx="${x}" cy="${y}" r="${r + 2}"/>` : ''}
+        <circle class="dot" cx="${x}" cy="${y}" r="${r}"/>
+        <circle cx="${x}" cy="${y}" r="9" fill="transparent"/></g>`;
+    }
+    return `<svg viewBox="0 0 360 ${MAP_H}" role="img" aria-label="${t('off.title')}">
+      <path d="${landPath()}" fill="rgba(167,139,250,.32)"/>
+      <g fill="none">${arcs}</g>${marks}
+    </svg><div class="map-hint">${t('off.mapHint')}</div>`;
+  }
+
+  spaceSvg() {
+    const g = this.g;
+    const on = (id) => g.officeLevel(id) > 0;
+    const glow = (id) => (on(id) ? 'filter="url(#spGlow)"' : 'opacity=".45"');
+    const tap = (id, x, y) => `<circle cx="${x}" cy="${y}" r="16" fill="transparent" data-act="office-focus" data-id="${id}"/>`;
+    return `<svg viewBox="0 0 360 96" role="img" aria-label="${t('off.space')}">
+      <defs><filter id="spGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+      <path d="M22 60 C 90 20, 160 90, 230 46 S 330 40, 344 30" fill="none" stroke="rgba(255,255,255,.14)" stroke-dasharray="2 4"/>
+      <circle cx="22" cy="60" r="13" fill="#3b82f6"/><path d="M14 55 q6 -4 10 2 q4 5 9 1" stroke="#4ade80" stroke-width="3" fill="none"/>
+      <g ${glow('leo')}><rect x="36" y="38" width="10" height="4" fill="#cbd5e1"/><rect x="30" y="37" width="5" height="6" fill="#60a5fa"/><rect x="47" y="37" width="5" height="6" fill="#60a5fa"/></g>${tap('leo', 41, 40)}
+      <g ${glow('moon')}><circle cx="72" cy="64" r="7" fill="#d1d5db"/><circle cx="70" cy="62" r="1.6" fill="#9ca3af"/></g>${tap('moon', 72, 64)}
+      <g ${glow('mars')}><circle cx="118" cy="50" r="9" fill="#e4572e"/><circle cx="115" cy="47" r="2" fill="#b33d1c"/></g>${tap('mars', 118, 50)}
+      <g ${glow('ceres')}><circle cx="166" cy="58" r="4.5" fill="#9ca3af"/><circle cx="156" cy="66" r="1.5" fill="#6b7280"/><circle cx="176" cy="66" r="1.2" fill="#6b7280"/><circle cx="160" cy="50" r="1" fill="#6b7280"/></g>${tap('ceres', 166, 58)}
+      <g ${glow('europa')}><circle cx="226" cy="46" r="17" fill="#d6a46b"/><path d="M210 41 h32 M209 48 h34 M212 54 h28" stroke="#b07a45" stroke-width="2.4"/><circle cx="249" cy="30" r="4" fill="#e0f2fe"/></g>${tap('europa', 236, 40)}
+      <g ${glow('titan')}><ellipse cx="288" cy="54" rx="22" ry="5" fill="none" stroke="#e7cf9b" stroke-width="2"/><circle cx="288" cy="54" r="12" fill="#e9c27b"/><circle cx="305" cy="70" r="3.6" fill="#f59e0b"/></g>${tap('titan', 292, 58)}
+      <g ${glow('proxima')}><circle cx="342" cy="28" r="8" fill="#ff7a59"/><circle cx="342" cy="28" r="12" fill="#ff7a59" opacity=".25"/><circle cx="330" cy="44" r="3" fill="#a78bfa"/></g>${tap('proxima', 338, 34)}
+    </svg>`;
+  }
+
+  // ---------------------------------------------------------------------
   // Badania
   // ---------------------------------------------------------------------
   updateResearch() {
     const g = this.g;
     const s = g.s;
     const head = $('research-head');
-    const headHtml = `
+    // Nagłówek budujemy raz (przyciski budżetu muszą przetrwać odświeżanie), a liczby podmieniamy.
+    const rnd = !!s.deptUnlocked.rnd;
+    const share = g.m.rdShare || 0;
+    const headSig = `rh|${getLang()}|${rnd}|${share}`;
+    if (this.sigs.researchHead !== headSig) {
+      this.sigs.researchHead = headSig;
+      head.innerHTML = `
       <div class="rp-card">
-        <div><div class="card-sub">${t('rs.points')}</div><div class="rp-big">${fmt(s.rp)} ${t('unit.rp')}</div></div>
-        <div style="text-align:right"><div class="rp-rate">+${fmt(g.rpRate)} ${t('unit.rp')}/s</div><div class="card-sub">${t('rs.techCount', { n: g.techCount(), m: TECHS.length })}</div></div>
+        <div><div class="card-sub">${t('rs.points')}</div><div class="rp-big" data-v="rpv"></div></div>
+        <div style="text-align:right"><div class="rp-rate" data-v="rprate"></div><div class="card-sub" data-v="rpcount"></div></div>
       </div>
-      ${!s.deptUnlocked.rnd ? `<div class="hint" style="margin-top:10px">${t('rs.needRnd')}</div>`
-    : `<div class="card-sub" style="margin:8px 2px 0">${t('rs.persist')}</div>`}`;
-    if (head.innerHTML !== headHtml) head.innerHTML = headHtml;
+      ${!rnd ? `<div class="hint" style="margin-top:10px">${t('rs.needRnd')}</div>` : `
+      <div class="budget-card">
+        <div class="budget-head"><b>🧪 ${t('rs.budget')}</b>
+          <div class="seg">${RD_BUDGET.shares.map((v) => `<button data-act="rd-budget" data-v="${v}" class="${v === share ? 'on' : ''}">${Math.round(v * 100)}%</button>`).join('')}</div>
+        </div>
+        <div class="card-sub" data-v="rdinfo" style="margin-top:6px"></div>
+        <div class="card-sub" style="margin-top:4px;color:var(--faint)">${t('rs.budgetHint')}</div>
+      </div>
+      <div class="card-sub" style="margin:8px 2px 0">${t('rs.persist')}</div>`}`;
+    }
+    // na starcie budżet daje ułamki punktu — pokazujemy to uczciwie zamiast „+0”
+    const budgetRp = g.rpBudget > 0 && g.rpBudget < 0.01 ? `<${fmt(0.01)}` : fmt(g.rpBudget);
+    const pctRaw = g.rpRate > 0 ? (100 * g.rpBudget) / g.rpRate : 0;
+    const budgetPct = pctRaw > 0 && pctRaw < 1 ? '<1' : String(Math.round(pctRaw));
+    this.patch({
+      rpv: `${fmt(s.rp)} ${t('unit.rp')}`,
+      rprate: `+${fmt(g.rpRate)} ${t('unit.rp')}/s`,
+      rpcount: t('rs.techCount', { n: g.techCount(), m: TECHS.length }),
+      rdinfo: { html: share > 0 ? t('rs.budgetInfo', { rp: budgetRp, pct: budgetPct, v: money(g.income * share) }) : t('rs.budgetOff') },
+    }, head);
 
     const done = TECHS.filter((t) => s.techs[t.id]).map((t) => t.id);
     const avail = TECHS.filter((t) => !s.techs[t.id] && g.techAvailable(t.id)).map((t) => t.id);
@@ -681,7 +1108,7 @@ export class UI {
             <div class="tech-top"><div class="tech-ico">${tech.icon}</div><h4>${esc(TX.techName(tech.id))}</h4></div>
             <div class="fx">${esc(TX.describeFx(tech.fx))}</div>
             ${req}
-            ${isAvail ? `<button class="btn violet" data-act="research" data-id="${tech.id}">${fmt(tech.cost)} ${t('unit.rp')}</button>` : ''}
+            ${isAvail ? `<button class="btn violet" data-act="research" data-id="${tech.id}"><span>${fmt(tech.cost)} ${t('unit.rp')}</span><small></small></button>` : ''}
           </div>`;
         }
         html += '</div>';
@@ -692,18 +1119,24 @@ export class UI {
           html += `<div class="tech" data-rid="${r.id}">
             <div class="tech-top"><div class="tech-ico">${r.icon}</div><h4>${esc(TX.repeatName(r.id))} <span class="perk-lvl">${t('rs.level', { n: s.techLevels[r.id] || 0 })}</span></h4></div>
             <div class="fx">${esc(TX.repeatDesc(r.id))}</div>
-            <button class="btn violet" data-act="research-repeat" data-id="${r.id}">${fmt(g.repeatCost(r.id))} ${t('unit.rp')}</button>
+            <button class="btn violet" data-act="research-repeat" data-id="${r.id}"><span>${fmt(g.repeatCost(r.id))} ${t('unit.rp')}</span><small></small></button>
           </div>`;
         }
         html += '</div>';
       }
       root.innerHTML = html;
     }
+    // czas do zakupu przy obecnym tempie badań
+    const eta = (cost) => (s.rp >= cost || !(g.rpRate > 0) ? '' : t('rs.eta', { t: fmtTime((cost - s.rp) / g.rpRate) }));
     for (const el of root.querySelectorAll('[data-tid] .btn')) {
-      el.classList.toggle('off', s.rp < TECH_MAP[el.dataset.id].cost);
+      const cost = TECH_MAP[el.dataset.id].cost;
+      el.classList.toggle('off', s.rp < cost);
+      this.setText(el.querySelector('small'), eta(cost));
     }
     for (const el of root.querySelectorAll('[data-rid] .btn')) {
-      el.classList.toggle('off', s.rp < g.repeatCost(el.dataset.id));
+      const cost = g.repeatCost(el.dataset.id);
+      el.classList.toggle('off', s.rp < cost);
+      this.setText(el.querySelector('small'), eta(cost));
     }
   }
 
@@ -722,12 +1155,15 @@ export class UI {
     const s = g.s;
     const avail = g.availableUpgrades();
     const ownedIds = Object.keys(s.upgrades);
-    const sig = avail.map((u) => u.id).join(',') + '|' + ownedIds.length;
+    const blocked = g.upgradesBlocked();
+    const sig = avail.map((u) => u.id).join(',') + '|' + ownedIds.length + '|' + blocked;
     const root = $('upgrades-list');
     if (this.sigs.upgrades !== sig) {
       this.sigs.upgrades = sig;
       let html = '';
-      if (!avail.length) {
+      if (blocked) {
+        html += `<div class="hint">${t('up.blocked')}</div>`;
+      } else if (!avail.length) {
         html += `<div class="hint">${t('up.none')}</div>`;
       } else {
         html += '<div class="up-grid">' + avail.map((u) => `
@@ -762,6 +1198,8 @@ export class UI {
   updateCompany() {
     switch (this.companySub) {
       case 'investors': return this.renderInvestors();
+      case 'challenges': return this.renderChallenges();
+      case 'market': return this.renderMarket();
       case 'contracts': return this.renderContracts();
       case 'acq': return this.renderAcq();
       case 'ach': return this.renderAch();
@@ -779,8 +1217,7 @@ export class UI {
   }
 
   // Podmienia teksty/HTML elementów oznaczonych data-v (bez przebudowy DOM).
-  patch(values) {
-    const root = $('company-body');
+  patch(values, root = $('company-body')) {
     for (const el of root.querySelectorAll('[data-v]')) {
       const v = values[el.dataset.v];
       if (v === undefined) continue;
@@ -799,7 +1236,7 @@ export class UI {
     const s = g.s;
     const gain = g.prestigeGain();
     const per = INVESTOR_BONUS + g.m.investorPct;
-    const sig = `inv|${JSON.stringify(s.perks)}|${s.prestigeCount}|${getLang()}`;
+    const sig = `inv|${JSON.stringify(s.perks)}|${JSON.stringify(s.autopilot)}|${s.prestigeCount}|${getLang()}`;
     this.setBody(sig, `
       <div class="inv-card">
         <div class="round" data-v="round"></div>
@@ -823,6 +1260,21 @@ export class UI {
         <button class="btn gold btn-wide" data-act="prestige" data-v="pbtn">${t('inv.raise')}</button>
       </div>
       <p class="card-sub" style="margin:10px 2px">${t('inv.explain')}</p>
+      <div class="section-title">🤖 ${t('ap.title')} <span style="color:var(--gold)" data-v="shares2"></span></div>
+      ${!g.apUnlocked() ? `<div class="hint">${t('ap.locked')}</div>` : `
+      <p class="card-sub" style="margin:0 2px 8px">${t('ap.lead')}</p>
+      <div class="list">${AUTOPILOT.map((a) => {
+    const own = g.apOwned(a.id);
+    const on = g.apOn(a.id);
+    return `<div class="card">
+          <div class="tile" style="${grad(['#22d3ee', '#3b5bdb'])}">${a.icon}</div>
+          <div class="card-title"><h3>${esc(TX.apName(a.id))}</h3>${own ? `<span class="lvl" style="color:var(--money)">${t('ap.owned')}</span>` : ''}</div>
+          <div class="card-sub">${esc(TX.apDesc(a.id))}</div>
+          <div class="card-foot"><div class="prog"></div>
+            ${own ? `<div class="switch-row">${on ? t('ap.on') : t('ap.off')}<button class="switch ${on ? 'on' : ''}" data-act="toggle-ap" data-id="${a.id}" aria-label="${esc(TX.apName(a.id))}"></button></div>`
+    : `<button class="btn gold" data-act="buy-ap" data-id="${a.id}" data-v="ap-${a.id}">${fmt(a.cost)} 💎</button>`}
+          </div></div>`;
+  }).join('')}</div>`}
       <div class="section-title">${t('inv.boardTitle')} <span style="color:var(--gold)" data-v="shares"></span></div>
       <div class="list">
         ${PERKS.map((p) => {
@@ -853,9 +1305,150 @@ export class UI {
       boardl: { hidden: !(g.m.prestige > 1) },
       pbtn: { off: gain < 1 },
       shares: t('inv.shares', { n: fmt(s.shares) }),
+      shares2: g.apUnlocked() ? t('inv.shares', { n: fmt(s.shares) }) : '',
     };
     for (const p of PERKS) vals[`perk-${p.id}`] = { off: s.shares < g.perkCost(p.id) };
+    for (const a of AUTOPILOT) vals[`ap-${a.id}`] = { off: s.shares < a.cost };
     this.patch(vals);
+  }
+
+  renderChallenges() {
+    const g = this.g;
+    const s = g.s;
+    if (!g.challengesUnlocked()) {
+      this.setBody(`chal-locked|${getLang()}`, `<div class="hint">${t('chal.locked')}</div>`);
+      return;
+    }
+    const active = s.challenge;
+    const sig = `chal|${JSON.stringify(s.challenges)}|${active ? active.id + active.tier : ''}|${getLang()}`;
+    let html = `<p class="card-sub" style="margin:0 2px 10px">${t('chal.lead')}</p>`;
+    if (active) {
+      const ch = CHALLENGE_MAP[active.id];
+      html += `<div class="chal-active">
+        <div class="lbl" style="font-size:12px;font-weight:800;color:var(--accent2);text-transform:uppercase;letter-spacing:.8px">${t('chal.activeTitle')}</div>
+        <h3>${ch.icon} ${esc(TX.challengeName(ch.id))} · ${t('chal.tier', { n: active.tier + 1, m: CHALLENGE_GOALS.length })}</h3>
+        <div class="chal-meta">${esc(TX.challengeDesc(ch.id))}</div>
+        <div class="prog" style="margin-top:10px"><div class="prog-bar"><i data-v="cbar"></i></div><div class="prog-label" data-v="cprog"></div></div>
+        <button class="btn ghost btn-small" style="margin-top:10px" data-act="chal-abandon">${t('chal.abandon')}</button>
+      </div>`;
+    }
+    html += '<div class="list">' + CHALLENGES.map((ch) => {
+      const tier = s.challenges[ch.id] || 0;
+      const done = tier >= CHALLENGE_GOALS.length;
+      const dots = CHALLENGE_GOALS.map((_, i) => `<i class="${i < tier ? 'on' : ''}"></i>`).join('');
+      const have = tier > 0 ? `<div class="chal-meta">${t('chal.have', { fx: `<b>${esc(TX.describeFx(scaledFx(ch.fx, tier)))}</b>` })}</div>` : '';
+      return `<div class="card">
+        <div class="tile" style="${grad(['#0ea5e9', '#7c3aed'])}">${ch.icon}</div>
+        <div class="card-title"><h3>${esc(TX.challengeName(ch.id))}</h3><span class="tier-dots">${dots}</span></div>
+        <div class="card-sub">${esc(TX.challengeDesc(ch.id))}</div>
+        <div class="card-desc">${done ? t('chal.allDone') : `${t('chal.goal', { v: money(g.challengeGoal(ch.id)) })}<br>${t('chal.reward', { fx: esc(TX.describeFx(ch.fx)) })}`}${have}</div>
+        <div class="card-foot"><div class="prog"></div>${done ? '' : `<button class="btn violet ${active ? 'off' : ''}" data-act="chal-start" data-id="${ch.id}">${t('chal.start')}</button>`}</div>
+      </div>`;
+    }).join('') + '</div>';
+    this.setBody(sig, html);
+    if (active) {
+      const goal = active.goal || CHALLENGE_GOALS[active.tier];
+      const p = Math.min(1, Math.log10(1 + s.runEarned) / Math.log10(goal));
+      this.patch({ cbar: { width: `${p * 100}%` }, cprog: `${money(s.runEarned)} / ${money(goal)}` });
+    }
+  }
+
+  renderMarket() {
+    const g = this.g;
+    const s = g.s;
+    if (!g.marketUnlocked()) {
+      this.setBody(`mk-locked|${getLang()}`, `<div class="hint">${t('mk.locked')}</div>`);
+      return;
+    }
+    const stakes = s.market.stakes;
+    const sig = `mk|${getLang()}|${this.mkStep}|${Object.keys(stakes).join(',')}|${s.companyName}`;
+    const steps = [[0.01, '1%'], [0.1, '10%']];
+    this.setBody(sig, `
+      <div class="stock-card">
+        <div class="stock-head">
+          <div><div class="lbl">${t('mk.yours')}</div><h3>${esc(s.companyName)} <span class="ticker">${esc(TX.ownTicker(s.companyName))}</span></h3></div>
+          <div class="stock-price"><b data-v="mprice"></b><small>${t('mk.price')}</small></div>
+        </div>
+        <div class="spark big" data-v="mspark"></div>
+        <div class="kv" style="background:none;border:0;padding:6px 0 0;margin:0">
+          <span>${t('mk.cap')}</span><b data-v="mcap"></b>
+          <span>${t('mk.rank')}</span><b data-v="mrank"></b>
+          <span>${t('mk.portfolio')}</span><b data-v="mport"></b>
+        </div>
+      </div>
+      <p class="card-sub" style="margin:10px 2px">${t('mk.lead')}</p>
+      <div class="view-head" style="margin:14px 0 8px">
+        <div class="section-title" style="margin:0">${t('mk.companies')}</div>
+        <div class="seg">${steps.map(([v, l]) => `<button data-act="mk-step" data-v="${v}" class="${v === this.mkStep ? 'on' : ''}">${l}</button>`).join('')}</div>
+      </div>
+      <div class="list">${COMPETITORS.map((c) => `
+        <div class="card comp">
+          <div class="tile" style="${grad(CATEGORIES[c.cat].grad)}">${c.icon}</div>
+          <div class="card-title"><h3>${esc(TX.compName(c.id))} <span class="ticker">${esc(TX.compTicker(c.id))}</span></h3><span class="lvl" data-v="chg-${c.id}"></span></div>
+          <div class="card-sub"><b data-v="cap-${c.id}"></b> · ${esc(TX.catName(c.cat))}</div>
+          <div class="spark" data-v="spark-${c.id}"></div>
+          <div class="card-desc" data-v="st-${c.id}"></div>
+          <div class="card-foot">
+            <div class="prog"><div class="prog-bar"><i data-v="sb-${c.id}"></i></div><div class="prog-label" data-v="sbl-${c.id}"></div></div>
+            <button class="btn btn-small ghost" data-act="sell-stake" data-id="${c.id}" data-v="sell-${c.id}">−${Math.round(this.mkStep * 100)}%</button>
+            <button class="btn btn-small" data-act="buy-stake" data-id="${c.id}" data-v="buy-${c.id}"><span>+${Math.round(this.mkStep * 100)}%</span><small data-v="bc-${c.id}"></small></button>
+          </div>
+        </div>`).join('')}</div>
+      <p class="card-sub" style="margin:10px 2px">${t('mk.fee', { p: Math.round(MARKET.fee * 100) })}</p>`);
+    const own = s.history.short.slice(-48).map((r) => r[2]);
+    const val = g.valuation();
+    const vals = {
+      mprice: g.sharePrice() < 1000 ? `$${num(g.sharePrice())}` : money(g.sharePrice()),
+      mspark: { html: spark([...own, val], 300, 46, '#a78bfa') },
+      mcap: money(val),
+      mrank: t('mk.rankV', { n: g.marketRank(), m: COMPETITORS.length + 1 }),
+      mport: money(g.portfolioValue()),
+    };
+    for (const c of COMPETITORS) {
+      const st = g.comp(c.id);
+      const h = st.hist;
+      const prev = h.length > 1 ? h[h.length - 2] : st.sent;
+      const chg = (st.sent / prev - 1) * 100;
+      const p = g.stake(c.id);
+      const cap = g.compCap(c.id);
+      const bonusX = p > 0 ? (1 + MARKET.stakeBonus * Math.min(p, MARKET.stakeCap)) * (p >= MARKET.control ? MARKET.controlCat : 1) : 0;
+      vals[`chg-${c.id}`] = { html: `<span style="color:${chg >= 0 ? 'var(--money)' : 'var(--danger)'}">${chg >= 0 ? '▲' : '▼'} ${num(Math.abs(chg))}%</span>` };
+      vals[`cap-${c.id}`] = money(cap);
+      vals[`spark-${c.id}`] = { html: spark(h, 300, 30, chg >= 0 ? '#4ade80' : '#fb7185') };
+      vals[`st-${c.id}`] = { html: p > 0
+        ? `${t('mk.stake', { p: `${num(p * 100)}%`, v: money(p * cap) })}<br>${p >= MARKET.control ? `<b style="color:var(--gold)">${t('mk.control')}</b> · ` : ''}${t('mk.bonus', { fx: esc(TX.describeFx([{ t: 'cat', cat: c.cat, x: bonusX }])) })}`
+        : t('mk.noStake') };
+      vals[`sb-${c.id}`] = { width: `${Math.min(1, p / MARKET.control) * 100}%` };
+      vals[`sbl-${c.id}`] = t('mk.toControl', { p: `${num(p * 100)}%` });
+      const step = Math.min(this.mkStep, 1 - p);
+      vals[`buy-${c.id}`] = { off: !(step > 1e-9) || g.stakeCost(c.id, step) > s.cash };
+      vals[`bc-${c.id}`] = step > 1e-9 ? money(g.stakeCost(c.id, step)) : '—';
+      vals[`sell-${c.id}`] = { off: !(p > 0) };
+    }
+    this.patch(vals);
+  }
+
+  confirmChallenge(id) {
+    const g = this.g;
+    const s = g.s;
+    if (s.challenge) { this.toast('🏅', t('chal.otherActive'), '', 'info'); return; }
+    const ch = CHALLENGE_MAP[id];
+    const tier = s.challenges[id] || 0;
+    if (tier >= CHALLENGE_GOALS.length) return;
+    const gain = g.prestigeGain();
+    this.openModal(`
+      <div class="hero">${ch.icon}</div>
+      <h2>${esc(t('chal.confirmTitle', { name: TX.challengeName(id) }))}</h2>
+      <p style="text-align:center">${t('chal.confirmRule', { rule: esc(TX.challengeDesc(id)) })}</p>
+      <ul>
+        <li>${t('chal.goal', { v: money(g.challengeGoal(id)) })} (${t('chal.tier', { n: tier + 1, m: CHALLENGE_GOALS.length })})</li>
+        <li>${t('chal.reward', { fx: `<b>${esc(TX.describeFx(ch.fx))}</b>` })}</li>
+        <li>${gain >= 1 ? t('chal.confirmGain', { n: fmt(gain) }) : t('chal.confirmNoGain')}</li>
+      </ul>
+      <div class="actions">
+        <button class="btn violet btn-wide" data-act="chal-confirm" data-id="${id}">${t('chal.confirm')}</button>
+        <button class="btn ghost btn-wide" data-act="modal-close">${t('cancel')}</button>
+      </div>`);
   }
 
   renderContracts() {
@@ -943,29 +1536,110 @@ export class UI {
     const g = this.g;
     const s = g.s;
     const st = s.stats;
-    const row = (k, v) => `<span>${t(`st.${k}`)}</span><b>${v}</b>`;
-    const html = `<div class="kv">
-      ${row('income', `${money(g.income)}/s`)}
-      ${row('maxIncome', `${money(st.maxIncome)}/s`)}
-      ${row('click', money(g.clickValue))}
-      ${row('auto', `${fmt(g.m.auto)}/s`)}
-      ${row('total', money(s.totalEarned))}
-      ${row('run', money(s.runEarned))}
-      ${row('bestRun', money(Math.max(st.bestRun, s.runEarned)))}
-      ${row('clicks', fmtInt(st.clicks))}
-      ${row('staff', fmtInt(g.totalHeads()))}
-      ${row('hired', fmtInt(st.hired))}
-      ${row('upgrades', fmtInt(st.upgradesBought))}
-      ${row('techs', `${g.techCount()}/${TECHS.length}`)}
-      ${row('bubbles', fmtInt(st.bubbles))}
-      ${row('contracts', fmtInt(st.contracts))}
-      ${row('rounds', s.prestigeCount)}
-      ${row('offlineCap', fmtTime(g.m.offlineCap))}
-      ${row('offlineEff', `${Math.round(g.m.offlineEff * 100)}%`)}
-      ${row('playTime', fmtTime(st.playTime))}
-      ${row('founded', new Date(st.startedAt).toLocaleDateString(getLang() === 'en' ? 'en-US' : 'pl-PL'))}
-    </div>`;
-    this.setBody(`stats|${Math.floor(Date.now() / 1000)}`, html);
+    const h = s.history;
+    const rows = this.chartRange === 'day' ? h.short : h.long;
+    const rev = g.annualRevenue();
+    const cur = scaleIndex(rev);
+    const last = rows.length ? rows[rows.length - 1][0] : 0;
+    const sig = `stats|${getLang()}|${this.chartSeries}|${this.chartRange}|${rows.length}|${last}|${s.scaleMax}|${cur}`;
+    const keys = ['income', 'maxIncome', 'click', 'auto', 'total', 'run', 'bestRun', 'bestValuation', 'clicks', 'staff', 'hired',
+      'upgrades', 'techs', 'bubbles', 'contracts', 'decisions', 'challenges', 'autoBuys', 'rounds', 'offlineCap', 'offlineEff', 'playTime', 'founded'];
+    const seg = (act, cur2, opts) => `<div class="seg">${opts.map(([v, l]) => `<button data-act="${act}" data-v="${v}" class="${v === cur2 ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    const html = `
+      <div class="scale-card">
+        <div class="scale-k"><span class="lbl">${t('sc.title')}</span><span class="big" data-v="sck"></span></div>
+        <div class="scale-row">${t('sc.k')} · ${t('sc.human')}</div>
+        <div class="prog" style="margin-top:8px"><div class="prog-bar"><i data-v="scbar"></i></div></div>
+        <div class="scale-row">${t('sc.revenue')}: <b data-v="screv"></b></div>
+        <div class="scale-row" data-v="scnext"></div>
+        <div class="scale-row" data-v="sctop"></div>
+        <div class="scale-grid">${SCALE_LEVELS.map((L, i) => `<button class="scale-dot ${i <= s.scaleMax ? '' : 'off'} ${i === cur ? 'cur' : ''}" data-act="scale-info" data-id="${i}" aria-label="${esc(TX.scaleName(i))}">${L.icon}</button>`).join('')}</div>
+        <p class="chart-note">${t('sc.explain')}</p>
+      </div>
+      <div class="chart-card">
+        <div class="chart-head"><b>${t('ch.title')}</b>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            ${seg('chart-series', this.chartSeries, [['income', t('ch.income')], ['valuation', t('ch.valuation')]])}
+            ${seg('chart-range', this.chartRange, [['day', t('ch.day')], ['month', t('ch.month')]])}
+          </div>
+        </div>
+        <div class="chart">${this.chartSvg(rows, h.rounds)}</div>
+        ${h.rounds.length ? `<div class="chart-note"><span style="color:var(--gold)">┆</span> ${t('ch.rounds')}</div>` : ''}
+      </div>
+      <div class="kv">${keys.map((k) => `<span>${t(`st.${k}`)}</span><b data-v="st-${k}"></b>`).join('')}</div>`;
+    this.setBody(sig, html);
+    const k = kardashev(rev);
+    const prevT = cur >= 0 ? SCALE_THRESHOLDS[cur] : 1;
+    const nextT = SCALE_THRESHOLDS[cur + 1];
+    const p = nextT ? Math.max(0, Math.min(1, (Math.log10(Math.max(rev, 1)) - Math.log10(prevT)) / (Math.log10(nextT) - Math.log10(prevT)))) : 1;
+    const top = s.scaleMax;
+    const vals = {
+      sck: k === null ? '—' : minus(decimal(k.toFixed(2))),
+      scbar: { width: `${p * 100}%` },
+      screv: `${money(rev)}/${t('time.y')}`,
+      scnext: { html: nextT ? t('sc.next', { icon: SCALE_LEVELS[cur + 1].icon, name: `<b>${esc(TX.scaleName(cur + 1))}</b>`, v: money(nextT) }) : '' },
+      sctop: { html: top >= 0 ? t('sc.top', { icon: SCALE_LEVELS[top].icon, name: `<b>${esc(TX.scaleName(top))}</b>` }) : t('sc.none') },
+      'st-income': `${money(g.income)}/s`,
+      'st-maxIncome': `${money(st.maxIncome)}/s`,
+      'st-click': money(g.clickValue),
+      'st-auto': `${fmt(g.m.auto)}/s`,
+      'st-total': money(s.totalEarned),
+      'st-run': money(s.runEarned),
+      'st-bestRun': money(Math.max(st.bestRun, s.runEarned)),
+      'st-bestValuation': money(st.bestValuation),
+      'st-clicks': fmtInt(st.clicks),
+      'st-staff': fmtInt(g.totalHeads()),
+      'st-hired': fmtInt(st.hired),
+      'st-upgrades': fmtInt(st.upgradesBought),
+      'st-techs': `${g.techCount()}/${TECHS.length}`,
+      'st-bubbles': fmtInt(st.bubbles),
+      'st-contracts': fmtInt(st.contracts),
+      'st-decisions': fmtInt(st.decisions),
+      'st-challenges': `${g.challengeTiers()}/${CHALLENGES.length * CHALLENGE_GOALS.length}`,
+      'st-autoBuys': fmtInt(st.autoBuys),
+      'st-rounds': String(s.prestigeCount),
+      'st-offlineCap': fmtTime(g.m.offlineCap),
+      'st-offlineEff': `${Math.round(g.m.offlineEff * 100)}%`,
+      'st-playTime': fmtTime(st.playTime),
+      'st-founded': new Date(st.startedAt).toLocaleDateString(getLang() === 'en' ? 'en-US' : 'pl-PL'),
+    };
+    this.patch(vals);
+  }
+
+  // Wykres w skali logarytmicznej: przychód albo wycena, z liniami rund finansowania.
+  chartSvg(rows, rounds) {
+    const idx = this.chartSeries === 'income' ? 1 : 2;
+    const pts = rows.filter((r) => r[idx] > 0);
+    if (pts.length < 2) return `<div class="hint" style="margin-top:8px">${t('ch.empty')}</div>`;
+    const W = 320; const H = 150; const L = 2; const R = 2; const T = 16; const B = 16;
+    const t0 = pts[0][0];
+    const t1 = pts[pts.length - 1][0];
+    const ys = pts.map((r) => Math.log10(r[idx]));
+    let y0 = Math.min(...ys);
+    let y1 = Math.max(...ys);
+    if (y1 - y0 < 1) { y0 -= 0.5; y1 += 0.5; }
+    const X = (tm) => L + ((tm - t0) / Math.max(1, t1 - t0)) * (W - L - R);
+    const Y = (v) => T + (1 - (v - y0) / (y1 - y0)) * (H - T - B);
+    const line = pts.map((r, i) => `${i ? 'L' : 'M'}${X(r[0]).toFixed(1)} ${Y(Math.log10(r[idx])).toFixed(1)}`).join(' ');
+    const area = `${line} L${X(t1).toFixed(1)} ${H - B} L${X(t0).toFixed(1)} ${H - B} Z`;
+    const marks = rounds.filter((tm) => tm >= t0 && tm <= t1)
+      .map((tm) => `<line x1="${X(tm).toFixed(1)}" y1="${T}" x2="${X(tm).toFixed(1)}" y2="${H - B}" stroke="#fbbf24" stroke-dasharray="2 3" opacity=".7"/>`).join('');
+    const color = idx === 1 ? '#4ade80' : '#a78bfa';
+    const loc = getLang() === 'en' ? 'en-US' : 'pl-PL';
+    const fmtT = (tm) => (this.chartRange === 'day'
+      ? new Date(tm).toLocaleTimeString(loc, { hour: '2-digit', minute: '2-digit' })
+      : new Date(tm).toLocaleDateString(loc, { day: 'numeric', month: 'short' }));
+    return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${t('ch.title')}">
+      <defs><linearGradient id="chG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".35"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>
+      <line x1="${L}" y1="${T}" x2="${W - R}" y2="${T}" stroke="rgba(255,255,255,.07)"/><line x1="${L}" y1="${(T + H - B) / 2}" x2="${W - R}" y2="${(T + H - B) / 2}" stroke="rgba(255,255,255,.07)"/><line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" stroke="rgba(255,255,255,.12)"/>
+      <path d="${area}" fill="url(#chG)"/>${marks}
+      <path d="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="${X(t1).toFixed(1)}" cy="${Y(ys[ys.length - 1]).toFixed(1)}" r="3" fill="${color}"/>
+      <text class="axis" x="${L + 2}" y="${T - 5}">${money(Math.pow(10, y1))}</text>
+      <text class="axis" x="${L + 2}" y="${H - B - 4}">${money(Math.pow(10, y0))}</text>
+      <text class="axis" x="${L}" y="${H - 3}">${fmtT(t0)}</text>
+      <text class="axis" x="${W - R}" y="${H - 3}" text-anchor="end">${fmtT(t1)}</text>
+    </svg>`;
   }
 
   langSeg(act) {
@@ -984,13 +1658,14 @@ export class UI {
       <div class="section-title">${t('set.game')}</div>
       <div class="setting"><div>${t('set.lang')}<p>${t('set.langHint')}</p></div>${this.langSeg('set-lang')}</div>
       <div class="setting"><div>${t('set.sound')}<p>${t('set.soundHint')}</p></div><button class="switch ${s.settings.sound ? 'on' : ''}" data-act="toggle-sound" aria-label="${t('set.sound')}"></button></div>
+      <div class="setting"><div>${t('set.music')}<p>${t('set.musicHint')}</p></div><button class="switch ${s.settings.music ? 'on' : ''}" data-act="toggle-music" aria-label="${t('set.music')}"></button></div>
       <div class="setting"><div>${t('set.install')}<p>${t('set.installHint')}</p></div><button class="btn btn-small ghost" data-act="install-help">${t('set.show')}</button></div>
       <div class="section-title">${t('set.saveTitle')}</div>
       <div class="setting"><div>${t('set.export')}<p>${t('set.exportHint')}</p></div><button class="btn btn-small ghost" data-act="export">${t('set.exportBtn')}</button></div>
       <div class="setting"><div>${t('set.import')}<p>${t('set.importHint')}</p></div><button class="btn btn-small ghost" data-act="import">${t('set.importBtn')}</button></div>
       <div class="setting"><div>${t('set.reset')}<p>${t('set.resetHint')}</p></div><button class="btn btn-small danger" data-act="reset">${t('set.resetBtn')}</button></div>
       <p class="card-sub" style="text-align:center;margin-top:18px">${esc(t('appName'))} · ${t('set.footer', { v: esc(this.hooks.version || '1.0') })}</p>`;
-    this.setBody(`settings|${s.settings.sound}|${getLang()}`, html);
+    this.setBody(`settings|${s.settings.sound}|${s.settings.music}|${getLang()}`, html);
   }
 
   rename() {
@@ -1017,12 +1692,15 @@ export class UI {
     counts.products = PRODUCTS.filter((p) => g.productUnlocked(p.id) && g.productCost(p.id, 1) <= s.cash).length;
     counts.team = DEPTS.filter((d) => (s.deptUnlocked[d.id] && g.hireCost(d.id, 1) <= s.cash)
       || (!s.deptUnlocked[d.id] && g.deptAvailable(d.id) && s.cash >= d.unlock)).length;
+    const officesReady = OFFICES.filter((o) => g.officeAvailable(o.id) && g.officeCost(o.id) <= s.cash).length;
+    counts.team += officesReady;
     counts.research = TECHS.filter((t) => !s.techs[t.id] && g.techAvailable(t.id) && s.rp >= t.cost).length;
     counts.upgrades = g.availableUpgrades().filter((u) => u.cost <= s.cash).length;
     const offers = g.contractsUnlocked() && s.contracts.active.length < g.m.slots ? s.contracts.offers.length : 0;
     const gain = g.prestigeGain();
     const prestigeReady = gain >= 1 && gain >= Math.max(1, s.investors * 0.5);
-    const perkReady = PERKS.some((p) => (s.perks[p.id] || 0) < p.max && s.shares >= g.perkCost(p.id));
+    const perkReady = PERKS.some((p) => (s.perks[p.id] || 0) < p.max && s.shares >= g.perkCost(p.id))
+      || (g.apUnlocked() && AUTOPILOT.some((a) => !g.apOwned(a.id) && s.shares >= a.cost));
     counts.company = offers + (prestigeReady ? 1 : 0) + (perkReady ? 1 : 0);
     for (const tab of document.querySelectorAll('.tab')) {
       const b = tab.querySelector('.badge');
@@ -1031,7 +1709,9 @@ export class UI {
       b.hidden = !show;
       if (show) this.setText(b, n > 9 ? '9+' : String(n));
     }
-    const dots = { investors: prestigeReady || perkReady, contracts: offers > 0 };
+    const candReady = g.boardUnlocked() && s.candidates.some((c) => s.shares >= g.candidateCost(c));
+    if (candReady) counts.team += 1;
+    const dots = { investors: prestigeReady || perkReady, contracts: offers > 0, 't-world': officesReady > 0, 't-board': candReady };
     for (const d of document.querySelectorAll('[data-dot]')) d.hidden = !dots[d.dataset.dot];
   }
 
@@ -1091,6 +1771,41 @@ export class UI {
       <p style="margin-bottom:6px">${t('w.name')}</p>
       <input class="text-input" id="welcome-name" maxlength="28" value="${esc(name)}" enterkeyhint="done">
       <div class="actions"><button class="btn violet btn-wide" data-act="welcome-start">${t('w.start')}</button></div>`);
+  }
+
+  // Koperta z decyzją w rogu sceny
+  syncDecision() {
+    const d = this.g.s.decision;
+    if (!d) {
+      if (this.envelopeEl) { this.envelopeEl.remove(); this.envelopeEl = null; }
+      return;
+    }
+    if (this.envelopeEl) return;
+    const el = document.createElement('button');
+    el.className = 'envelope';
+    el.textContent = '📨';
+    el.dataset.act = 'decision-open';
+    el.setAttribute('aria-label', t('dec.badge'));
+    $('bubble-layer').appendChild(el);
+    this.envelopeEl = el;
+  }
+
+  showDecision() {
+    const g = this.g;
+    const d = g.s.decision;
+    if (!d) return;
+    const D = DECISIONS[d.i];
+    const opt = (w) => {
+      const e = g.decisionEffect(D[w].fx);
+      return `<button class="choice" data-act="decide" data-v="${w}"><b>${esc(TX.decisionLabel(d.i, w))}</b><span>${esc(TX.decisionEffectText(e))}</span></button>`;
+    };
+    this.openModal(`
+      <div class="hero">${D.icon}</div>
+      <h2>${esc(TX.decisionTitle(d.i))}</h2>
+      <p style="text-align:center">${esc(TX.decisionText(d.i))}</p>
+      <div class="actions">${opt('a')}${opt('b')}
+        <button class="btn ghost btn-wide" data-act="modal-close">${t('dec.later')}</button>
+      </div>`);
   }
 
   showOffline(r) {
@@ -1188,6 +1903,7 @@ export class UI {
       this.closeModal();
       this.applyStatic();
       this.renderCompanyTabs();
+      this.renderTeamTabs();
       this.fullRender();
       this.restartTicker();
       this.toast('✅', t('toast.imported'), '', 'info');
@@ -1211,6 +1927,7 @@ export class UI {
     this.updateSoundBtn();
     this.scene.render(this.g, true);
     this.syncBubble();
+    this.syncDecision();
     this.updateAll(true);
   }
 }
