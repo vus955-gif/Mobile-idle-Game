@@ -7,7 +7,7 @@ import {
 import {
   ACHIEVEMENTS, UPGRADES, UPGRADE_MAP, PRODUCT_MAP, DEPT_MAP, TECH_MAP, ACH_BONUS, INVESTOR_BONUS,
   nextMilestone, prevMilestone, nextDeptMilestone, deptMilestoneMult, MAX_SLOTS,
-  CHALLENGE_MAP, SCALE_THRESHOLDS, kardashev, scaleIndex, OFFICE_MAP, ROLE_MAP, QUIRK_MAP, scaleTrait,
+  CHALLENGE_MAP, SCALE_THRESHOLDS, TECH_CAP_STEP, OFFICE_MAP, ROLE_MAP, QUIRK_MAP, scaleTrait,
 } from './engine.js';
 import { avatar, emptyAvatar } from './avatar.js';
 import { WORLD } from './worldmap.js';
@@ -64,6 +64,8 @@ const DEPT_MS_PREV = [0, ...DEPT_MILESTONES];
 // Efekt nagrody po n poziomach (mnożniki potęgujemy, dodatki mnożymy).
 const scaledFx = (fx, n) => fx.map((e) => ({ ...e, ...(e.x !== undefined ? { x: Math.pow(e.x, n) } : {}), ...(e.v !== undefined ? { v: e.v * n } : {}) }));
 const minus = (str) => str.replace(/^-/, '−');
+// Ile razy technologia poszerza rynek (krok zasięgu w log10).
+const reachX = (step) => { const x = Math.pow(10, step); return x >= 100 ? fmt(x) : decimal(x.toFixed(1)); };
 
 export class UI {
   constructor(game, hooks = {}) {
@@ -318,7 +320,9 @@ export class UI {
       case 'scale-info': {
         const i = Number(id);
         const reached = s.scaleMax >= i;
-        this.toast(reached ? SCALE_LEVELS[i].icon : '🔒', TX.scaleName(i), `${TX.scaleDesc(i)} · ${money(SCALE_THRESHOLDS[i])}/${t('time.y')}`, reached ? 'achievement' : 'info');
+        const L = SCALE_LEVELS[i];
+        const need = !reached && L.tech && !s.techs[L.tech] ? ` · ${t('sc.needTech', { tech: TX.techName(L.tech) })}` : '';
+        this.toast(reached ? L.icon : '🔒', TX.scaleName(i), `${TX.scaleDesc(i)} · ${money(SCALE_THRESHOLDS[i])}/${t('time.y')}${need}`, reached ? 'achievement' : 'info');
         break;
       }
       default: break;
@@ -498,6 +502,7 @@ export class UI {
   }
 
   setText(el, text) { if (el && el.textContent !== text) el.textContent = text; }
+  patchHtml(el, html) { if (el && el._html !== html) { el._html = html; el.innerHTML = html; } }
 
   updateHud() {
     const g = this.g;
@@ -708,6 +713,10 @@ export class UI {
       }
       root.innerHTML = html;
     }
+    const hint = $('products-reach');
+    const sat = g.rawIncome > g.marketCap * 1.05;
+    if (hint.hidden === sat) hint.hidden = !sat;
+    if (sat) this.patchHtml(hint, t('reach.sat', { stage: t(`reach.${g.marketStage()}`), v: money(g.marketCap) }));
     const amt = this.buyAmount();
     for (const card of root.querySelectorAll('[data-pid]')) {
       const id = card.dataset.pid;
@@ -1106,7 +1115,7 @@ export class UI {
           html += `<div class="tech ${cls}" data-tid="${tech.id}">
             ${isDone ? '<span class="check">✓</span>' : ''}
             <div class="tech-top"><div class="tech-ico">${tech.icon}</div><h4>${esc(TX.techName(tech.id))}</h4></div>
-            <div class="fx">${esc(TX.describeFx(tech.fx))}</div>
+            <div class="fx">${esc(TX.describeFx(tech.fx))}${TECH_CAP_STEP[tech.id] ? ` · ${t('rs.reach', { x: reachX(TECH_CAP_STEP[tech.id]) })}` : ''}</div>
             ${req}
             ${isAvail ? `<button class="btn violet" data-act="research" data-id="${tech.id}"><span>${fmt(tech.cost)} ${t('unit.rp')}</span><small></small></button>` : ''}
           </div>`;
@@ -1539,7 +1548,7 @@ export class UI {
     const h = s.history;
     const rows = this.chartRange === 'day' ? h.short : h.long;
     const rev = g.annualRevenue();
-    const cur = scaleIndex(rev);
+    const cur = g.scaleIdx();
     const last = rows.length ? rows[rows.length - 1][0] : 0;
     const sig = `stats|${getLang()}|${this.chartSeries}|${this.chartRange}|${rows.length}|${last}|${s.scaleMax}|${cur}`;
     const keys = ['income', 'maxIncome', 'click', 'auto', 'total', 'run', 'bestRun', 'bestValuation', 'clicks', 'staff', 'hired',
@@ -1553,6 +1562,7 @@ export class UI {
         <div class="scale-row">${t('sc.revenue')}: <b data-v="screv"></b></div>
         <div class="scale-row" data-v="scnext"></div>
         <div class="scale-row" data-v="sctop"></div>
+        <div class="scale-row" data-v="screach"></div>
         <div class="scale-grid">${SCALE_LEVELS.map((L, i) => `<button class="scale-dot ${i <= s.scaleMax ? '' : 'off'} ${i === cur ? 'cur' : ''}" data-act="scale-info" data-id="${i}" aria-label="${esc(TX.scaleName(i))}">${L.icon}</button>`).join('')}</div>
         <p class="chart-note">${t('sc.explain')}</p>
       </div>
@@ -1568,7 +1578,7 @@ export class UI {
       </div>
       <div class="kv">${keys.map((k) => `<span>${t(`st.${k}`)}</span><b data-v="st-${k}"></b>`).join('')}</div>`;
     this.setBody(sig, html);
-    const k = kardashev(rev);
+    const k = g.kardashevShown();
     const prevT = cur >= 0 ? SCALE_THRESHOLDS[cur] : 1;
     const nextT = SCALE_THRESHOLDS[cur + 1];
     const p = nextT ? Math.max(0, Math.min(1, (Math.log10(Math.max(rev, 1)) - Math.log10(prevT)) / (Math.log10(nextT) - Math.log10(prevT)))) : 1;
@@ -1577,7 +1587,10 @@ export class UI {
       sck: k === null ? '—' : minus(decimal(k.toFixed(2))),
       scbar: { width: `${p * 100}%` },
       screv: `${money(rev)}/${t('time.y')}`,
-      scnext: { html: nextT ? t('sc.next', { icon: SCALE_LEVELS[cur + 1].icon, name: `<b>${esc(TX.scaleName(cur + 1))}</b>`, v: money(nextT) }) : '' },
+      scnext: { html: !nextT ? '' : SCALE_LEVELS[cur + 1].tech && !s.techs[SCALE_LEVELS[cur + 1].tech]
+        ? t('sc.nextTech', { icon: SCALE_LEVELS[cur + 1].icon, name: `<b>${esc(TX.scaleName(cur + 1))}</b>`, v: money(nextT), tech: esc(TX.techName(SCALE_LEVELS[cur + 1].tech)) })
+        : t('sc.next', { icon: SCALE_LEVELS[cur + 1].icon, name: `<b>${esc(TX.scaleName(cur + 1))}</b>`, v: money(nextT) }) },
+      screach: { html: `${t('reach.row', { stage: t(`reach.${g.marketStage()}`), v: money(g.marketCap) })}${g.rawIncome > g.marketCap ? ` · ${t('reach.satShort')}` : ''}` },
       sctop: { html: top >= 0 ? t('sc.top', { icon: SCALE_LEVELS[top].icon, name: `<b>${esc(TX.scaleName(top))}</b>` }) : t('sc.none') },
       'st-income': `${money(g.income)}/s`,
       'st-maxIncome': `${money(st.maxIncome)}/s`,
@@ -1773,6 +1786,16 @@ export class UI {
       <div class="actions"><button class="btn violet btn-wide" data-act="welcome-start">${t('w.start')}</button></div>`);
   }
 
+  showMigration() {
+    const g = this.g;
+    this.openModal(`
+      <div class="hero">🌍</div>
+      <h2>${t('mig.title')}</h2>
+      <p>${t('mig.text')}</p>
+      <p>${t('mig.now', { stage: t(`reach.${g.marketStage()}`), v: money(g.marketCap), n: fmt(g.s.investors) })}</p>
+      <div class="actions"><button class="btn violet btn-wide" data-act="modal-close">${t('mig.ok')}</button></div>`);
+  }
+
   // Koperta z decyzją w rogu sceny
   syncDecision() {
     const d = this.g.s.decision;
@@ -1907,6 +1930,7 @@ export class UI {
       this.fullRender();
       this.restartTicker();
       this.toast('✅', t('toast.imported'), '', 'info');
+      if (this.g.migrated) this.showMigration();
     } else {
       this.toast('❌', t('toast.importBad'), t('toast.importBadText'), 'info');
     }

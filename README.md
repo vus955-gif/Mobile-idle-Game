@@ -23,11 +23,12 @@ Gra to **PWA** (Progressive Web App) — instalujesz ją z Safari na ekran pocz�
 | Element | Co robi |
 |---|---|
 | **Koduj** | Stukaj w fioletowy przycisk — każde kliknięcie to pieniądze. |
-| **Produkty** (20) | Od strony wizytówki po superinteligencję. Zarabiają same, także gdy gra jest zamknięta. Co 25/50/100… poziomów kamień milowy podwaja przychód. |
+| **Produkty** (24) | Od strony wizytówki przez superinteligencję po kieszonkowe wszechświaty. Zarabiają same, także gdy gra jest zamknięta. Co 25/50/100… poziomów kamień milowy podwaja przychód. |
 | **Zespół** (13 działów) | Każdy dział to nowe piętro budynku i własny efekt: programiści, R&D, design, marketing, sprzedaż, obsługa klienta, HR, DevOps, finanse, data science, prawnicy, cyberbezpieczeństwo, zarząd. |
-| **Badania** (46 technologii w 8 erach + badania bez końca) | Od HTML i CSS przez chmurę, AI i komputery kwantowe po rój Dysona. Odblokowują produkty i działy. **Zostają po rundzie finansowania.** Przy każdej technologii widać, za ile będzie Cię na nią stać. |
+| **Badania** (56 technologii w 10 erach + badania bez końca) | Od HTML i CSS przez chmurę, AI, komputery kwantowe i rój Dysona po sondy von Neumanna, tunele czasoprzestrzenne i wszechświaty potomne. Odblokowują produkty i działy, a każda poszerza rynek. **Zostają po rundzie finansowania.** Przy każdej technologii widać, za ile będzie Cię na nią stać. |
+| **Zasięg rynku** | Ile świat jest w stanie zapłacić. Na Ziemi (ery 1–7) przychód rośnie w ludzkiej skali i kończy się na kilku PKB świata; kosmos, galaktyka i wszechświat otwierają skale nieludzkie. Gdy przychód dobije do zasięgu, dalej rośnie już tylko powoli, a nowe technologie poszerzają rynek. |
 | **Budżet badawczy** | Gdy gotówka się przelewa, 10, 25 albo 50% przychodu idzie na badania. Badaczy przybywa powoli, a budżet rośnie razem z przychodem (z malejącym zwrotem), więc w późnej grze to on napędza postęp. |
-| **Ulepszenia** (~375) | Ulepszenia produktów, działów, kodowania i kultury firmy (pizza w piątki, firmowy pies, teleport do biura…). |
+| **Ulepszenia** (~425) | Ulepszenia produktów, działów, kodowania i kultury firmy (pizza w piątki, firmowy pies, teleport do biura…). |
 | **Kontrakty** | Zlecenia B2B od klientów — przyjmujesz, czekasz, dostajesz sowitą zapłatę (także offline). |
 | **Przejęcia** (14) | Kupujesz inne startupy za potężne bonusy. |
 | **Rundy finansowania** | Prestiż: zaczynasz od nowa, ale z kapitałem inwestorów, który trwale mnoży przychód. Za udziały kupujesz ulepszenia **rady nadzorczej**. |
@@ -39,8 +40,8 @@ Gra to **PWA** (Progressive Web App) — instalujesz ją z Safari na ekran pocz�
 | **Świat** (18 miast + 7 miejsc w kosmosie) | Biura na kropkowej mapie świata, od Warszawy po Proximę b. Zostają na zawsze, mają po 3 poziomy, a widok z okna zmienia panoramę za budynkiem (Pałac Kultury, Tokyo Tower, Golden Gate, Burj Khalifa, Księżyc, Mars…). |
 | **Zarząd** (5 foteli) | Kandydaci od headhuntera z cechami i dziwactwami (np. pracują lepiej nocą, w weekendy albo gdy pada). Zostają na zawsze i z czasem nabierają doświadczenia. |
 | **Giełda** (po IPO) | Kurs Twoich akcji, dziesięciu konkurentów (Gruszka Computers, Makrotwardy, Gogle…) i udziały, które wzmacniają Twoje produkty; 51% to przejęcie kontroli. |
-| **Skala cywilizacji** | Roczny przychód porównany z największą firmą świata, PKB Polski, USA i Ziemi, a dalej ze skalą Kardaszowa (ludzkość ≈ 0,73). Do tego wykres przychodu i wyceny. |
-| **Osiągnięcia** (287) | Każde daje +1% przychodu. Kilka jest ukrytych. |
+| **Skala cywilizacji** | Roczny przychód porównany z największą firmą świata, PKB Polski, USA i Ziemi oraz majątkiem ludzkości, a dalej ze skalą Kardaszowa (ludzkość ≈ 0,73). Stopnie Kardaszowa wymagają też technologii: typ I satelitów, typ II roju Dysona, typ III sieci galaktycznej. Do tego wykres przychodu i wyceny. |
+| **Osiągnięcia** (316) | Każde daje +1% przychodu. Kilka jest ukrytych. |
 
 Scena biura żyje według kalendarza telefonu: pora dnia, pory roku, pogoda zmieniająca się co 3 godziny (deszcz, śnieg, mgła), dynie na Halloween, choinka i lampki w grudniu, fajerwerki w Sylwestra. Tryb zen (🪷) chowa interfejs i zostawia samo biuro z zegarem. W ustawieniach można włączyć spokojną muzykę lo-fi, komponowaną na bieżąco w przeglądarce.
 
@@ -49,11 +50,13 @@ Scena biura żyje według kalendarza telefonu: pora dnia, pory roku, pogoda zmie
 Tempo gry jest dostrojone symulacją (`tools/simulate.mjs`), w której bot gra według zachłannej strategii:
 
 - **gra aktywna**: sklep internetowy ~7 min, aplikacja mobilna ~14 min, pierwsza runda finansowania ~1 h,
-- **gra „z doskoku”** (20 min co ~3 h, noc offline): ery 1–5 pierwszego dnia, era kwantowa na początku 2. dnia, neurotechnologia i podbój kosmosu pod koniec 2. dnia, pełne drzewko technologii i wszystkie biura ~2,5 dnia. Zarząd dochodzi do pełnego doświadczenia po ok. 3 tygodniach, a badania bez końca i wyzwania zostają na dłużej.
+- **gra „z doskoku”** (20 min co ~3 h, noc offline): ery 1–5 pierwszego dnia, era kwantowa i neurotechnologia 2. dnia, podbój kosmosu po ~2,3 dnia, ekspansja międzygwiezdna 3. dnia, inżynieria wszechświata po ~3,7 dnia, pełne drzewko technologii po ~4,3 dnia, wszystkie biura po ~3,3 dnia. Zarząd dochodzi do pełnego doświadczenia po ok. 3 tygodniach, a badania bez końca i wyzwania zostają na dłużej.
 
-W późnej grze punkty badań dają głównie budżet badawczy. Bez niego (`--no=budget`) ostatnia era przychodzi dopiero 4. dnia, a pełne drzewko po ~4 dniach, bo badaczy przybywa tylko logarytmicznie względem gotówki.
+Pieniądze idą w parze z technologią. Na Ziemi przychód rośnie od garażu (ok. $1/s) do kilku PKB świata przy AGI (ok. $100–300 mld/s, czyli rocznie tyle, ile wart jest majątek ludzkości). Liczby rzędu 10²⁰ i więcej pojawiają się dopiero w kosmosie. Zasięg rynku pilnuje tego niezależnie od rund finansowania: ponad nim przychód rośnie z potęgą 0,1 i nigdy nie przekroczy 50× zasięgu.
 
-Bot korzysta też z biur, giełdy, zarządu, decyzji i budżetu badawczego. Symulator ma przełączniki (`--no=offices,market,board,decisions,budget`), żeby sprawdzić wpływ każdego systemu, oraz `--chal`, który na koniec próbuje wszystkich wyzwań. Parametry budżetu i koszty er da się sprawdzić bez edycji danych: `RDK=0.002 RDP=0.25 TECHMUL="7:2,8:2" npm run sim`.
+W późnej grze punkty badań dają głównie budżet badawczy. Bez niego (`--no=budget`) podbój kosmosu przychodzi dopiero po ~6,5 dnia, bo badaczy przybywa tylko logarytmicznie względem gotówki.
+
+Bot korzysta też z biur, giełdy, zarządu, decyzji i budżetu badawczego. Symulator ma przełączniki (`--no=offices,market,board,decisions,budget`), żeby sprawdzić wpływ każdego systemu, oraz `--chal`, który na koniec próbuje wszystkich wyzwań. Parametry budżetu i koszty er da się sprawdzić bez edycji danych: `RDK=0.3 RDP=0.35 TECHMUL="9:2,10:2" npm run sim`.
 
 ## 🔋 Wydajność
 

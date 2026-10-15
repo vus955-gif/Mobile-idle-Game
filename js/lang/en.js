@@ -1,7 +1,7 @@
 // English game content. Polish originals live in js/data.js; this file mirrors them by id.
 export const EN = {
   categories: {
-    web: 'Web', mobile: 'Mobile', social: 'Social', biz: 'Business', infra: 'Infrastructure', ai: 'AI', deep: 'Deep Tech', space: 'Space',
+    web: 'Web', mobile: 'Mobile', social: 'Social', biz: 'Business', infra: 'Infrastructure', ai: 'AI', deep: 'Deep Tech', space: 'Space', cosmic: 'Universe',
   },
 
   products: {
@@ -45,6 +45,14 @@ export const EN = {
       ups: ['First Satellite', 'A 1,000-Satellite Constellation', 'Laser Links', 'Internet on Mars', 'Lunar Relay Station', 'Kuiper Belt Network', 'Interstellar Ping'] },
     asi: { name: 'Superintelligence', desc: 'The last invention humanity will ever need.',
       ups: ['Safe Alignment', 'Recursive Self-Improvement', 'Every Equation Solved', 'A Cure for Boredom', 'Star Design', 'Universe Simulation', 'The Final Answer: 42'] },
+    probes: { name: 'Von Neumann Probe Fleet', desc: 'Every probe builds two more and opens a branch office in a new star system.',
+      ups: ['First Replication', 'Asteroid Mines', 'A Thousand Star Systems', 'Mapping the Orion Arm', 'A Branch Next to a Black Hole', 'A Million Stars', 'The Probe That Comes Back With a Gift'] },
+    matrioshka: { name: 'Matrioshka Brain', desc: 'A computer the size of a solar system. Finally, enough RAM.',
+      ups: ['The First Shell', 'Radiative Cooling', 'Seven Shells', 'Thoughts on a Light-Year Scale', 'Simulating Civilizations', 'A Star That Dreams', 'The Answer to a Question Nobody Asked'] },
+    wormnet: { name: 'Wormhole Network', desc: 'Delivery from Andromeda in fifteen minutes. Returns accepted within 14 light-days.',
+      ups: ['A Stable Tunnel', 'Transfer Hub', 'The Andromeda Line', 'Tunnels Across the Local Group', 'Time Loops on Demand', 'A Timetable for the Universe', 'Yesterday’s Delivery'] },
+    pocket: { name: 'Pocket Universes', desc: 'A universe on a subscription. Laws of physics included in Premium.',
+      ups: ['A Big Bang in a Test Tube', 'Custom Physical Constants', 'A Universe Without Mondays', 'Galaxies Made to Order', 'Family Plan', 'The Multiverse in the Cloud', 'The Universe Where You Win'] },
   },
 
   depts: {
@@ -66,6 +74,7 @@ export const EN = {
   eras: {
     1: 'The Internet Era', 2: 'The Mobile Revolution', 3: 'Social & SaaS', 4: 'Cloud & Big Data',
     5: 'Artificial Intelligence', 6: 'The Quantum Era', 7: 'Neurotechnology', 8: 'Conquering Space',
+    9: 'Interstellar Expansion', 10: 'Engineering the Universe',
   },
 
   techs: {
@@ -115,6 +124,16 @@ export const EN = {
     orbitalDC: { name: 'Orbital Data Centers', desc: 'Free cooling. Space is cold.' },
     asiTech: { name: 'Superintelligence', desc: 'The last technology humans ever invented.' },
     dyson: { name: 'Dyson Swarm', desc: 'All of the Sun’s energy, powering your servers.' },
+    antimatter: { name: 'Antimatter Factories', desc: 'A gram of antimatter holds a small power plant’s worth of energy. We make it by the ton.' },
+    lightsail: { name: 'Light Sails', desc: 'Orbital lasers push probes to a fifth of the speed of light.' },
+    vonNeumann: { name: 'Self-Replicating Probes', desc: 'Every probe builds two more. The galaxy fills up in a million years.' },
+    matrioshkaTech: { name: 'Matrioshka Brain', desc: 'Nested Dyson swarms around a single star, each running on the waste heat of the one inside.' },
+    galacticNet: { name: 'Galactic Network', desc: 'Talking between stars without waiting a thousand years for a reply.' },
+    blackhole: { name: 'Black Hole Power', desc: 'The Penrose process: throw garbage in, get energy out. Perfect recycling.' },
+    wormholes: { name: 'Wormholes', desc: 'A shortcut to Andromeda. Mind the gap.' },
+    darkEnergy: { name: 'Harnessed Dark Energy', desc: 'Seventy percent of the universe is finally good for something.' },
+    simulation: { name: 'Universe Simulation', desc: 'A model so precise that the people inside play idle games too.' },
+    babyUniverse: { name: 'Baby Universes', desc: 'Your own Big Bang in the lab. Laws of physics optional.' },
   },
 
   repeat: {
@@ -228,9 +247,10 @@ export const EN = {
     { name: 'GDP of Poland', desc: 'The entire Polish economy over a year (about $900B).' },
     { name: 'GDP of the USA', desc: 'The world’s largest economy (about $29T).' },
     { name: 'GDP of Earth', desc: 'All of humanity combined (about $110T). The UN would like a meeting.' },
-    { name: 'Type I Civilization', desc: 'Kardashev 1: all the energy that reaches the planet.' },
+    { name: 'The Wealth of Humanity', desc: 'Every year you earn as much as everything people own: homes, companies, stocks and savings (about $450T).' },
+    { name: 'Type I Civilization', desc: 'Kardashev 1: all the energy that reaches the planet, collected by power stations in orbit.' },
     { name: 'Interplanetary Empire', desc: 'Your economy spans the planets and moons of the Solar System.' },
-    { name: 'Type II Civilization', desc: 'Kardashev 2: the entire output of a star. The Dyson sphere is done.' },
+    { name: 'Type II Civilization', desc: 'Kardashev 2: the entire output of a star. The Dyson swarm is done.' },
     { name: 'Star Cluster', desc: 'Thousands of suns working for a single company.' },
     { name: 'Type III Civilization', desc: 'Kardashev 3: the energy of an entire galaxy.' },
     { name: 'The Local Group', desc: 'The Milky Way, Andromeda and a few dozen smaller galaxies.' },

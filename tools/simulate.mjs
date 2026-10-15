@@ -103,7 +103,7 @@ function decide() {
       let d;
       if (lvl > 0) {
         const unit = g.prodIncome[p.id] / (lvl * Math.pow(2, milestoneCount(lvl)));
-        d = unit * (lvl + 1) * Math.pow(2, milestoneCount(lvl + 1)) - g.prodIncome[p.id];
+        d = g.marginal((unit * (lvl + 1) * Math.pow(2, milestoneCount(lvl + 1)) - g.prodIncome[p.id]) / (g.incFactor || 1));
       } else {
         d = deltaIncome(() => { s.products[p.id] = 1; }, () => { delete s.products[p.id]; });
       }
@@ -124,8 +124,8 @@ function decide() {
     for (const u of g.availableUpgrades()) {
       if (u.kind === 'click') { if (s.cash >= u.cost) { g.buyUpgrade(u.id); bought = true; } continue; }
       let dd;
-      if (u.kind === 'product') dd = g.prodIncome[u.req.product] * (u.fx[0].x - 1);
-      else if (u.kind === 'culture') dd = g.income * (u.fx[0].x - 1);
+      if (u.kind === 'product') dd = g.marginal(g.prodIncome[u.req.product] / (g.incFactor || 1) * (u.fx[0].x - 1));
+      else if (u.kind === 'culture') dd = g.marginal(g.rawIncome * (u.fx[0].x - 1));
       else dd = deltaIncome(() => { s.upgrades[u.id] = true; }, () => { delete s.upgrades[u.id]; });
       if (dd <= 0 && s.cash >= u.cost * 3) { g.buyUpgrade(u.id); bought = true; continue; }
       consider(u.cost, dd, () => g.buyUpgrade(u.id));
