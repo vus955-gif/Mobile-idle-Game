@@ -385,3 +385,34 @@ test('zarząd: kandydaci, zatrudnianie za udziały, poziomy i dziwactwa', async 
   }
   setLang('pl');
 });
+
+test('budżet badawczy: część przychodu zamienia się w punkty badań, wycena bez zmian', async () => {
+  const { RD_BUDGET } = await import('../js/data.js');
+  const g = newGame();
+  g.s.products = { landing: 100, notes: 80 };
+  g.recalc();
+  assert.equal(g.setRdBudget(0.5), true);
+  assert.equal(g.m.rdShare, 0, 'bez działu R&D budżet nie działa');
+  g.s.deptUnlocked.rnd = true;
+  g.setRdBudget(0);
+  const v0 = g.valuation();
+  const rp0 = g.rpRate;
+  g.setRdBudget(0.25);
+  assert.ok(Math.abs(g.netIncome - g.income * 0.75) < 1e-6);
+  assert.ok(g.rpRate > rp0, 'więcej punktów badań');
+  assert.ok(Math.abs(g.rpBudget - RD_BUDGET.k * Math.pow(g.income * 0.25, RD_BUDGET.p) * g.m.rp) < 1e-9);
+  assert.ok(Math.abs(g.valuation() - v0) / v0 < 1e-9, 'wycena liczy przychód brutto');
+  // gotówka rośnie o przychód netto
+  const cash = g.s.cash;
+  const net = g.netIncome;
+  g.tick(T0 + 1000);
+  assert.ok(Math.abs(g.s.cash - cash - net) / net < 1e-6);
+  // potęgowy zwrot: 10× większy przychód to mniej niż 10× więcej badań
+  const b1 = g.rpBudget;
+  g.s.products.notes = 200;
+  g.recalc();
+  const incRatio = g.income / (b1 / RD_BUDGET.k / g.m.rp) ** (1 / RD_BUDGET.p) * 0.25;
+  const ratio = g.rpBudget / b1;
+  assert.ok(ratio > 1 && ratio < incRatio, `badania ×${ratio} przy przychodzie ×${incRatio}`);
+  assert.equal(g.setRdBudget(0.33), false, 'tylko dozwolone progi');
+});

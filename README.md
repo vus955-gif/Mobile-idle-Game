@@ -25,7 +25,8 @@ Gra to **PWA** (Progressive Web App) — instalujesz ją z Safari na ekran pocz�
 | **Koduj** | Stukaj w fioletowy przycisk — każde kliknięcie to pieniądze. |
 | **Produkty** (20) | Od strony wizytówki po superinteligencję. Zarabiają same, także gdy gra jest zamknięta. Co 25/50/100… poziomów kamień milowy podwaja przychód. |
 | **Zespół** (13 działów) | Każdy dział to nowe piętro budynku i własny efekt: programiści, R&D, design, marketing, sprzedaż, obsługa klienta, HR, DevOps, finanse, data science, prawnicy, cyberbezpieczeństwo, zarząd. |
-| **Badania** (46 technologii w 8 erach + badania bez końca) | Od HTML i CSS przez chmurę, AI i komputery kwantowe po rój Dysona. Odblokowują produkty i działy. **Zostają po rundzie finansowania.** |
+| **Badania** (46 technologii w 8 erach + badania bez końca) | Od HTML i CSS przez chmurę, AI i komputery kwantowe po rój Dysona. Odblokowują produkty i działy. **Zostają po rundzie finansowania.** Przy każdej technologii widać, za ile będzie Cię na nią stać. |
+| **Budżet badawczy** | Gdy gotówka się przelewa, 10, 25 albo 50% przychodu idzie na badania. Badaczy przybywa powoli, a budżet rośnie razem z przychodem (z malejącym zwrotem), więc w późnej grze to on napędza postęp. |
 | **Ulepszenia** (~375) | Ulepszenia produktów, działów, kodowania i kultury firmy (pizza w piątki, firmowy pies, teleport do biura…). |
 | **Kontrakty** | Zlecenia B2B od klientów — przyjmujesz, czekasz, dostajesz sowitą zapłatę (także offline). |
 | **Przejęcia** (14) | Kupujesz inne startupy za potężne bonusy. |
@@ -48,9 +49,11 @@ Scena biura żyje według kalendarza telefonu: pora dnia, pory roku, pogoda zmie
 Tempo gry jest dostrojone symulacją (`tools/simulate.mjs`), w której bot gra według zachłannej strategii:
 
 - **gra aktywna**: sklep internetowy ~7 min, aplikacja mobilna ~14 min, pierwsza runda finansowania ~1 h,
-- **gra „z doskoku”** (20 min co ~3 h, noc offline): ery 1–5 pierwszego dnia, era kwantowa ~1,5 dnia, neurotechnologia ~3. dnia, podbój kosmosu ~1 tydzień, pełne drzewko technologii i wszystkie biura ~12 dni. Zarząd dochodzi do pełnego doświadczenia po ok. 3 tygodniach, a badania bez końca i wyzwania zostają na dłużej.
+- **gra „z doskoku”** (20 min co ~3 h, noc offline): ery 1–5 pierwszego dnia, era kwantowa na początku 2. dnia, neurotechnologia i podbój kosmosu pod koniec 2. dnia, pełne drzewko technologii i wszystkie biura ~2,5 dnia. Zarząd dochodzi do pełnego doświadczenia po ok. 3 tygodniach, a badania bez końca i wyzwania zostają na dłużej.
 
-Bot korzysta też z biur, giełdy, zarządu i decyzji. Symulator ma przełączniki (`--no=offices,market,board,decisions`), żeby sprawdzić wpływ każdego systemu, oraz `--chal`, który na koniec próbuje wszystkich wyzwań.
+W późnej grze punkty badań dają głównie budżet badawczy. Bez niego (`--no=budget`) ostatnia era przychodzi dopiero 4. dnia, a pełne drzewko po ~4 dniach, bo badaczy przybywa tylko logarytmicznie względem gotówki.
+
+Bot korzysta też z biur, giełdy, zarządu, decyzji i budżetu badawczego. Symulator ma przełączniki (`--no=offices,market,board,decisions,budget`), żeby sprawdzić wpływ każdego systemu, oraz `--chal`, który na koniec próbuje wszystkich wyzwań. Parametry budżetu i koszty er da się sprawdzić bez edycji danych: `RDK=0.002 RDP=0.25 TECHMUL="7:2,8:2" npm run sim`.
 
 ## 🔋 Wydajność
 

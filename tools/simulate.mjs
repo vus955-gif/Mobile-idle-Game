@@ -6,7 +6,7 @@ import {
 } from '../js/engine.js';
 import {
   PRODUCTS, DEPTS, TECHS, REPEAT_TECHS, ACQUISITIONS, PERKS, OFFICES, AUTOPILOT, COMPETITORS, MARKET, BOARD,
-  CHALLENGES, CHALLENGE_GOALS,
+  CHALLENGES, CHALLENGE_GOALS, RD_BUDGET,
 } from '../js/data.js';
 import { fmt, fmtTime } from '../js/format.js';
 
@@ -14,6 +14,13 @@ const profile = process.argv[2] || 'casual';
 const days = Number(process.argv[3] || 3);
 const verbose = process.argv.includes('-v');
 const off = new Set((process.argv.find((a) => a.startsWith('--no=')) || '').slice(5).split(',').filter(Boolean));
+// Kalibracja bez edycji danych: RDK/RDP — parametry budżetu, TECHMUL="6:0.1,7:0.25" — mnożniki kosztów er.
+if (process.env.RDK) RD_BUDGET.k = Number(process.env.RDK);
+if (process.env.RDP) RD_BUDGET.p = Number(process.env.RDP);
+for (const pair of (process.env.TECHMUL || '').split(',').filter(Boolean)) {
+  const [era, mul] = pair.split(':').map(Number);
+  for (const tch of TECHS) if (tch.era === era) tch.cost *= mul;
+}
 
 let seed = 12345;
 const rng = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
@@ -124,6 +131,11 @@ function decide() {
       consider(u.cost, dd, () => g.buyUpgrade(u.id));
     }
     if (best && best.cost <= s.cash) { const c0 = s.cash; best.act(); bought = s.cash !== c0; }
+  }
+  // budżet badawczy: rośnie z kolejnymi erami (gracz podkręca go, gdy gotówka się przelewa)
+  if (!off.has('budget')) {
+    const want = g.techCount() < 18 ? 0.1 : g.techCount() < 30 ? 0.25 : 0.5;
+    if (g.s.settings.rdBudget !== want) g.setRdBudget(want);
   }
   // decyzje: bierzemy pierwszą opcję
   if (g.s.decision) { if (off.has('decisions')) g.s.decision = null; else g.chooseDecision('a', now); }

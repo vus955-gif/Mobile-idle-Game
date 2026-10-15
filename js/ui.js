@@ -2,7 +2,7 @@
 import {
   PRODUCTS, DEPTS, TECHS, REPEAT_TECHS, ERAS, ACQUISITIONS, PERKS, CATEGORIES, BUBBLES, DEPT_MILESTONE_X, DEPT_MILESTONES,
   AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, SCALE_LEVELS, DECISIONS, OFFICES, OFFICE_MAX_LEVEL, COMPETITORS, MARKET,
-  ROLES, BOARD,
+  ROLES, BOARD, RD_BUDGET,
 } from './data.js';
 import {
   ACHIEVEMENTS, UPGRADES, UPGRADE_MAP, PRODUCT_MAP, DEPT_MAP, TECH_MAP, ACH_BONUS, INVESTOR_BONUS,
@@ -211,6 +211,7 @@ export class UI {
       case 'hire': if (g.hire(id, this.buyAmount())) this.pulse(el); this.updateAll(); break;
       case 'research': g.research(id); this.updateAll(true); break;
       case 'research-repeat': g.researchRepeat(id); this.updateAll(true); break;
+      case 'rd-budget': g.setRdBudget(Number(el.dataset.v)); this.updateAll(true); break;
       case 'buy-upgrade': g.buyUpgrade(id); this.updateAll(true); break;
       case 'buy-all': { const n = g.buyAllUpgrades(); if (n) this.toast('⬆️', t('up.bought', { n, noun: noun('upgrades', n) }), '', 'info'); this.updateAll(true); break; }
       case 'buy-perk': g.buyPerk(id); this.updateAll(true); break;
@@ -502,7 +503,8 @@ export class UI {
     const g = this.g;
     const s = g.s;
     this.setText($('hud-cash'), money(s.cash));
-    this.setText($('hud-income'), money(g.income));
+    this.setText($('hud-income'), money(g.netIncome));
+    $('hud-income').parentElement.classList.toggle('rd', (g.m.rdShare || 0) > 0);
     $('hud-income').parentElement.classList.toggle('boosted', g.m.boostIncome > 1);
     this.setText($('hud-company'), s.companyName);
     this.setText($('hud-stage'), this.stageName());
@@ -1047,14 +1049,37 @@ export class UI {
     const g = this.g;
     const s = g.s;
     const head = $('research-head');
-    const headHtml = `
+    // Nagłówek budujemy raz (przyciski budżetu muszą przetrwać odświeżanie), a liczby podmieniamy.
+    const rnd = !!s.deptUnlocked.rnd;
+    const share = g.m.rdShare || 0;
+    const headSig = `rh|${getLang()}|${rnd}|${share}`;
+    if (this.sigs.researchHead !== headSig) {
+      this.sigs.researchHead = headSig;
+      head.innerHTML = `
       <div class="rp-card">
-        <div><div class="card-sub">${t('rs.points')}</div><div class="rp-big">${fmt(s.rp)} ${t('unit.rp')}</div></div>
-        <div style="text-align:right"><div class="rp-rate">+${fmt(g.rpRate)} ${t('unit.rp')}/s</div><div class="card-sub">${t('rs.techCount', { n: g.techCount(), m: TECHS.length })}</div></div>
+        <div><div class="card-sub">${t('rs.points')}</div><div class="rp-big" data-v="rpv"></div></div>
+        <div style="text-align:right"><div class="rp-rate" data-v="rprate"></div><div class="card-sub" data-v="rpcount"></div></div>
       </div>
-      ${!s.deptUnlocked.rnd ? `<div class="hint" style="margin-top:10px">${t('rs.needRnd')}</div>`
-    : `<div class="card-sub" style="margin:8px 2px 0">${t('rs.persist')}</div>`}`;
-    if (head.innerHTML !== headHtml) head.innerHTML = headHtml;
+      ${!rnd ? `<div class="hint" style="margin-top:10px">${t('rs.needRnd')}</div>` : `
+      <div class="budget-card">
+        <div class="budget-head"><b>🧪 ${t('rs.budget')}</b>
+          <div class="seg">${RD_BUDGET.shares.map((v) => `<button data-act="rd-budget" data-v="${v}" class="${v === share ? 'on' : ''}">${Math.round(v * 100)}%</button>`).join('')}</div>
+        </div>
+        <div class="card-sub" data-v="rdinfo" style="margin-top:6px"></div>
+        <div class="card-sub" style="margin-top:4px;color:var(--faint)">${t('rs.budgetHint')}</div>
+      </div>
+      <div class="card-sub" style="margin:8px 2px 0">${t('rs.persist')}</div>`}`;
+    }
+    // na starcie budżet daje ułamki punktu — pokazujemy to uczciwie zamiast „+0”
+    const budgetRp = g.rpBudget > 0 && g.rpBudget < 0.01 ? `<${fmt(0.01)}` : fmt(g.rpBudget);
+    const pctRaw = g.rpRate > 0 ? (100 * g.rpBudget) / g.rpRate : 0;
+    const budgetPct = pctRaw > 0 && pctRaw < 1 ? '<1' : String(Math.round(pctRaw));
+    this.patch({
+      rpv: `${fmt(s.rp)} ${t('unit.rp')}`,
+      rprate: `+${fmt(g.rpRate)} ${t('unit.rp')}/s`,
+      rpcount: t('rs.techCount', { n: g.techCount(), m: TECHS.length }),
+      rdinfo: { html: share > 0 ? t('rs.budgetInfo', { rp: budgetRp, pct: budgetPct, v: money(g.income * share) }) : t('rs.budgetOff') },
+    }, head);
 
     const done = TECHS.filter((t) => s.techs[t.id]).map((t) => t.id);
     const avail = TECHS.filter((t) => !s.techs[t.id] && g.techAvailable(t.id)).map((t) => t.id);
@@ -1083,7 +1108,7 @@ export class UI {
             <div class="tech-top"><div class="tech-ico">${tech.icon}</div><h4>${esc(TX.techName(tech.id))}</h4></div>
             <div class="fx">${esc(TX.describeFx(tech.fx))}</div>
             ${req}
-            ${isAvail ? `<button class="btn violet" data-act="research" data-id="${tech.id}">${fmt(tech.cost)} ${t('unit.rp')}</button>` : ''}
+            ${isAvail ? `<button class="btn violet" data-act="research" data-id="${tech.id}"><span>${fmt(tech.cost)} ${t('unit.rp')}</span><small></small></button>` : ''}
           </div>`;
         }
         html += '</div>';
@@ -1094,18 +1119,24 @@ export class UI {
           html += `<div class="tech" data-rid="${r.id}">
             <div class="tech-top"><div class="tech-ico">${r.icon}</div><h4>${esc(TX.repeatName(r.id))} <span class="perk-lvl">${t('rs.level', { n: s.techLevels[r.id] || 0 })}</span></h4></div>
             <div class="fx">${esc(TX.repeatDesc(r.id))}</div>
-            <button class="btn violet" data-act="research-repeat" data-id="${r.id}">${fmt(g.repeatCost(r.id))} ${t('unit.rp')}</button>
+            <button class="btn violet" data-act="research-repeat" data-id="${r.id}"><span>${fmt(g.repeatCost(r.id))} ${t('unit.rp')}</span><small></small></button>
           </div>`;
         }
         html += '</div>';
       }
       root.innerHTML = html;
     }
+    // czas do zakupu przy obecnym tempie badań
+    const eta = (cost) => (s.rp >= cost || !(g.rpRate > 0) ? '' : t('rs.eta', { t: fmtTime((cost - s.rp) / g.rpRate) }));
     for (const el of root.querySelectorAll('[data-tid] .btn')) {
-      el.classList.toggle('off', s.rp < TECH_MAP[el.dataset.id].cost);
+      const cost = TECH_MAP[el.dataset.id].cost;
+      el.classList.toggle('off', s.rp < cost);
+      this.setText(el.querySelector('small'), eta(cost));
     }
     for (const el of root.querySelectorAll('[data-rid] .btn')) {
-      el.classList.toggle('off', s.rp < g.repeatCost(el.dataset.id));
+      const cost = g.repeatCost(el.dataset.id);
+      el.classList.toggle('off', s.rp < cost);
+      this.setText(el.querySelector('small'), eta(cost));
     }
   }
 

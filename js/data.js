@@ -265,39 +265,39 @@ export const TECHS = [
   { id: 'kernel', era: 5, name: 'Własne jądro systemu', icon: '🌰', cost: 2e8, req: ['virtualization'], fx: [{ t: 'unlockProduct', id: 'os' }],
     desc: 'Napisane od zera. Przez tydzień nikt nie spał.' },
   // Era 6
-  { id: 'qubits', era: 6, name: 'Kubity nadprzewodzące', icon: '🧊', cost: 2.6e10, req: ['kernel'], fx: [{ t: 'rp', x: 1.5 }, { t: 'all', x: 1.1 }],
+  { id: 'qubits', era: 6, name: 'Kubity nadprzewodzące', icon: '🧊', cost: 2.6e9, req: ['kernel'], fx: [{ t: 'rp', x: 1.5 }, { t: 'all', x: 1.1 }],
     desc: 'Zimniej niż w kosmosie. Dosłownie.' },
-  { id: 'qec', era: 6, name: 'Kwantowa korekcja błędów', icon: '🩹', cost: 4.8e10, req: ['qubits'], fx: [{ t: 'unlockProduct', id: 'quantum' }],
+  { id: 'qec', era: 6, name: 'Kwantowa korekcja błędów', icon: '🩹', cost: 4.8e9, req: ['qubits'], fx: [{ t: 'unlockProduct', id: 'quantum' }],
     desc: 'Kubity są kapryśne. Teraz mniej.' },
-  { id: 'qcrypto', era: 6, name: 'Kryptografia postkwantowa', icon: '🔐', cost: 8e10, req: ['qubits', 'payments'], fx: [{ t: 'prod', id: 'fintech', x: 3 }, { t: 'unlockDept', id: 'security' }],
+  { id: 'qcrypto', era: 6, name: 'Kryptografia postkwantowa', icon: '🔐', cost: 8e9, req: ['qubits', 'payments'], fx: [{ t: 'prod', id: 'fintech', x: 3 }, { t: 'unlockDept', id: 'security' }],
     desc: 'Szyfry, których nie złamie nawet Twój komputer kwantowy.' },
-  { id: 'qml', era: 6, name: 'Kwantowe uczenie maszynowe', icon: '🌀', cost: 1.4e11, req: ['qec', 'llm'], fx: [{ t: 'cat', cat: 'ai', x: 2 }, { t: 'rp', x: 2 }],
+  { id: 'qml', era: 6, name: 'Kwantowe uczenie maszynowe', icon: '🌀', cost: 1.4e10, req: ['qec', 'llm'], fx: [{ t: 'cat', cat: 'ai', x: 2 }, { t: 'rp', x: 2 }],
     desc: 'Dwa modne słowa w jednym. Inwestorzy szaleją.' },
-  { id: 'supremacy', era: 6, name: 'Supremacja kwantowa', icon: '👑', cost: 2.6e11, req: ['qec'], fx: [{ t: 'prod', id: 'quantum', x: 3 }, { t: 'all', x: 1.2 }],
+  { id: 'supremacy', era: 6, name: 'Supremacja kwantowa', icon: '👑', cost: 2.6e10, req: ['qec'], fx: [{ t: 'prod', id: 'quantum', x: 3 }, { t: 'all', x: 1.2 }],
     desc: 'Obliczenie, które klasycznie trwałoby 10 000 lat.' },
-  { id: 'photonic', era: 6, name: 'Procesory fotoniczne', icon: '💡', cost: 4e11, req: ['supremacy'], fx: [{ t: 'cat', cat: 'infra', x: 3 }],
+  { id: 'photonic', era: 6, name: 'Procesory fotoniczne', icon: '💡', cost: 4e10, req: ['supremacy'], fx: [{ t: 'cat', cat: 'infra', x: 3 }],
     desc: 'Obliczenia z prędkością światła.' },
   // Era 7
-  { id: 'connectome', era: 7, name: 'Mapowanie konektomu', icon: '🗺️', cost: 8e11, req: ['qml'], fx: [{ t: 'rp', x: 2 }],
+  { id: 'connectome', era: 7, name: 'Mapowanie konektomu', icon: '🗺️', cost: 2e11, req: ['qml'], fx: [{ t: 'rp', x: 2 }],
     desc: 'Pełna mapa połączeń w mózgu. 86 miliardów neuronów, jeden arkusz.' },
-  { id: 'bciTech', era: 7, name: 'Interfejsy neuronowe', icon: '🔗', cost: 1.6e12, req: ['connectome'], fx: [{ t: 'unlockProduct', id: 'bci' }],
+  { id: 'bciTech', era: 7, name: 'Interfejsy neuronowe', icon: '🔗', cost: 4e11, req: ['connectome'], fx: [{ t: 'unlockProduct', id: 'bci' }],
     desc: 'Mózg rozmawia z komputerem. Bez klawiatury.' },
-  { id: 'neuromorphic', era: 7, name: 'Chipy neuromorficzne', icon: '🔮', cost: 2.4e12, req: ['connectome', 'photonic'], fx: [{ t: 'cat', cat: 'ai', x: 3 }, { t: 'cat', cat: 'deep', x: 2 }],
+  { id: 'neuromorphic', era: 7, name: 'Chipy neuromorficzne', icon: '🔮', cost: 6e11, req: ['connectome', 'photonic'], fx: [{ t: 'cat', cat: 'ai', x: 3 }, { t: 'cat', cat: 'deep', x: 2 }],
     desc: 'Krzem, który myśli jak neurony.' },
-  { id: 'thought', era: 7, name: 'Programowanie myślą', icon: '✨', cost: 3.2e12, req: ['bciTech'], fx: [{ t: 'click', x: 5 }, { t: 'auto', v: 5 }],
+  { id: 'thought', era: 7, name: 'Programowanie myślą', icon: '✨', cost: 8e11, req: ['bciTech'], fx: [{ t: 'click', x: 5 }, { t: 'auto', v: 5 }],
     desc: 'Pomyśl o funkcji — i już jest napisana. Z testami!' },
-  { id: 'agi', era: 7, name: 'Ogólna sztuczna inteligencja', icon: '🧬', cost: 4.8e12, req: ['neuromorphic'], fx: [{ t: 'all', x: 2 }, { t: 'rp', x: 2 }],
+  { id: 'agi', era: 7, name: 'Ogólna sztuczna inteligencja', icon: '🧬', cost: 1.2e12, req: ['neuromorphic'], fx: [{ t: 'all', x: 2 }, { t: 'rp', x: 2 }],
     desc: 'Potrafi wszystko, co człowiek. Tylko szybciej i bez przerw na kawę.' },
   // Era 8
-  { id: 'rockets', era: 8, name: 'Rakiety wielokrotnego użytku', icon: '🚀', cost: 1.2e13, req: ['agi'], fx: [{ t: 'cat', cat: 'space', x: 2 }, { t: 'all', x: 1.2 }],
+  { id: 'rockets', era: 8, name: 'Rakiety wielokrotnego użytku', icon: '🚀', cost: 1.5e12, req: ['agi'], fx: [{ t: 'cat', cat: 'space', x: 2 }, { t: 'all', x: 1.2 }],
     desc: 'Lądują same. Na barce. Na środku oceanu.' },
-  { id: 'satellites', era: 8, name: 'Konstelacje satelitów', icon: '🛰️', cost: 1.6e13, req: ['rockets'], fx: [{ t: 'unlockProduct', id: 'orbital' }],
+  { id: 'satellites', era: 8, name: 'Konstelacje satelitów', icon: '🛰️', cost: 2e12, req: ['rockets'], fx: [{ t: 'unlockProduct', id: 'orbital' }],
     desc: 'Tysiące satelitów i jeden astronom, który płacze.' },
-  { id: 'orbitalDC', era: 8, name: 'Orbitalne centra danych', icon: '🌍', cost: 2e13, req: ['satellites'], fx: [{ t: 'prod', id: 'cloud', x: 5 }, { t: 'prod', id: 'orbital', x: 2 }],
+  { id: 'orbitalDC', era: 8, name: 'Orbitalne centra danych', icon: '🌍', cost: 2.5e12, req: ['satellites'], fx: [{ t: 'prod', id: 'cloud', x: 5 }, { t: 'prod', id: 'orbital', x: 2 }],
     desc: 'Darmowe chłodzenie. Kosmos jest zimny.' },
-  { id: 'asiTech', era: 8, name: 'Superinteligencja', icon: '🌌', cost: 2.4e13, req: ['agi', 'satellites'], fx: [{ t: 'unlockProduct', id: 'asi' }],
+  { id: 'asiTech', era: 8, name: 'Superinteligencja', icon: '🌌', cost: 3e12, req: ['agi', 'satellites'], fx: [{ t: 'unlockProduct', id: 'asi' }],
     desc: 'Ostatnia technologia, jaką wymyślili ludzie.' },
-  { id: 'dyson', era: 8, name: 'Rój Dysona', icon: '☀️', cost: 3.2e13, req: ['asiTech'], fx: [{ t: 'all', x: 3 }],
+  { id: 'dyson', era: 8, name: 'Rój Dysona', icon: '☀️', cost: 4e12, req: ['asiTech'], fx: [{ t: 'all', x: 3 }],
     desc: 'Cała energia Słońca na potrzeby Twoich serwerów.' },
 ];
 
@@ -500,6 +500,13 @@ export const TREND_TEMPLATES = [
   'Hossa w branży: {p} ×{x}',
   'Wszyscy o tym mówią: {p} ×{x}',
 ];
+
+// ---------------------------------------------------------------------------
+// BUDŻET BADAWCZY — część przychodu idzie na badania. Badacze w działach rosną tylko
+// logarytmicznie z gotówką, a budżet potęgowo: PB/s = k × (kwota/s)^p × mnożnik badań.
+// Dzięki temu bogata firma bada szybciej, ale z malejącym zwrotem.
+// ---------------------------------------------------------------------------
+export const RD_BUDGET = { shares: [0, 0.1, 0.25, 0.5], k: 0.001, p: 0.2 };
 
 // ---------------------------------------------------------------------------
 // AUTOPILOT — moduły kupowane raz za udziały (💎), zostają na zawsze

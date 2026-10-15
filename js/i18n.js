@@ -284,6 +284,11 @@ const PL = {
   'ach.exec': 'Obsadź {n} {noun} w zarządzie', 'ach.execDesc': ['Zatrudnij legendę branży', 'Rozwiń członka zarządu do 10. poziomu'],
   'noun.seats': { one: 'fotel', few: 'fotele', many: 'foteli' },
 
+  'rs.budget': 'Budżet badawczy', 'rs.budgetInfo': 'Z budżetu: <b>+{rp} PB/s</b> ({pct}% badań) · na badania idzie {v}/s',
+  'rs.budgetOff': 'Budżet wyłączony: cały przychód trafia na konto.',
+  'rs.budgetHint': 'Badaczy przybywa powoli, a budżet rośnie razem z przychodem. Na starcie to grosze, ale gdy gotówka zaczyna się przelewać, przesuń ją na badania.',
+  'rs.eta': 'za {t}',
+
   'time.d': 'd', 'time.h': 'h', 'time.m': 'min', 'time.s': 's', 'time.y': 'rok',
 };
 
@@ -551,6 +556,11 @@ const EN = {
   'achNames.exec': ['First Seat', 'A Full Board', 'A Legend on the Team', 'Board Veteran'],
   'ach.exec': 'Fill {n} board {noun}', 'ach.execDesc': ['Hire an industry legend', 'Grow a board member to level 10'],
   'noun.seats': { one: 'seat', other: 'seats' },
+
+  'rs.budget': 'Research budget', 'rs.budgetInfo': 'From the budget: <b>+{rp} RP/s</b> ({pct}% of research) · research gets {v}/s',
+  'rs.budgetOff': 'Budget off: all revenue goes to your cash.',
+  'rs.budgetHint': 'Researchers come slowly, but the budget grows with your revenue. Early on it\'s pocket change; once cash starts piling up, move it into research.',
+  'rs.eta': 'in {t}',
 
   'time.d': 'd', 'time.h': 'h', 'time.m': 'm', 'time.s': 's', 'time.y': 'yr',
 };

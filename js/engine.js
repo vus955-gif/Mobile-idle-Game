@@ -5,7 +5,7 @@ import {
   TECHS, REPEAT_TECHS, CULTURE_UPGRADES, CLICK_UPGRADES, ACQUISITIONS, PERKS,
   BUBBLES, CONTRACT_CLIENTS, CONTRACT_TASKS, CONTRACT_DURATIONS, TREND_TEMPLATES,
   AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, CHALLENGE_FACTORS, SCALE_LEVELS, ENERGY_W_PER_USD, DECISIONS,
-  OFFICES, OFFICE_MAX_LEVEL, OFFICE_LEVEL_COST, MARKET, COMPETITORS, BOARD, ROLES, QUIRKS, EXEC_NAMES,
+  OFFICES, OFFICE_MAX_LEVEL, OFFICE_LEVEL_COST, MARKET, COMPETITORS, BOARD, ROLES, QUIRKS, EXEC_NAMES, RD_BUDGET,
 } from './data.js';
 import { fmt, money, num } from './format.js';
 import { t, noun, getLang } from './i18n.js';
@@ -245,7 +245,7 @@ export function createState(now = Date.now()) {
       hired: 0, upgradesBought: 0, rpTotal: 0, bestRun: 0, startedAt: now, runStartedAt: now,
       decisions: 0, autoBuys: 0, zenTime: 0, musicTime: 0, bestValuation: 0, bestCore: 0,
     },
-    settings: { sound: false, music: false, buyAmount: 1, lang: getLang(), view: 'waw' },
+    settings: { sound: false, music: false, buyAmount: 1, lang: getLang(), view: 'waw', rdBudget: 0 },
     lastTick: now,
   };
 }
@@ -320,6 +320,8 @@ export class Game {
     this.listeners = {};
     this.prodIncome = {};
     this.income = 0;
+    this.netIncome = 0;
+    this.rpBudget = 0;
     this.rpRate = 0;
     this.clickValue = 1;
     this.autoAcc = 0;
@@ -487,7 +489,18 @@ export class Game {
     } else {
       this.clickValue = ((1 + m.clickFlat) * m.click * (1 + m.clickMultAdd) * m.achMult * m.invMult + m.clickPct * this.income) * m.boostClick;
     }
-    this.rpRate = m.rpBase * m.rp;
+    // budżet badawczy: część przychodu zamienia się w punkty badań
+    const share = s.deptUnlocked.rnd && RD_BUDGET.shares.includes(s.settings.rdBudget) ? s.settings.rdBudget : 0;
+    m.rdShare = share;
+    this.netIncome = this.income * (1 - share);
+    this.rpBudget = share > 0 && this.income > 0 ? RD_BUDGET.k * Math.pow(this.income * share, RD_BUDGET.p) * m.rp : 0;
+    this.rpRate = m.rpBase * m.rp + this.rpBudget;
+  }
+  setRdBudget(share) {
+    if (!RD_BUDGET.shares.includes(share)) return false;
+    this.s.settings.rdBudget = share;
+    this.recalc();
+    return true;
   }
 
   // Przychód z jednego poziomu produktu (bez kamieni milowych), z premiami i trendem.
@@ -530,7 +543,7 @@ export class Game {
     if (s.trend && s.trend.until <= now) { s.trend = null; dirty = true; this.emit('trend', null); }
     if (dirty) this.recalc();
 
-    this.earn(this.income * dt);
+    this.earn(this.netIncome * dt);
     const rp = this.rpRate * dt;
     s.rp += rp;
     s.stats.rpTotal += rp;
@@ -1073,7 +1086,7 @@ export class Game {
     this.recalc();
     const counted = Math.min(elapsed, this.m.offlineCap);
     const eff = this.m.offlineEff;
-    const cash = (this.income + this.m.auto * this.clickValue) * counted * eff;
+    const cash = (this.netIncome + this.m.auto * this.clickValue) * counted * eff;
     const rp = this.rpRate * counted * eff;
     this.earn(cash);
     s.rp += rp;
