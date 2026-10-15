@@ -274,6 +274,7 @@ input { font: inherit; -webkit-user-select: text; user-select: text; }
 
 .hint { padding: 14px; border-radius: var(--radius); border: 1px dashed rgba(255, 255, 255, .16); color: var(--muted); font-size: 13.5px; text-align: center; }
 .hint b { color: var(--text); }
+.reach-hint { margin: 0 0 10px; text-align: left; border-style: solid; border-color: rgba(255, 183, 77, .35); background: rgba(255, 183, 77, .06); }
 .section-title { display: flex; align-items: center; justify-content: space-between; margin: 18px 2px 8px; font-size: 13px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
 .section-title:first-child { margin-top: 2px; }
 

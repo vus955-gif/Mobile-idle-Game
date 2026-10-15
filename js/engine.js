@@ -5,13 +5,13 @@ import {
   TECHS, REPEAT_TECHS, CULTURE_UPGRADES, CLICK_UPGRADES, ACQUISITIONS, PERKS,
   BUBBLES, CONTRACT_CLIENTS, CONTRACT_TASKS, CONTRACT_DURATIONS, TREND_TEMPLATES,
   AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, CHALLENGE_FACTORS, SCALE_LEVELS, ENERGY_W_PER_USD, DECISIONS,
-  OFFICES, OFFICE_MAX_LEVEL, OFFICE_LEVEL_COST, MARKET, COMPETITORS, BOARD, ROLES, QUIRKS, EXEC_NAMES, RD_BUDGET,
+  OFFICES, OFFICE_MAX_LEVEL, OFFICE_LEVEL_COST, MARKET, COMPETITORS, BOARD, ROLES, QUIRKS, EXEC_NAMES, RD_BUDGET, MARKET_REACH,
 } from './data.js';
 import { fmt, money, num } from './format.js';
 import { t, noun, getLang } from './i18n.js';
 import * as TX from './text.js';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 export const PRESTIGE = { div: 1e10, exp: 1 / 3, k: 10 };
 export const BASE_OFFLINE_CAP = 6 * 3600;
 export const BASE_OFFLINE_EFF = 0.5;
@@ -48,6 +48,23 @@ export function scaleTrait(tr, k) {
 export const DECISION_FIRST = 15 * 60000;
 export const HISTORY = { shortEvery: 5 * 60000, shortMax: 288, longEvery: 2 * 3600000, longMax: 360, roundsMax: 100 };
 
+// Zasięg rynku: każda technologia dokłada krok swojej ery (log10 $/s).
+export const TECH_CAP_STEP = (() => {
+  const out = {};
+  const { base, ends } = MARKET_REACH;
+  for (const t of TECHS) {
+    const n = TECHS.filter((x) => x.era === t.era).length;
+    const prev = t.era === 1 ? base : ends[t.era - 2];
+    out[t.id] = (ends[t.era - 1] - prev) / n;
+  }
+  return out;
+})();
+// Przychód po nasyceniu rynku: do zasięgu bez zmian, ponad nim rośnie z potęgą `soft`.
+export function capIncome(raw, cap) {
+  if (!(raw > cap) || !(cap > 0)) return raw;
+  return cap * Math.min(MARKET_REACH.maxOver, Math.pow(raw / cap, MARKET_REACH.soft));
+}
+
 // Skala cywilizacji: próg rocznego przychodu dla każdego poziomu.
 export const SCALE_THRESHOLDS = SCALE_LEVELS.map((L) => (L.v !== undefined ? L.v : Math.pow(10, 10 * L.k + 6) / ENERGY_W_PER_USD));
 // Stopień w skali Kardaszowa (wzór Sagana) dla rocznego przychodu przeliczonego na moc.
@@ -55,9 +72,13 @@ export function kardashev(annualRevenue) {
   if (!(annualRevenue > 0)) return null;
   return (Math.log10(annualRevenue * ENERGY_W_PER_USD) - 6) / 10;
 }
-export function scaleIndex(annualRevenue) {
+// has(techId) — czy firma ma technologię; stopnie Kardaszowa bez niej są nieosiągalne.
+export function scaleIndex(annualRevenue, has = () => true) {
   let idx = -1;
-  SCALE_THRESHOLDS.forEach((v, i) => { if (annualRevenue >= v) idx = i; });
+  for (let i = 0; i < SCALE_LEVELS.length; i++) {
+    if (SCALE_LEVELS[i].tech && !has(SCALE_LEVELS[i].tech)) break;
+    if (annualRevenue >= SCALE_THRESHOLDS[i]) idx = i;
+  }
   return idx;
 }
 
@@ -305,6 +326,8 @@ export function sanitizeState(raw, now = Date.now()) {
   }
   for (const k of Object.keys(s.stats)) s.stats[k] = fix(s.stats[k], base.stats[k] || 0);
   if (typeof s.companyName !== 'string' || !s.companyName.trim()) s.companyName = base.companyName;
+  // Zapis sprzed nowej ekonomii (v1): Game.afterLoad przeliczy go przy wczytaniu.
+  if (!(raw.v >= 2)) s.migrateFrom = raw.v || 1;
   s.v = SAVE_VERSION;
   return s;
 }
@@ -328,6 +351,42 @@ export class Game {
     this.achTimer = 0;
     this.clickTimes = [];
     this.m = null;
+    this.recalc();
+    this.afterLoad(this.now);
+  }
+
+  // Po wczytaniu zapisu: przejście na nową ekonomię (zasięg rynku, ludzka skala na Ziemi).
+  afterLoad(now = this.now) {
+    this.migrated = false;
+    if (!this.s.migrateFrom) return;
+    delete this.s.migrateFrom;
+    this.migrateEconomy(now);
+    this.migrated = true;
+  }
+  // Badania, biura, zarząd, autopilot, wyzwania, udziały i osiągnięcia zostają. Bieżąca runda
+  // zaczyna się od nowa, a kapitał inwestorów nie może przekraczać tego, na co pozwala rynek
+  // przy obecnych technologiach (dwa dni zarabiania przy pełnym zasięgu).
+  migrateEconomy(now = this.now) {
+    const s = this.s;
+    const cap = Math.pow(10, this.marketCapLog());
+    // na początku gry stara i nowa ekonomia się pokrywają, więc mały kapitał zostaje
+    const fairTotal = Math.max(cap * 2 * 86400, 1e13);
+    const fairInvestors = Math.floor(this.prestigeRaw(fairTotal));
+    if (s.investors > fairInvestors) {
+      s.investors = fairInvestors;
+      s.totalEarned = fairTotal;
+      s.claimedRaw = this.prestigeRaw(fairTotal);
+    }
+    s.stats.bestRun = Math.min(s.stats.bestRun, fairTotal);
+    s.stats.maxIncome = Math.min(s.stats.maxIncome, cap);
+    s.stats.bestValuation = Math.min(s.stats.bestValuation, cap * SECONDS_PER_GAME_YEAR * VALUATION.maxMultiple);
+    s.pending = [];
+    s.history = { short: [], long: [], rounds: [], lastShort: 0, lastLong: 0 };
+    this.resetRun(now);
+    // skala: tyle, ile pozwala obecny rynek; wyższe osiągnięcia skali wrócą razem z technologią
+    const top = scaleIndex(cap * SECONDS_PER_GAME_YEAR, (id) => !!s.techs[id]);
+    s.scaleMax = Math.min(s.scaleMax, top);
+    SCALE_LEVELS.forEach((L, i) => { if (i > s.scaleMax) delete s.achievements[`scale${i}`]; });
     this.recalc();
   }
 
@@ -482,12 +541,25 @@ export class Game {
       this.prodIncome[p.id] = v;
       total += v;
     }
-    this.income = Number.isFinite(total) ? total : Number.MAX_VALUE;
+    // zasięg rynku: ponad nim przychód rośnie wolniej (nasycenie)
+    const raw = Number.isFinite(total) ? total : Number.MAX_VALUE;
+    const cap = Math.pow(10, this.marketCapLog());
+    const eff = capIncome(raw, cap);
+    const factor = raw > 0 ? eff / raw : 1;
+    if (factor !== 1) for (const id in this.prodIncome) this.prodIncome[id] *= factor;
+    this.rawIncome = raw;
+    this.marketCap = cap;
+    this.incFactor = factor;
+    this.incElastic = raw <= cap ? 1 : eff >= cap * MARKET_REACH.maxOver ? 0 : MARKET_REACH.soft;
+    this.income = eff;
     if (ch && ch.rule === 'noclick') {
       m.auto = 0;
       this.clickValue = 0;
     } else {
-      this.clickValue = ((1 + m.clickFlat) * m.click * (1 + m.clickMultAdd) * m.achMult * m.invMult + m.clickPct * this.income) * m.boostClick;
+      // kodowanie też sprzedaje się na tym samym rynku: przy nasyceniu tanieje jak produkty,
+      // a jedno kliknięcie nie przyniesie więcej niż sekunda całego rynku
+      const base = Math.min(cap, (1 + m.clickFlat) * m.click * (1 + m.clickMultAdd) * m.achMult * m.invMult * factor);
+      this.clickValue = (base + m.clickPct * this.income) * m.boostClick;
     }
     // budżet badawczy: część przychodu zamienia się w punkty badań
     const share = s.deptUnlocked.rnd && RD_BUDGET.shares.includes(s.settings.rdBudget) ? s.settings.rdBudget : 0;
@@ -512,13 +584,37 @@ export class Game {
     if (tr && tr.until > this.now && tr.pid === id) v *= tr.x;
     return v;
   }
+  // Poziom skali cywilizacji (z wymaganymi technologiami) i stopień Kardaszowa, który się z nim zgadza.
+  scaleIdx() { return scaleIndex(this.annualRevenue(), (id) => !!this.s.techs[id]); }
+  scaleGate() { return SCALE_LEVELS.find((L) => L.tech && !this.s.techs[L.tech]) || null; }
+  kardashevShown() {
+    const k = kardashev(this.annualRevenue());
+    const gate = this.scaleGate();
+    return k !== null && gate ? Math.min(k, gate.k - 0.01) : k;
+  }
+  // log10 zasięgu rynku ($/s) przy obecnych technologiach
+  marketCapLog() {
+    let v = MARKET_REACH.base;
+    for (const id in this.s.techs) if (this.s.techs[id] && TECH_CAP_STEP[id]) v += TECH_CAP_STEP[id];
+    return v;
+  }
+  // Nazwa rynku: Ziemia, Układ Słoneczny, galaktyka, wszechświat, multiwersum
+  marketStage() {
+    let id = MARKET_REACH.stages[0].id;
+    for (const st of MARKET_REACH.stages) {
+      if (st.tech ? this.s.techs[st.tech] : TECHS.some((t) => t.era >= st.era && this.s.techs[t.id])) id = st.id;
+    }
+    return id;
+  }
+  // Rzeczywisty przyrost przychodu z przyrostu liczonego liniowo (przy nasyconym rynku mniejszy).
+  marginal(d) { return d * (this.incFactor ?? 1) * (this.incElastic ?? 1); }
   // Mnożnik z kamieni milowych (w wyzwaniu „Kryzys” nie działa).
   msMult(lvl) { return this.m.noMilestones ? 1 : Math.pow(2, milestoneCount(lvl)); }
   // O ile wzrośnie przychód po dokupieniu n poziomów (z kamieniami milowymi).
   productDelta(id, n = 1) {
     const l = this.s.products[id] || 0;
     const f = (x) => x * this.msMult(x);
-    return this.productUnit(id) * (f(l + n) - f(l));
+    return this.marginal(this.productUnit(id) * (f(l + n) - f(l)));
   }
 
   earn(x) {
@@ -895,7 +991,8 @@ export class Game {
     s.nextBubbleAt = now + 30000;
     s.nextTrendAt = now + 120000;
     this.recalc();
-    s.cash = this.m.startCash > 0 ? Math.pow(1000, this.m.startCash) : 0;
+    // kapitał na start: ×1000 za poziom, ale najwyżej 10 minut pełnego rynku
+    s.cash = this.m.startCash > 0 ? Math.min(Math.pow(1000, this.m.startCash), this.marketCap * 600) : 0;
     if (this.m.startLevels > 0) {
       const lvls = this.m.startLevels;
       const count = 2 + Math.round(lvls / 10);
@@ -1473,7 +1570,7 @@ export class Game {
   annualRevenue() { return this.steadyIncome() * SECONDS_PER_GAME_YEAR; }
   updateScale() {
     const s = this.s;
-    const idx = scaleIndex(this.annualRevenue());
+    const idx = this.scaleIdx();
     if (idx <= s.scaleMax) return false;
     s.scaleMax = idx;
     this.emit('scale', idx);

@@ -61,6 +61,7 @@ const ui = new UI(game, {
       game.s = sanitizeState(data, Date.now());
       game.s.lastTick = Date.now();
       game.recalc();
+      game.afterLoad(Date.now());
       save();
       return true;
     } catch {
@@ -83,6 +84,8 @@ if (!saved) ui.showWelcome();
 
 // Pierwszy tick nalicza zarobki offline (UI pokaże podsumowanie).
 game.tick(Date.now());
+// Zapis sprzed nowej ekonomii: krótko wyjaśniamy, co się zmieniło.
+if (game.migrated) ui.showMigration();
 
 // Logika gry nie potrzebuje 60 klatek — 20 Hz wystarcza i oszczędza baterię.
 let lastLoop = 0;
