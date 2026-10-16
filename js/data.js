@@ -101,18 +101,10 @@ export const PRODUCT_COST_RATIO = 13;
 export const PRODUCT_PAYBACK0 = 100;
 export const PRODUCT_PAYBACK_GROWTH = 2.4;
 const nice = (x) => { const e = Math.pow(10, Math.floor(Math.log10(x)) - 1); return Math.round(x / e) * e; };
-// Od serwisu streamingowego drabinka łagodnieje (×3–4 na produkt), żeby na Ziemi przychody
-// zostały w ludzkiej skali. Produkty kosmiczne otwierają rynki większe o rzędy wielkości.
-export const PRODUCT_COST_LOG = {
-  streaming: 11.2, search: 11.9, fintech: 12.5, cloud: 13, ai: 13.6, cars: 14.2, os: 14.7, quantum: 15.3, bci: 15.9,
-  orbital: 17.5, asi: 22, probes: 30.5, matrioshka: 32.5, wormnet: 42.5, pocket: 54,
-};
-export const PRODUCT_PAYBACK_LATE = 2;
+// Od serwisu streamingowego ceny liczą się od zasięgu rynku (patrz ZASIĘG RYNKU niżej).
 PRODUCTS.forEach((p, i) => {
-  const log = PRODUCT_COST_LOG[p.id];
-  p.cost = log === undefined ? nice(15 * Math.pow(PRODUCT_COST_RATIO, i)) : nice(Math.pow(10, log));
-  const payback = PRODUCT_PAYBACK0 * Math.pow(PRODUCT_PAYBACK_GROWTH, Math.min(i, 8)) * Math.pow(PRODUCT_PAYBACK_LATE, Math.max(0, i - 8));
-  p.rps = nice(p.cost / payback);
+  p.cost = nice(15 * Math.pow(PRODUCT_COST_RATIO, i));
+  p.rps = nice(p.cost / (PRODUCT_PAYBACK0 * Math.pow(PRODUCT_PAYBACK_GROWTH, i)));
 });
 
 // Progi i mnożniki kosztu ulepszeń produktów. Pierwsze 7 ma własne nazwy (p.ups),
@@ -177,19 +169,19 @@ export const DEPTS = [
     desc: 'Tańsze produkty i dłuższe zarabianie offline.',
     per: [{ t: 'prodCost', v: 0.005, cap: 0.5 }, { t: 'offlineCap', v: 600 }],
     ups: ['Optymalizacja kosztów', 'Hedging walutowy', 'Skarbiec korporacyjny'], upIcons: ['📉', '💱', '🏦'] },
-  { id: 'data', name: 'Data Science', icon: '📊', color: '#7986cb', unlock: 1e12, base: 4e11, g: 1.2, tech: 'bigdata',
+  { id: 'data', name: 'Data Science', icon: '📊', color: '#7986cb', unlock: 1e11, base: 3e10, g: 1.2, tech: 'bigdata',
     desc: 'Mnóstwo punktów badań i bonus do produktów AI.',
     per: [{ t: 'rp', v: 1.5 }, { t: 'cat', cat: 'ai', v: 0.01, cap: 3 }],
     ups: ['Hurtownia danych', 'Własny superkomputer', 'Model świata'], upIcons: ['🗄️', '🖲️', '🌍'] },
-  { id: 'legal', name: 'Dział prawny', icon: '⚖️', color: '#bcaaa4', unlock: 3e13, base: 1e13, g: 1.2,
+  { id: 'legal', name: 'Dział prawny', icon: '⚖️', color: '#bcaaa4', unlock: 3e11, base: 1e11, g: 1.2,
     desc: 'Otwiera przejęcia innych firm i obniża ich koszt.',
     per: [{ t: 'income', v: 0.003 }, { t: 'acqCost', v: 0.008, cap: 0.5 }],
     ups: ['Portfel patentów', 'Zespół fuzji i przejęć', 'Kancelaria na każdym kontynencie'], upIcons: ['📜', '🤝', '🌐'] },
-  { id: 'security', name: 'Cyberbezpieczeństwo', icon: '🛡️', color: '#e57373', unlock: 1e15, base: 4e14, g: 1.2, tech: 'qcrypto',
+  { id: 'security', name: 'Cyberbezpieczeństwo', icon: '🛡️', color: '#e57373', unlock: 2e12, base: 5e11, g: 1.2, tech: 'qcrypto',
     desc: 'Bezpieczne produkty to droższe produkty.',
     per: [{ t: 'income', v: 0.006 }],
     ups: ['Bug bounty', 'Zero trust', 'Red team'], upIcons: ['🐛', '🔐', '🟥'] },
-  { id: 'board', name: 'Zarząd i strategia', icon: '🏛️', color: '#ffd700', unlock: 1e16, base: 4e15, g: 1.2,
+  { id: 'board', name: 'Zarząd i strategia', icon: '🏛️', color: '#ffd700', unlock: 1e13, base: 3e12, g: 1.2,
     desc: 'Więcej kapitału od inwestorów przy kolejnej rundzie finansowania.',
     per: [{ t: 'income', v: 0.003 }, { t: 'prestige', v: 0.01, cap: 2 }],
     ups: ['Rada doradcza', 'Strateg z Doliny Krzemowej', 'Wizjoner na czele'], upIcons: ['🧭', '🌉', '🔭'] },
@@ -375,13 +367,13 @@ export const CULTURE_UPGRADES = [
   { id: 'c_nomeet', name: 'Dzień bez spotkań', icon: '📵', cost: 1e12, x: 1.25, desc: 'W środy tylko kod. I cisza.' },
   { id: 'c_gym', name: 'Siłownia w biurze', icon: '🏋️', cost: 5e12, x: 1.3, desc: 'Silne ciało, silny kod.' },
   { id: 'c_garden', name: 'Ogród na dachu', icon: '🌿', cost: 2e13, x: 1.3, desc: 'Pomidory, zioła i spotkania na trawie.' },
-  { id: 'c_chef', name: 'Kantyna z szefem kuchni', icon: '👨‍🍳', cost: 1e14, x: 1.4, desc: 'Lunch lepszy niż w restauracji.' },
-  { id: 'c_4day', name: 'Czterodniowy tydzień pracy', icon: '📅', cost: 5e14, x: 1.5, desc: 'Wypoczęci ludzie robią lepsze rzeczy.' },
-  { id: 'c_bali', name: 'Wyjazd integracyjny na Bali', icon: '🏝️', cost: 2e15, x: 1.5, desc: 'Cała firma. Dwa tygodnie. Laptopy zostają w domu.' },
-  { id: 'c_happy', name: 'Zespół szczęśliwych ludzi', icon: '💖', cost: 1e16, x: 2, desc: 'Najlepsza technologia ze wszystkich.' },
-  { id: 'c_moon', name: 'Filia na Księżycu', icon: '🌙', cost: 1e18, x: 1.75, desc: 'Najlepszy widok na Ziemię.' },
+  { id: 'c_chef', name: 'Kantyna z szefem kuchni', icon: '👨‍🍳', cost: 3e13, x: 1.4, desc: 'Lunch lepszy niż w restauracji.' },
+  { id: 'c_4day', name: 'Czterodniowy tydzień pracy', icon: '📅', cost: 6e13, x: 1.5, desc: 'Wypoczęci ludzie robią lepsze rzeczy.' },
+  { id: 'c_bali', name: 'Wyjazd integracyjny na Bali', icon: '🏝️', cost: 1.2e14, x: 1.5, desc: 'Cała firma. Dwa tygodnie. Laptopy zostają w domu.' },
+  { id: 'c_happy', name: 'Zespół szczęśliwych ludzi', icon: '💖', cost: 2.5e14, x: 2, desc: 'Najlepsza technologia ze wszystkich.' },
+  { id: 'c_moon', name: 'Filia na Księżycu', icon: '🌙', cost: 3e16, x: 1.75, desc: 'Najlepszy widok na Ziemię.' },
   { id: 'c_teleport', name: 'Teleport do biura', icon: '🌀', cost: 1e22, x: 2, desc: 'Dojazd: 0 sekund.' },
-  { id: 'c_zerog', name: 'Joga w stanie nieważkości', icon: '🧘', cost: 1e26, x: 2, desc: 'Pozycja lotosu jeszcze nigdy nie była tak łatwa.' },
+  { id: 'c_zerog', name: 'Joga w stanie nieważkości', icon: '🧘', cost: 1e25, x: 2, desc: 'Pozycja lotosu jeszcze nigdy nie była tak łatwa.' },
   { id: 'c_olympus', name: 'Biuro z widokiem na Olympus Mons', icon: '🏔️', cost: 1e30, x: 2, desc: 'Najwyższa góra Układu Słonecznego za oknem sali konferencyjnej.' },
   { id: 'c_rings', name: 'Ogród na pierścieniach Saturna', icon: '🪐', cost: 1e34, x: 2.5, desc: 'Pomidory rosną tu w kształcie elips.' },
   { id: 'c_sundays', name: 'Tydzień z ośmioma niedzielami', icon: '🕰️', cost: 1e40, x: 2.5, desc: 'Fizycy z działu R&D znaleźli sposób.' },
@@ -397,11 +389,11 @@ export const CLICK_UPGRADES = [
   { id: 'k_anc', name: 'Słuchawki z redukcją szumów', icon: '🎧', cost: 3e7, x: 2, desc: 'Open space przestaje istnieć.' },
   { id: 'k_standing', name: 'Biurko do pracy na stojąco', icon: '🧍', cost: 2e9, x: 1, pct: 0.005, desc: 'Stoisz, więc kodujesz.' },
   { id: 'k_shortcuts', name: 'Skróty klawiszowe', icon: '⚡', cost: 1e11, x: 3, desc: 'Ctrl+C, Ctrl+V, Ctrl+$$$.' },
-  { id: 'k_pair_ai', name: 'Programowanie w parze z AI', icon: '🤝', cost: 1e12, x: 1, pct: 0.01, desc: 'Ty piszesz pierwszą linijkę, AI resztę.' },
-  { id: 'k_qkeyboard', name: 'Klawiatura kwantowa', icon: '🔮', cost: 5e12, x: 5, desc: 'Wciskasz wszystkie klawisze naraz.' },
-  { id: 'k_neuro', name: 'Neurołącze do IDE', icon: '🧠', cost: 3e13, x: 1, pct: 0.01, desc: 'Myśl szybciej niż piszesz.' },
-  { id: 'k_flow', name: 'Stan flow', icon: '🌊', cost: 2e14, x: 10, desc: 'Czas przestaje istnieć. Kod płynie.' },
-  { id: 'k_midas', name: 'Palec Midasa', icon: '👆', cost: 1e15, x: 1, pct: 0.02, desc: 'Czego dotkniesz, zamienia się w przychód.' },
+  { id: 'k_pair_ai', name: 'Programowanie w parze z AI', icon: '🤝', cost: 5e11, x: 1, pct: 0.01, desc: 'Ty piszesz pierwszą linijkę, AI resztę.' },
+  { id: 'k_qkeyboard', name: 'Klawiatura kwantowa', icon: '🔮', cost: 2e12, x: 5, desc: 'Wciskasz wszystkie klawisze naraz.' },
+  { id: 'k_neuro', name: 'Neurołącze do IDE', icon: '🧠', cost: 1e13, x: 1, pct: 0.01, desc: 'Myśl szybciej niż piszesz.' },
+  { id: 'k_flow', name: 'Stan flow', icon: '🌊', cost: 4e13, x: 10, desc: 'Czas przestaje istnieć. Kod płynie.' },
+  { id: 'k_midas', name: 'Palec Midasa', icon: '👆', cost: 1.5e14, x: 1, pct: 0.02, desc: 'Czego dotkniesz, zamienia się w przychód.' },
   { id: 'k_swarm', name: 'Rój mikrobotów piszących kod', icon: '🐝', cost: 1e20, x: 10, desc: 'Bzyczą w rytmie stand-upów.' },
   { id: 'k_loop', name: 'Klawiatura z pętlą czasu', icon: '⏳', cost: 1e30, x: 1, pct: 0.02, desc: 'Każde kliknięcie odbywa się dwa razy. Wczoraj i dziś.' },
   { id: 'k_enter', name: 'Kosmiczny klawisz Enter', icon: '🌠', cost: 1e40, x: 25, desc: 'Wciśnięty raz, zatwierdza całą galaktykę.' },
@@ -414,16 +406,16 @@ export const ACQUISITIONS = [
   { id: 'a_notatnik', name: 'Notesik.io', icon: '📒', cost: 1e11, fx: [{ t: 'prod', id: 'notes', x: 10 }, { t: 'prod', id: 'landing', x: 10 }], desc: 'Konkurencyjna appka do notatek. Teraz Twoja.' },
   { id: 'a_kurierek', name: 'Kurierek', icon: '📦', cost: 2e11, fx: [{ t: 'prod', id: 'shop', x: 5 }], desc: 'Startup logistyczny z flotą rowerów.' },
   { id: 'a_pixel', name: 'PixelPony Studio', icon: '🦄', cost: 4e11, fx: [{ t: 'prod', id: 'game', x: 4 }, { t: 'prod', id: 'mobile', x: 2 }], desc: 'Twórcy hitu „Kucyki kontra Kosmici”.' },
-  { id: 'a_cwierkacz', name: 'Ćwierkacz', icon: '🐦', cost: 8e11, fx: [{ t: 'prod', id: 'messenger', x: 3 }, { t: 'prod', id: 'social', x: 2 }], desc: 'Krótkie wiadomości, długie dyskusje.' },
-  { id: 'a_tabelka', name: 'Tabelka Systems', icon: '📋', cost: 1.5e12, fx: [{ t: 'cat', cat: 'biz', x: 2 }], desc: 'Arkusze kalkulacyjne dla korporacji.' },
-  { id: 'a_kinoteka', name: 'Kinoteka', icon: '🍿', cost: 3e12, fx: [{ t: 'prod', id: 'streaming', x: 3 }], desc: 'Katalog 40 000 filmów i jeden dobry.' },
-  { id: 'a_szukajka', name: 'Szukajka', icon: '🧭', cost: 5e12, fx: [{ t: 'prod', id: 'search', x: 3 }], desc: 'Druga najpopularniejsza wyszukiwarka w okolicy.' },
-  { id: 'a_bankomacik', name: 'Bankomacik', icon: '🏧', cost: 1e13, fx: [{ t: 'prod', id: 'fintech', x: 3 }], desc: 'Neobank, który kochają studenci.' },
-  { id: 'a_chmurka', name: 'ChmurkaSoft', icon: '⛅', cost: 2e13, fx: [{ t: 'prod', id: 'cloud', x: 3 }, { t: 'rp', x: 1.25 }], desc: 'Mała chmura z wielkimi ambicjami.' },
-  { id: 'a_neuronik', name: 'Neuronik', icon: '🧬', cost: 4e13, fx: [{ t: 'cat', cat: 'ai', x: 3 }, { t: 'rp', x: 1.5 }], desc: 'Laboratorium AI z najlepszymi badaczami.' },
-  { id: 'a_robotaxi', name: 'RoboTaxi', icon: '🚕', cost: 8e13, fx: [{ t: 'prod', id: 'cars', x: 3 }], desc: 'Taksówki bez taksówkarzy, za to z muzyką.' },
-  { id: 'a_kubit', name: 'Kubit i Syn', icon: '🔮', cost: 2e14, fx: [{ t: 'prod', id: 'quantum', x: 3 }, { t: 'all', x: 1.25 }], desc: 'Rodzinna firma kwantowa od trzech pokoleń.' },
-  { id: 'a_mindmeld', name: 'MindMeld Labs', icon: '🫧', cost: 5e14, fx: [{ t: 'prod', id: 'bci', x: 3 }, { t: 'click', x: 3 }], desc: 'Interfejsy neuronowe nowej generacji.' },
+  { id: 'a_cwierkacz', name: 'Ćwierkacz', icon: '🐦', cost: 7e11, fx: [{ t: 'prod', id: 'messenger', x: 3 }, { t: 'prod', id: 'social', x: 2 }], desc: 'Krótkie wiadomości, długie dyskusje.' },
+  { id: 'a_tabelka', name: 'Tabelka Systems', icon: '📋', cost: 1.2e12, fx: [{ t: 'cat', cat: 'biz', x: 2 }], desc: 'Arkusze kalkulacyjne dla korporacji.' },
+  { id: 'a_kinoteka', name: 'Kinoteka', icon: '🍿', cost: 2e12, fx: [{ t: 'prod', id: 'streaming', x: 3 }], desc: 'Katalog 40 000 filmów i jeden dobry.' },
+  { id: 'a_szukajka', name: 'Szukajka', icon: '🧭', cost: 3e12, fx: [{ t: 'prod', id: 'search', x: 3 }], desc: 'Druga najpopularniejsza wyszukiwarka w okolicy.' },
+  { id: 'a_bankomacik', name: 'Bankomacik', icon: '🏧', cost: 5e12, fx: [{ t: 'prod', id: 'fintech', x: 3 }], desc: 'Neobank, który kochają studenci.' },
+  { id: 'a_chmurka', name: 'ChmurkaSoft', icon: '⛅', cost: 8e12, fx: [{ t: 'prod', id: 'cloud', x: 3 }, { t: 'rp', x: 1.25 }], desc: 'Mała chmura z wielkimi ambicjami.' },
+  { id: 'a_neuronik', name: 'Neuronik', icon: '🧬', cost: 1.2e13, fx: [{ t: 'cat', cat: 'ai', x: 3 }, { t: 'rp', x: 1.5 }], desc: 'Laboratorium AI z najlepszymi badaczami.' },
+  { id: 'a_robotaxi', name: 'RoboTaxi', icon: '🚕', cost: 2e13, fx: [{ t: 'prod', id: 'cars', x: 3 }], desc: 'Taksówki bez taksówkarzy, za to z muzyką.' },
+  { id: 'a_kubit', name: 'Kubit i Syn', icon: '🔮', cost: 4e13, fx: [{ t: 'prod', id: 'quantum', x: 3 }, { t: 'all', x: 1.25 }], desc: 'Rodzinna firma kwantowa od trzech pokoleń.' },
+  { id: 'a_mindmeld', name: 'MindMeld Labs', icon: '🫧', cost: 1e14, fx: [{ t: 'prod', id: 'bci', x: 3 }, { t: 'click', x: 3 }], desc: 'Interfejsy neuronowe nowej generacji.' },
   { id: 'a_orbitix', name: 'Orbitix', icon: '🌠', cost: 1e19, fx: [{ t: 'cat', cat: 'space', x: 3 }], desc: 'Właściciele połowy niskiej orbity.' },
 ];
 
@@ -556,11 +548,36 @@ export const TREND_TEMPLATES = [
 export const MARKET_REACH = {
   base: 2.5,
   ends: [4.5, 6.8, 8, 9, 10, 10.5, 11, 23.5, 33.5, 53.5],
-  soft: 0.1,
-  maxOver: 50, // nawet przy nasyceniu przychód nie przekroczy 50× zasięgu
+  soft: 0.3,
+  maxOver: 100, // nawet przy nasyceniu przychód nie przekroczy 100× zasięgu
   // nazwa rynku według najwyższej ery z odkrytą technologią
   stages: [{ era: 0, id: 'earth' }, { era: 8, id: 'solar' }, { era: 9, id: 'galaxy' }, { era: 10, id: 'universe' }, { tech: 'babyUniverse', id: 'multiverse' }],
 };
+
+// Krok zasięgu każdej technologii (log10 $/s) i zasięg tuż przed jej odkryciem
+// (przy badaniach w kolejności listy) — od niego liczą się ceny nowych produktów.
+export const TECH_CAP_STEP = {};
+export const REACH_BEFORE = {};
+{
+  let acc = MARKET_REACH.base;
+  for (const t of TECHS) {
+    const n = TECHS.filter((x) => x.era === t.era).length;
+    const prev = t.era === 1 ? MARKET_REACH.base : MARKET_REACH.ends[t.era - 2];
+    TECH_CAP_STEP[t.id] = (MARKET_REACH.ends[t.era - 1] - prev) / n;
+    REACH_BEFORE[t.id] = acc;
+    acc += TECH_CAP_STEP[t.id];
+  }
+}
+// Od serwisu streamingowego nowy produkt kosztuje ok. 10 minut przychodu z rynku, jaki firma ma,
+// gdy go odblokowuje. Na Ziemi każdy kolejny zarabia ×2,2 więcej od poprzedniego, a produkty
+// kosmiczne otwierają rynki większe o rzędy wielkości.
+export const PRODUCT_REACH_SECONDS = 600;
+export const PRODUCT_SPACE_PAYBACK = 3e5;
+PRODUCTS.forEach((p, i) => {
+  if (i < 9) return;
+  p.cost = nice(Math.pow(10, REACH_BEFORE[p.tech]) * PRODUCT_REACH_SECONDS);
+  p.rps = nice(p.cat === 'space' || p.cat === 'cosmic' ? p.cost / PRODUCT_SPACE_PAYBACK : PRODUCTS[i - 1].rps * 2.2);
+});
 
 // ---------------------------------------------------------------------------
 // BUDŻET BADAWCZY — część przychodu idzie na badania. Badacze w działach rosną tylko
@@ -613,7 +630,7 @@ export const CHALLENGES = [
 // Każdy kolejny poziom kosztuje ×OFFICE_LEVEL_COST więcej, a efekt działa tyle razy, ile jest poziomów.
 // ---------------------------------------------------------------------------
 export const OFFICE_MAX_LEVEL = 3;
-export const OFFICE_LEVEL_COST = 1e4;
+export const OFFICE_LEVEL_COST = 20;
 export const OFFICES = [
   { id: 'waw', icon: '🇵🇱', kind: 'earth', lat: 52.23, lon: 21.01, cost: 5e5, hq: true, fx: [{ t: 'dept', id: 'dev', x: 1.15 }],
     name: 'Warszawa', desc: 'Tu wszystko się zaczęło. Świetni programiści i najlepsze pierogi w promieniu tysiąca kilometrów.' },
@@ -635,36 +652,36 @@ export const OFFICES = [
     name: 'Nowy Jork', desc: 'Wall Street wycenia Cię wyżej, kiedy masz biuro na Manhattanie.' },
   { id: 'lag', icon: '🇳🇬', kind: 'earth', lat: 6.52, lon: 3.38, cost: 3e12, req: 'payments', fx: [{ t: 'cat', cat: 'mobile', x: 1.1 }, { t: 'prod', id: 'fintech', x: 1.25 }],
     name: 'Lagos', desc: 'Najszybciej rosnący rynek mobilnych płatności na świecie.' },
-  { id: 'syd', icon: '🇦🇺', kind: 'earth', lat: -33.87, lon: 151.21, cost: 1e13, req: 'video', fx: [{ t: 'offlineCap', v: 3600 }, { t: 'offlineEff', v: 0.04 }],
+  { id: 'syd', icon: '🇦🇺', kind: 'earth', lat: -33.87, lon: 151.21, cost: 4e12, req: 'video', fx: [{ t: 'offlineCap', v: 3600 }, { t: 'offlineEff', v: 0.04 }],
     name: 'Sydney', desc: 'Gdy Europa śpi, Sydney pracuje. Firma działa całą dobę.' },
-  { id: 'sto', icon: '🇸🇪', kind: 'earth', lat: 59.33, lon: 18.07, cost: 3e13, req: 'video', fx: [{ t: 'prod', id: 'streaming', x: 1.4 }, { t: 'prod', id: 'game', x: 1.25 }],
+  { id: 'sto', icon: '🇸🇪', kind: 'earth', lat: 59.33, lon: 18.07, cost: 6e12, req: 'video', fx: [{ t: 'prod', id: 'streaming', x: 1.4 }, { t: 'prod', id: 'game', x: 1.25 }],
     name: 'Sztokholm', desc: 'Muzyka w streamingu, gry i bardzo długie zimowe wieczory na kodowanie.' },
-  { id: 'sin', icon: '🇸🇬', kind: 'earth', lat: 1.35, lon: 103.82, cost: 5e13, req: 'virtualization', fx: [{ t: 'prod', id: 'cloud', x: 1.4 }, { t: 'offlineEff', v: 0.03 }],
+  { id: 'sin', icon: '🇸🇬', kind: 'earth', lat: 1.35, lon: 103.82, cost: 8e12, req: 'virtualization', fx: [{ t: 'prod', id: 'cloud', x: 1.4 }, { t: 'offlineEff', v: 0.03 }],
     name: 'Singapur', desc: 'Węzeł chmury dla całej Azji.' },
-  { id: 'rkv', icon: '🇮🇸', kind: 'earth', lat: 64.15, lon: -21.94, cost: 1e14, req: 'bigdata', fx: [{ t: 'cat', cat: 'infra', x: 1.15 }, { t: 'prodCost', x: 0.98 }],
+  { id: 'rkv', icon: '🇮🇸', kind: 'earth', lat: 64.15, lon: -21.94, cost: 1.2e13, req: 'bigdata', fx: [{ t: 'cat', cat: 'infra', x: 1.15 }, { t: 'prodCost', x: 0.98 }],
     name: 'Reykjavik', desc: 'Darmowe chłodzenie serwerów i zorza polarna nad parkingiem.' },
-  { id: 'dxb', icon: '🇦🇪', kind: 'earth', lat: 25.2, lon: 55.27, cost: 5e14, req: 'serverless', fx: [{ t: 'contract', x: 1.15 }, { t: 'acqCost', x: 0.95 }],
+  { id: 'dxb', icon: '🇦🇪', kind: 'earth', lat: 25.2, lon: 55.27, cost: 2e13, req: 'serverless', fx: [{ t: 'contract', x: 1.15 }, { t: 'acqCost', x: 0.95 }],
     name: 'Dubaj', desc: 'Kontrakty podpisywane na 120. piętrze.' },
-  { id: 'yyz', icon: '🇨🇦', kind: 'earth', lat: 43.65, lon: -79.38, cost: 2e15, req: 'dl', fx: [{ t: 'cat', cat: 'ai', x: 1.15 }, { t: 'rp', x: 1.05 }],
+  { id: 'yyz', icon: '🇨🇦', kind: 'earth', lat: 43.65, lon: -79.38, cost: 4e13, req: 'dl', fx: [{ t: 'cat', cat: 'ai', x: 1.15 }, { t: 'rp', x: 1.05 }],
     name: 'Toronto', desc: 'Kolebka głębokiego uczenia. Badacze AI na każdym uniwersytecie.' },
-  { id: 'zrh', icon: '🇨🇭', kind: 'earth', lat: 47.37, lon: 8.54, cost: 5e15, req: 'qubits', fx: [{ t: 'cat', cat: 'deep', x: 1.15 }, { t: 'prestige', x: 1.03 }],
+  { id: 'zrh', icon: '🇨🇭', kind: 'earth', lat: 47.37, lon: 8.54, cost: 8e13, req: 'qubits', fx: [{ t: 'cat', cat: 'deep', x: 1.15 }, { t: 'prestige', x: 1.03 }],
     name: 'Zurych', desc: 'Laboratoria kwantowe, banki i widok na Alpy.' },
-  { id: 'tlv', icon: '🇮🇱', kind: 'earth', lat: 32.08, lon: 34.78, cost: 1e16, req: 'qcrypto', fx: [{ t: 'dept', id: 'security', x: 1.2 }, { t: 'rp', x: 1.05 }],
+  { id: 'tlv', icon: '🇮🇱', kind: 'earth', lat: 32.08, lon: 34.78, cost: 1.5e14, req: 'qcrypto', fx: [{ t: 'dept', id: 'security', x: 1.2 }, { t: 'rp', x: 1.05 }],
     name: 'Tel Awiw', desc: 'Startupy cyberbezpieczeństwa na każdym rogu.' },
   // kosmos
   { id: 'leo', icon: '🛰️', kind: 'space', cost: 1e17, req: 'rockets', fx: [{ t: 'cat', cat: 'space', x: 1.15 }],
     name: 'Stacja orbitalna', desc: 'Biuro z widokiem na Ziemię. Szesnaście wschodów słońca dziennie.' },
-  { id: 'moon', icon: '🌙', kind: 'space', cost: 1e20, req: 'satellites', fx: [{ t: 'all', x: 1.1 }, { t: 'rp', x: 1.05 }],
+  { id: 'moon', icon: '🌙', kind: 'space', cost: 3e19, req: 'satellites', fx: [{ t: 'all', x: 1.1 }, { t: 'rp', x: 1.05 }],
     name: 'Baza na Księżycu', desc: 'Kampus pod kopułą, ⅙ grawitacji i zero korków.' },
-  { id: 'mars', icon: '🔴', kind: 'space', cost: 1e23, req: 'orbitalDC', fx: [{ t: 'all', x: 1.15 }],
+  { id: 'mars', icon: '🔴', kind: 'space', cost: 1e22, req: 'orbitalDC', fx: [{ t: 'all', x: 1.15 }],
     name: 'Kolonia na Marsie', desc: 'Pierwsze miasto na innej planecie. Ping do Ziemi: 20 minut.' },
-  { id: 'ceres', icon: '☄️', kind: 'space', cost: 1e26, req: 'asiTech', fx: [{ t: 'prodCost', x: 0.95 }],
+  { id: 'ceres', icon: '☄️', kind: 'space', cost: 3e24, req: 'asiTech', fx: [{ t: 'prodCost', x: 0.95 }],
     name: 'Ceres', desc: 'Kopalnia surowców w Pasie Planetoid. Serwery tanieją.' },
-  { id: 'europa', icon: '🧊', kind: 'space', cost: 1e30, req: 'dyson', fx: [{ t: 'rp', x: 1.1 }],
+  { id: 'europa', icon: '🧊', kind: 'space', cost: 1e27, req: 'dyson', fx: [{ t: 'rp', x: 1.1 }],
     name: 'Europa', desc: 'Laboratorium pod lodem księżyca Jowisza.' },
-  { id: 'titan', icon: '🪐', kind: 'space', cost: 1e33, req: 'dyson', fx: [{ t: 'all', x: 1.25 }],
+  { id: 'titan', icon: '🪐', kind: 'space', cost: 3e27, req: 'dyson', fx: [{ t: 'all', x: 1.25 }],
     name: 'Tytan', desc: 'Pomarańczowe niebo, metanowe jeziora i Saturn nad horyzontem.' },
-  { id: 'proxima', icon: '✨', kind: 'space', cost: 1e38, req: 'lightsail', fx: [{ t: 'all', x: 1.5 }, { t: 'prestige', x: 1.1 }],
+  { id: 'proxima', icon: '✨', kind: 'space', cost: 1e31, req: 'lightsail', fx: [{ t: 'all', x: 1.5 }, { t: 'prestige', x: 1.1 }],
     name: 'Proxima b', desc: 'Pierwsze biuro poza Układem Słonecznym. 4,2 roku świetlnego od domu.' },
 ];
 

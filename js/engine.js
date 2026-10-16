@@ -5,7 +5,7 @@ import {
   TECHS, REPEAT_TECHS, CULTURE_UPGRADES, CLICK_UPGRADES, ACQUISITIONS, PERKS,
   BUBBLES, CONTRACT_CLIENTS, CONTRACT_TASKS, CONTRACT_DURATIONS, TREND_TEMPLATES,
   AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, CHALLENGE_FACTORS, SCALE_LEVELS, ENERGY_W_PER_USD, DECISIONS,
-  OFFICES, OFFICE_MAX_LEVEL, OFFICE_LEVEL_COST, MARKET, COMPETITORS, BOARD, ROLES, QUIRKS, EXEC_NAMES, RD_BUDGET, MARKET_REACH,
+  OFFICES, OFFICE_MAX_LEVEL, OFFICE_LEVEL_COST, MARKET, COMPETITORS, BOARD, ROLES, QUIRKS, EXEC_NAMES, RD_BUDGET, MARKET_REACH, TECH_CAP_STEP,
 } from './data.js';
 import { fmt, money, num } from './format.js';
 import { t, noun, getLang } from './i18n.js';
@@ -48,17 +48,8 @@ export function scaleTrait(tr, k) {
 export const DECISION_FIRST = 15 * 60000;
 export const HISTORY = { shortEvery: 5 * 60000, shortMax: 288, longEvery: 2 * 3600000, longMax: 360, roundsMax: 100 };
 
-// Zasięg rynku: każda technologia dokłada krok swojej ery (log10 $/s).
-export const TECH_CAP_STEP = (() => {
-  const out = {};
-  const { base, ends } = MARKET_REACH;
-  for (const t of TECHS) {
-    const n = TECHS.filter((x) => x.era === t.era).length;
-    const prev = t.era === 1 ? base : ends[t.era - 2];
-    out[t.id] = (ends[t.era - 1] - prev) / n;
-  }
-  return out;
-})();
+// Zasięg rynku: każda technologia dokłada krok swojej ery (log10 $/s) — liczony w data.js.
+export { TECH_CAP_STEP };
 // Przychód po nasyceniu rynku: do zasięgu bez zmian, ponad nim rośnie z potęgą `soft`.
 export function capIncome(raw, cap) {
   if (!(raw > cap) || !(cap > 0)) return raw;

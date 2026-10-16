@@ -39,7 +39,10 @@ test('zasięg rynku rośnie z każdą technologią i kończy się na erach', () 
 
 test('nasycony rynek: przychód ponad zasięgiem rośnie z potęgą soft', () => {
   assert.equal(capIncome(50, 100), 50);
-  assert.ok(Math.abs(capIncome(100 * 1e10, 100) - 100 * Math.pow(1e10, MARKET_REACH.soft)) < 1e-6 * 100 * Math.pow(1e10, MARKET_REACH.soft));
+  const soft = 100 * Math.pow(1e3, MARKET_REACH.soft);
+  assert.ok(soft < 100 * MARKET_REACH.maxOver);
+  assert.ok(Math.abs(capIncome(100 * 1e3, 100) - soft) < 1e-9 * soft);
+  assert.equal(capIncome(100 * 1e30, 100), 100 * MARKET_REACH.maxOver);
   const g = newGame();
   research(g, 7);
   g.s.investors = 1e12;

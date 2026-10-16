@@ -50,9 +50,9 @@ Scena biura żyje według kalendarza telefonu: pora dnia, pory roku, pogoda zmie
 Tempo gry jest dostrojone symulacją (`tools/simulate.mjs`), w której bot gra według zachłannej strategii:
 
 - **gra aktywna**: sklep internetowy ~7 min, aplikacja mobilna ~14 min, pierwsza runda finansowania ~1 h,
-- **gra „z doskoku”** (20 min co ~3 h, noc offline): ery 1–5 pierwszego dnia, era kwantowa i neurotechnologia 2. dnia, podbój kosmosu po ~2,3 dnia, ekspansja międzygwiezdna 3. dnia, inżynieria wszechświata po ~3,7 dnia, pełne drzewko technologii po ~4,3 dnia, wszystkie biura po ~3,3 dnia. Zarząd dochodzi do pełnego doświadczenia po ok. 3 tygodniach, a badania bez końca i wyzwania zostają na dłużej.
+- **gra „z doskoku”** (20 min co ~3 h, noc offline): ery 1–5 pierwszego dnia, era kwantowa i neurotechnologia na początku 2. dnia, podbój kosmosu po ~1,5 dnia, ekspansja międzygwiezdna po ~1,8 dnia, inżynieria wszechświata po ~2,3 dnia, pełne drzewko technologii po ~2,5 dnia. Zarząd dochodzi do pełnego doświadczenia po ok. 3 tygodniach, a badania bez końca i wyzwania zostają na dłużej.
 
-Pieniądze idą w parze z technologią. Na Ziemi przychód rośnie od garażu (ok. $1/s) do kilku PKB świata przy AGI (ok. $100–300 mld/s, czyli rocznie tyle, ile wart jest majątek ludzkości). Liczby rzędu 10²⁰ i więcej pojawiają się dopiero w kosmosie. Zasięg rynku pilnuje tego niezależnie od rund finansowania: ponad nim przychód rośnie z potęgą 0,1 i nigdy nie przekroczy 50× zasięgu.
+Pieniądze idą w parze z technologią. Na Ziemi przychód rośnie od garażu (ok. $1/s) do kilkudziesięciu PKB świata przy AGI (rząd $0,1–1 bln/s). Liczby rzędu 10²⁰ i więcej pojawiają się dopiero w kosmosie. Zasięg rynku pilnuje tego niezależnie od rund finansowania: ponad nim przychód rośnie z potęgą 0,3 i nigdy nie przekroczy 100× zasięgu. Nowe produkty od serwisu streamingowego kosztują ok. 10 minut przychodu z rynku, jaki firma ma w chwili ich odblokowania.
 
 W późnej grze punkty badań dają głównie budżet badawczy. Bez niego (`--no=budget`) podbój kosmosu przychodzi dopiero po ~6,5 dnia, bo badaczy przybywa tylko logarytmicznie względem gotówki.
 
