@@ -4,10 +4,11 @@ import assert from 'node:assert/strict';
 import { DICT, setLang, t } from '../js/i18n.js';
 import { EN } from '../js/lang/en.js';
 import {
-  PRODUCTS, DEPTS, TECHS, REPEAT_TECHS, CULTURE_UPGRADES, CLICK_UPGRADES, ACQUISITIONS, PERKS, ERAS,
-  CATEGORIES, BUBBLES, ROUND_NAMES, COMPANY_STAGES, NEWS, TREND_TEMPLATES, CONTRACT_CLIENTS, CONTRACT_TASKS,
+  PERKS, CATEGORIES, BUBBLES, ROUND_NAMES, COMPANY_STAGES, NEWS, TREND_TEMPLATES, CONTRACT_CLIENTS, CONTRACT_TASKS,
 } from '../js/data.js';
-import { Game, UPGRADES, ACHIEVEMENTS } from '../js/engine.js';
+import { Game } from '../js/engine.js';
+import { LAYERS, LAYER_ORDER } from '../js/layers.js';
+import { SPACE_CATEGORIES, SPACE_CLIENTS, SPACE_TASKS } from '../js/space.js';
 import * as TX from '../js/text.js';
 import { fmt, money, fmtTime } from '../js/format.js';
 
@@ -33,19 +34,25 @@ test('słowniki interfejsu PL i EN mają te same klucze i kształty', () => {
 });
 
 test('angielska treść obejmuje każdy element gry', () => {
-  for (const p of PRODUCTS) {
-    assert.ok(EN.products[p.id], p.id);
-    assert.equal(EN.products[p.id].ups.length, p.ups.length, `${p.id}: ulepszenia`);
+  for (const id of LAYER_ORDER) {
+    const D = LAYERS[id];
+    for (const p of D.PRODUCTS) {
+      assert.ok(EN.products[p.id], p.id);
+      assert.equal(EN.products[p.id].ups.length, p.ups.length, `${p.id}: ulepszenia`);
+    }
+    for (const d of D.DEPTS) assert.equal(EN.depts[d.id].ups.length, d.ups.length, d.id);
+    for (const x of D.TECHS) assert.ok(EN.techs[x.id], x.id);
+    for (const x of D.REPEAT_TECHS) assert.ok(EN.repeat[x.id], x.id);
+    for (const x of D.CULTURE_UPGRADES) assert.ok(EN.culture[x.id], x.id);
+    for (const x of D.CLICK_UPGRADES) assert.ok(EN.click[x.id], x.id);
+    for (const x of D.ACQUISITIONS) assert.ok(EN.acquisitions[x.id], x.id);
+    for (const x of D.OFFICES) assert.ok(EN.offices[x.id], x.id);
+    for (const e of D.ERAS) assert.ok(EN.eras[e.id], `era ${e.id}`);
   }
-  for (const d of DEPTS) assert.equal(EN.depts[d.id].ups.length, d.ups.length, d.id);
-  for (const x of TECHS) assert.ok(EN.techs[x.id], x.id);
-  for (const x of REPEAT_TECHS) assert.ok(EN.repeat[x.id], x.id);
-  for (const x of CULTURE_UPGRADES) assert.ok(EN.culture[x.id], x.id);
-  for (const x of CLICK_UPGRADES) assert.ok(EN.click[x.id], x.id);
-  for (const x of ACQUISITIONS) assert.ok(EN.acquisitions[x.id], x.id);
   for (const x of PERKS) assert.ok(EN.perks[x.id], x.id);
-  for (const e of ERAS) assert.ok(EN.eras[e.id], `era ${e.id}`);
-  for (const c of Object.keys(CATEGORIES)) assert.ok(EN.categories[c], c);
+  for (const c of Object.keys({ ...CATEGORIES, ...SPACE_CATEGORIES })) assert.ok(EN.categories[c], c);
+  assert.equal(EN.spaceClients.length, SPACE_CLIENTS.length);
+  assert.equal(EN.spaceTasks.length, SPACE_TASKS.length);
   for (const b of Object.keys(BUBBLES)) assert.ok(EN.bubbles[b], b);
   assert.equal(EN.rounds.length, ROUND_NAMES.length);
   assert.equal(EN.stages.length, COMPANY_STAGES.length);
@@ -58,10 +65,17 @@ test('angielska treść obejmuje każdy element gry', () => {
 test('każde ulepszenie, osiągnięcie i technologia ma tekst w obu językach', () => {
   for (const lang of LANGS) {
     setLang(lang);
-    for (const u of UPGRADES) { clean(TX.upgradeName(u), `${lang} ${u.id} nazwa`); clean(TX.upgradeDesc(u), `${lang} ${u.id} opis`); }
-    for (const a of ACHIEVEMENTS) { clean(TX.achName(a), `${lang} ${a.id} nazwa`); clean(TX.achDesc(a), `${lang} ${a.id} opis`); }
-    for (const x of TECHS) { clean(TX.techName(x.id), x.id); clean(TX.describeFx(x.fx), `${lang} ${x.id} efekt`); }
-    for (const x of ACQUISITIONS) clean(TX.describeFx(x.fx), `${lang} ${x.id} efekt`);
+    for (const id of LAYER_ORDER) {
+      const D = LAYERS[id];
+      for (const u of D.UPGRADES) { clean(TX.upgradeName(u), `${lang} ${u.id} nazwa`); clean(TX.upgradeDesc(u), `${lang} ${u.id} opis`); }
+      for (const a of D.ACHIEVEMENTS) { clean(TX.achName(a), `${lang} ${a.id} nazwa`); clean(TX.achDesc(a), `${lang} ${a.id} opis`); }
+      for (const x of D.TECHS) { clean(TX.techName(x.id), x.id); clean(TX.describeFx(x.fx), `${lang} ${x.id} efekt`); }
+      for (const x of D.ACQUISITIONS) clean(TX.describeFx(x.fx), `${lang} ${x.id} efekt`);
+      for (const x of D.OFFICES) { clean(TX.officeName(x.id), x.id); clean(TX.describeFx(x.fx), `${lang} ${x.id} efekt`); }
+      for (const e of D.ERAS) clean(TX.eraName(e.id), `${lang} era ${e.id}`);
+    }
+    clean(TX.clientName({ ci: 5, L: 'space' }), `${lang} klient w kosmosie`);
+    clean(TX.taskName({ ti: 5, L: 'space' }), `${lang} zlecenie w kosmosie`);
     for (let i = 0; i < 20; i++) clean(TX.roundName(i), `${lang} runda ${i}`);
     clean(TX.trendText({ pid: 'game', x: 1.5, tpl: 2 }), `${lang} trend`);
     clean(TX.clientName({ ci: 3 }), `${lang} klient`);
@@ -89,9 +103,9 @@ test('formatowanie liczb po angielsku', () => {
 
 test('nowa gra dostaje domyślną nazwę w swoim języku', () => {
   setLang('en');
-  assert.equal(new Game(null, { now: T0 }).s.companyName, 'Garage Startup');
+  assert.equal(new Game(null, { now: T0 }).s.meta.companyName, 'Garage Startup');
   setLang('pl');
-  assert.equal(new Game(null, { now: T0 }).s.companyName, 'Garażowy Startup');
+  assert.equal(new Game(null, { now: T0 }).s.meta.companyName, 'Garażowy Startup');
 });
 
 test('wycena firmy jest realistyczna i ignoruje chwilowe premie', () => {

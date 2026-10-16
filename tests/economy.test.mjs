@@ -5,6 +5,7 @@ import {
   Game, TECH_CAP_STEP, capIncome, scaleIndex, SCALE_THRESHOLDS, SECONDS_PER_GAME_YEAR, SAVE_VERSION, createState,
 } from '../js/engine.js';
 import { TECHS, ERAS, PRODUCTS, MARKET_REACH, SCALE_LEVELS } from '../js/data.js';
+import { SPACE } from '../js/layers.js';
 import { EN } from '../js/lang/en.js';
 import { setLang } from '../js/i18n.js';
 
@@ -13,16 +14,17 @@ const T0 = 1_700_000_000_000;
 const newGame = () => new Game(null, { now: T0, rng: () => 0.5 });
 const research = (g, maxEra) => { for (const t of TECHS) if (t.era <= maxEra) g.s.techs[t.id] = true; g.recalc(); };
 
-test('dziesięć er, nowe produkty i tłumaczenia', () => {
-  assert.equal(ERAS.length, 10);
-  for (const e of ERAS) assert.ok(TECHS.some((t) => t.era === e.id), `era ${e.id}`);
-  for (const id of ['probes', 'matrioshka', 'wormnet', 'pocket']) {
-    const p = PRODUCTS.find((x) => x.id === id);
-    assert.ok(p && TECHS.some((t) => t.id === p.tech), id);
-    assert.ok(EN.products[id] && EN.products[id].ups.length === 7, id);
+test('Ziemia ma ery 1–7, Kosmos ery 8–10; produkty drożeją i mają tłumaczenia', () => {
+  assert.deepEqual(ERAS.map((e) => e.id), [1, 2, 3, 4, 5, 6, 7]);
+  assert.deepEqual(SPACE.ERAS.map((e) => e.id), [8, 9, 10]);
+  for (const D of [{ ERAS, TECHS, PRODUCTS }, SPACE]) {
+    for (const e of D.ERAS) assert.ok(D.TECHS.some((t) => t.era === e.id), `era ${e.id}`);
+    for (let i = 1; i < D.PRODUCTS.length; i++) assert.ok(D.PRODUCTS[i].cost > D.PRODUCTS[i - 1].cost, D.PRODUCTS[i].id);
+    for (const p of D.PRODUCTS) {
+      assert.ok(EN.products[p.id] && EN.products[p.id].ups.length === 7, p.id);
+      assert.ok(!p.tech || D.TECHS.some((t) => t.id === p.tech), p.id);
+    }
   }
-  // każdy produkt jest droższy od poprzedniego
-  for (let i = 1; i < PRODUCTS.length; i++) assert.ok(PRODUCTS[i].cost > PRODUCTS[i - 1].cost, PRODUCTS[i].id);
 });
 
 test('zasięg rynku rośnie z każdą technologią i kończy się na erach', () => {
@@ -33,13 +35,22 @@ test('zasięg rynku rośnie z każdą technologią i kończy się na erach', () 
     assert.ok(Math.abs(g.marketCapLog() - MARKET_REACH.ends[era - 1]) < 1e-9, `era ${era}`);
   }
   for (const t of TECHS) assert.ok(TECH_CAP_STEP[t.id] > 0, t.id);
-  // kosmos poszerza rynek o rzędy wielkości na technologię, Ziemia — o ułamek rzędu
-  assert.ok(TECH_CAP_STEP.agi < 0.5 && TECH_CAP_STEP.rockets > 2);
+  assert.ok(TECH_CAP_STEP.agi < 0.5, 'na Ziemi technologia poszerza rynek o ułamek rzędu');
+  // Kosmos: od rynku wielkości ziemskiej gospodarki do cywilizacji typu II
+  const s = new Game(null, { now: T0, layer: 'space' });
+  assert.equal(s.marketCapLog(), SPACE.MARKET_REACH.base);
+  for (const t of SPACE.TECHS) s.s.techs[t.id] = true;
+  s.recalc();
+  assert.ok(Math.abs(s.marketCapLog() - SPACE.MARKET_REACH.ends.at(-1)) < 1e-9);
+  assert.ok(SPACE.MARKET_REACH.base >= MARKET_REACH.ends.at(-1) - 1, 'Kosmos zaczyna się tam, gdzie kończy Ziemia');
 });
 
 test('nasycony rynek: przychód ponad zasięgiem rośnie z potęgą soft', () => {
   assert.equal(capIncome(50, 100), 50);
-  assert.ok(Math.abs(capIncome(100 * 1e10, 100) - 100 * Math.pow(1e10, MARKET_REACH.soft)) < 1e-6 * 100 * Math.pow(1e10, MARKET_REACH.soft));
+  const soft = 100 * Math.pow(1e3, MARKET_REACH.soft);
+  assert.ok(soft < 100 * MARKET_REACH.maxOver);
+  assert.ok(Math.abs(capIncome(100 * 1e3, 100) - soft) < 1e-9 * soft);
+  assert.equal(capIncome(100 * 1e30, 100), 100 * MARKET_REACH.maxOver);
   const g = newGame();
   research(g, 7);
   g.s.investors = 1e12;
@@ -72,10 +83,10 @@ test('na Ziemi przychód zostaje poniżej cywilizacji typu I, nawet przy ogromny
   assert.ok(g.annualRevenue() < k1, `roczny przychód ${g.annualRevenue()} < ${k1}`);
   assert.ok(g.clickValue <= g.marketCap * 1.01 + g.m.clickPct * g.income, 'kliknięcie nie przebija rynku');
   assert.equal(g.marketStage(), 'earth');
-  research(g, 8);
-  assert.equal(g.marketStage(), 'solar');
-  research(g, 10);
-  assert.equal(g.marketStage(), 'multiverse');
+  const s = new Game(null, { now: T0, layer: 'space' });
+  assert.equal(s.marketStage(), 'orbit');
+  for (const t of SPACE.TECHS) s.s.techs[t.id] = true;
+  assert.equal(s.marketStage(), 'solar');
 });
 
 test('stopnie Kardaszowa wymagają technologii, nie tylko pieniędzy', () => {
@@ -85,7 +96,9 @@ test('stopnie Kardaszowa wymagają technologii, nie tylko pieniędzy', () => {
   assert.equal(scaleIndex(huge), k3, 'bez ograniczeń: sam przychód');
   assert.equal(scaleIndex(huge, () => false), wealth, 'bez technologii kończy się na majątku ludzkości');
   assert.equal(scaleIndex(huge, (id) => id === 'satellites'), wealth + 1, 'satelity dają typ I');
-  for (const L of SCALE_LEVELS) if (L.k !== undefined) assert.ok(TECHS.some((t) => t.id === L.tech), `${L.name}: ${L.tech}`);
+  // typy I–II wymagają technologii z Kosmosu; dalsze czekają na galaktykę i wszechświat
+  for (const L of SCALE_LEVELS) if (L.k !== undefined && L.k <= 2) assert.ok(SPACE.TECHS.some((t) => t.id === L.tech), `${L.name}: ${L.tech}`);
+  for (const L of SCALE_LEVELS) if (L.k !== undefined) assert.ok(!TECHS.some((t) => t.id === L.tech), `${L.name} nie na Ziemi`);
   const g = newGame();
   research(g, 7);
   g.annualRevenue = () => huge;
@@ -100,14 +113,14 @@ test('migracja zapisu v1: badania zostają, gospodarka wraca do ludzkiej skali',
   old.techs.connectome = true;
   old.cash = 1e40;
   old.investors = 6e9;
-  old.shares = 1234;
+  old.meta.shares = 1234;
   old.totalEarned = 1e45;
   old.claimedRaw = 6e9;
   old.rp = 5e9;
   old.products = { landing: 500, cars: 476 };
   old.offices = { waw: 2, ber: 1 };
-  old.scaleMax = 14;
-  for (let i = 0; i <= 14; i++) old.achievements[`scale${i}`] = true;
+  old.meta.scaleMax = 14;
+  for (let i = 0; i <= 14; i++) old.meta.achievements[`scale${i}`] = true;
   old.stats.maxIncome = 1e40;
   old.stats.bestRun = 1e44;
   const g = new Game(JSON.parse(JSON.stringify(old)), { now: T0, rng: () => 0.5 });
@@ -116,16 +129,16 @@ test('migracja zapisu v1: badania zostają, gospodarka wraca do ludzkiej skali',
   assert.equal(g.s.migrateFrom, undefined);
   assert.ok(g.s.techs.connectome && g.s.techs.qubits, 'technologie zostają');
   assert.equal(g.s.offices.ber, 1);
-  assert.equal(g.s.shares, 1234);
+  assert.equal(g.s.meta.shares, 1234);
   assert.equal(g.s.rp, 5e9);
   assert.ok(g.s.investors < 1e5 && g.s.investors > 10, `kapitał ${g.s.investors}`);
   assert.ok(g.s.cash < 1e15, 'gotówka po migracji w ludzkiej skali');
   assert.deepEqual(g.s.products, {});
   assert.ok(g.s.stats.bestRun < 1e20 && g.s.stats.maxIncome <= g.marketCap);
   const top = scaleIndex(g.marketCap * SECONDS_PER_GAME_YEAR, (id) => !!g.s.techs[id]);
-  assert.ok(g.s.scaleMax <= top);
-  assert.ok(!g.s.achievements[`scale${top + 1}`], 'osiągnięcia skali ponad technologię cofnięte');
-  assert.ok(g.s.achievements.scale0, 'niższe zostają');
+  assert.ok(g.s.meta.scaleMax <= top);
+  assert.ok(!g.s.meta.achievements[`scale${top + 1}`], 'osiągnięcia skali ponad technologię cofnięte');
+  assert.ok(g.s.meta.achievements.scale0, 'niższe zostają');
   // kolejne wczytanie nie migruje ponownie
   const again = new Game(JSON.parse(g.serialize()), { now: T0, rng: () => 0.5 });
   assert.equal(again.migrated, false);

@@ -1,13 +1,12 @@
 // Interfejs: renderowanie zakładek, HUD, efekty kliknięć, modale i toasty.
 import {
-  PRODUCTS, DEPTS, TECHS, REPEAT_TECHS, ERAS, ACQUISITIONS, PERKS, CATEGORIES, BUBBLES, DEPT_MILESTONE_X, DEPT_MILESTONES,
-  AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, SCALE_LEVELS, DECISIONS, OFFICES, OFFICE_MAX_LEVEL, COMPETITORS, MARKET,
-  ROLES, BOARD, RD_BUDGET,
+  PERKS, CATEGORIES, BUBBLES, DEPT_MILESTONE_X, DEPT_MILESTONES,
+  AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, SCALE_LEVELS, DECISIONS, OFFICE_MAX_LEVEL, COMPETITORS, MARKET,
+  ROLES, BOARD,
 } from './data.js';
 import {
-  ACHIEVEMENTS, UPGRADES, UPGRADE_MAP, PRODUCT_MAP, DEPT_MAP, TECH_MAP, ACH_BONUS, INVESTOR_BONUS,
-  nextMilestone, prevMilestone, nextDeptMilestone, deptMilestoneMult, MAX_SLOTS,
-  CHALLENGE_MAP, SCALE_THRESHOLDS, TECH_CAP_STEP, OFFICE_MAP, ROLE_MAP, QUIRK_MAP, scaleTrait,
+  ACH_BONUS, nextMilestone, prevMilestone, nextDeptMilestone, deptMilestoneMult, MAX_SLOTS,
+  CHALLENGE_MAP, SCALE_THRESHOLDS, ROLE_MAP, QUIRK_MAP, scaleTrait, FEED_SHARES, LAYER_GRANT_SECONDS,
 } from './engine.js';
 import { avatar, emptyAvatar } from './avatar.js';
 import { WORLD } from './worldmap.js';
@@ -15,6 +14,7 @@ import { fmt, money, fmtInt, fmtTime, fmtClock, fmtPct, num, decimal } from './f
 import { t, noun, getLang, setLang, LANGS, DICT } from './i18n.js';
 import * as TX from './text.js';
 import { Scene } from './scene.js';
+import { LAYERS, LAYER_CHIPS } from './layers.js';
 import { play, setSound, unlockAudio } from './audio.js';
 import { startMusic, stopMusic, musicAudible } from './music.js';
 
@@ -38,6 +38,18 @@ function spark(values, w = 120, h = 30, color = '#4ade80') {
   return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
 }
 const TEAM_TABS = ['depts', 'world', 'board'];
+// Tło kafelków warstw w arkuszu imperium.
+const LAYER_GRADS = { earth: ['#0ea5e9', '#22c55e'], space: ['#1e1b4b', '#7c3aed'], galaxy: ['#312e81', '#db2777'], universe: ['#0f172a', '#6d28d9'] };
+// Planety na mapie Układu Słonecznego (au: odległość od Słońca, ang: położenie na orbicie) i kolonie przy nich.
+const PLANETS = {
+  mercury: { au: 0.39, ang: 330, r: 3, c: '#a8a29e' }, venus: { au: 0.72, ang: 120, r: 4.5, c: '#f5d48b' },
+  earth: { au: 1, ang: 205, r: 5, c: '#3b82f6' }, mars: { au: 1.52, ang: 300, r: 4, c: '#e4572e' },
+  ceres: { au: 2.77, ang: 35, r: 2.5, c: '#9ca3af' }, jupiter: { au: 5.2, ang: 150, r: 10, c: '#d6a46b' },
+  saturn: { au: 9.5, ang: 20, r: 8, c: '#e9c27b' },
+};
+const COLONY_AT = { leo: ['earth', 0, -9], l2: ['earth', 10, 4], moon: ['earth', -9, 5], mercury: ['mercury', 0, 0], venus: ['venus', 0, 0],
+  mars: ['mars', 0, 0], ceres: ['ceres', 0, 0], europa: ['jupiter', 12, -6], titan: ['saturn', 11, 6] };
+const TAP_ROCKET = '<path d="M32 6c9 7 13 18 11 30H21C19 24 23 13 32 6z" fill="rgba(255,255,255,.2)" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><circle cx="32" cy="22" r="4.5" fill="none" stroke="#fff" stroke-width="3"/><path d="M21 34l-7 9h10M43 34l7 9H40" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><path d="M27 42c0 7 2 11 5 15 3-4 5-8 5-15" fill="#fff"/>';
 // Kropki lądu jako jedna ścieżka (lżej niż tysiące kółek). Mapa: 1 jednostka = 1° długości.
 let LAND_PATH = null;
 function landPath() {
@@ -67,10 +79,14 @@ const minus = (str) => str.replace(/^-/, '−');
 // Ile razy technologia poszerza rynek (krok zasięgu w log10).
 const reachX = (step) => { const x = Math.pow(10, step); return x >= 100 ? fmt(x) : decimal(x.toFixed(1)); };
 
+// Zdarzenia z warstw w tle, które i tak pokazujemy (dotyczą całej firmy).
+const GLOBAL_EVENTS = new Set(['achievement', 'scale', 'candidate', 'decision', 'decided', 'offline', 'layer']);
+
 export class UI {
-  constructor(game, hooks = {}) {
-    this.g = game;
+  constructor(co, hooks = {}) {
+    this.co = co;
     this.hooks = hooks;
+    this.offlineBuf = null;
     this.tab = 'office';
     this.companySub = 'investors';
     this.teamSub = 'depts';
@@ -87,7 +103,7 @@ export class UI {
     $('app').appendChild(this.fx);
     this.bubbleEl = null;
     this.tickerBusy = false;
-    this.newsIdx = Math.floor(Math.random() * TX.newsList().length);
+    this.newsIdx = Math.floor(Math.random() * 20);
     this.tickerAnim = null;
     this.pendingNews = [];
     this.zen = false;
@@ -95,6 +111,15 @@ export class UI {
     this.chartSeries = 'income';
     this.chartRange = 'day';
     this.lastSec = 0;
+  }
+
+  // Aktywna warstwa (Ziemia, Kosmos…) — to, co widać na ekranie.
+  get g() { return this.co.g; }
+  get space() { return this.co.g.D.id === 'space'; }
+  // Tekst z wariantem dla Kosmosu (klucz z przedrostkiem sp.), jeśli taki istnieje.
+  tl(key, params) {
+    if (this.space && DICT.pl[`sp.${key}`] !== undefined) return t(`sp.${key}`, params);
+    return t(key, params);
   }
 
   init() {
@@ -106,8 +131,8 @@ export class UI {
     this.renderTeamTabs();
     this.bindEvents();
     this.bindGame();
-    setSound(!!this.g.s.settings.sound);
-    if (this.g.s.settings.music) startMusic();
+    setSound(!!this.g.s.meta.settings.sound);
+    if (this.g.s.meta.settings.music) startMusic();
     this.updateSoundBtn();
     this.scene.render(this.g, true);
     this.syncBubble();
@@ -154,8 +179,10 @@ export class UI {
   }
 
   bindGame() {
-    const g = this.g;
-    g.on('toast', (t) => this.toast(t.icon, t.title, t.text, t.kind));
+    // Zdarzenia przychodzą z każdej warstwy; z warstw w tle pokazujemy tylko te dotyczące całej firmy.
+    const on = (ev, fn) => this.co.on(ev, (d, layer) => { if (layer === this.g || GLOBAL_EVENTS.has(ev)) fn(d, layer); });
+    const g = { on };
+    g.on('toast', (tt) => this.toast(tt.icon, tt.title, tt.text, tt.kind));
     g.on('achievement', (a) => {
       this.toast(a.icon, t('ach.toast', { name: TX.achName(a) }), t('ach.toastText', { desc: TX.achDesc(a), p: Math.round(ACH_BONUS * 100) }), 'achievement');
       play('achievement');
@@ -163,22 +190,22 @@ export class UI {
     g.on('bubble', () => this.syncBubble());
     g.on('trend', (tr) => { if (tr) this.pendingNews.push(`📈 <b>${esc(TX.trendText(tr))}</b>`); });
     g.on('contractOffer', () => { if (this.tab !== 'company') this.pendingNews.push(t('news.offer')); });
-    g.on('structure', () => { this.scene.render(g); });
+    g.on('structure', () => { this.scene.render(this.g); });
     g.on('buy', (b) => {
       if (b.kind === 'tech' || b.kind === 'acq') play('unlock'); else play('buy');
-      if (b.kind === 'dept' || b.kind === 'product') this.scene.render(g);
+      if (b.kind === 'dept' || b.kind === 'product') this.scene.render(this.g);
     });
-    g.on('offline', (r) => this.showOffline(r));
+    g.on('offline', (r, layer) => this.queueOffline(r, layer));
     g.on('prestige', () => play('prestige'));
     g.on('autopilot', (a) => {
       for (const id of a.researched || []) {
-        const tech = TECH_MAP[id];
+        const tech = this.g.D.TECH_MAP[id];
         if (tech) this.toast(tech.icon, t('toast.researched', { name: TX.techName(id) }), TX.describeFx(tech.fx), 'tech');
       }
-      this.scene.render(g);
+      this.scene.render(this.g);
     });
     g.on('challenge', (c) => {
-      if (c.started) this.toast(CHALLENGE_MAP[c.id].icon, t('chal.started'), t('chal.startedText', { v: money(g.challengeGoal(c.id)) }), 'info');
+      if (c.started) this.toast(CHALLENGE_MAP[c.id].icon, t('chal.started'), t('chal.startedText', { v: money(this.g.challengeGoal(c.id)) }), 'info');
       if (c.abandoned) this.toast('🏳️', t('chal.abandoned'), t('chal.abandonedText'), 'info');
       if (c.done) play('achievement');
       this.sigs = {};
@@ -207,7 +234,7 @@ export class UI {
     unlockAudio();
     switch (act) {
       case 'goto': this.showTab(el.dataset.tab, el.dataset.sub); break;
-      case 'set-buy': s.settings.buyAmount = el.dataset.v === 'max' ? 'max' : Number(el.dataset.v); this.renderBuySegs(); this.updateAll(true); break;
+      case 'set-buy': s.meta.settings.buyAmount = el.dataset.v === 'max' ? 'max' : Number(el.dataset.v); this.renderBuySegs(); this.updateAll(true); break;
       case 'buy-product': if (g.buyProduct(id, this.buyAmount())) this.pulse(el); this.updateAll(); break;
       case 'unlock-dept': if (g.unlockDept(id)) { play('unlock'); this.scene.render(g); } this.updateAll(true); break;
       case 'hire': if (g.hire(id, this.buyAmount())) this.pulse(el); this.updateAll(); break;
@@ -223,8 +250,8 @@ export class UI {
       case 'company-sub': this.companySub = el.dataset.sub; this.renderCompanyTabs(); this.updateAll(true); break;
       case 'team-sub': this.teamSub = el.dataset.sub; this.renderTeamTabs(); this.updateAll(true); $('view-team').scrollTop = 0; break;
       case 'open-office': if (g.openOffice(id)) { play('unlock'); this.scene.render(g); } this.updateAll(true); break;
-      case 'set-view': if (g.setView(id)) { this.scene.render(g, true); this.toast(OFFICE_MAP[id].icon, t('off.viewing'), TX.officeName(id), 'info'); } this.updateAll(true); break;
-      case 'hire-exec': if (g.hireExec(Number(id), Date.now())) { play('unlock'); const e = Object.values(s.board).find((x) => x.id === Number(id)); if (e) this.toast(ROLE_MAP[e.role].icon, t('bd.hired', { name: TX.execName(e.n) }), TX.describeFx(e.traits), 'achievement'); } this.updateAll(true); break;
+      case 'set-view': if (g.setView(id)) { this.scene.render(g, true); this.toast(this.g.D.OFFICE_MAP[id].icon, t('off.viewing'), TX.officeName(id), 'info'); } this.updateAll(true); break;
+      case 'hire-exec': if (g.hireExec(Number(id), Date.now())) { play('unlock'); const e = Object.values(s.meta.board).find((x) => x.id === Number(id)); if (e) this.toast(ROLE_MAP[e.role].icon, t('bd.hired', { name: TX.execName(e.n) }), TX.describeFx(e.traits), 'achievement'); } this.updateAll(true); break;
       case 'dismiss-cand': g.dismissCandidate(Number(id)); this.updateAll(true); break;
       case 'fire-exec': this.confirmFire(id); break;
       case 'fire-confirm': this.closeModal(); g.fireExec(id); this.updateAll(true); break;
@@ -244,12 +271,31 @@ export class UI {
         if (gain) {
           this.scene.render(g, true);
           this.showTab('office');
-          this.toast('🦄', t('toast.roundClosed', { n: fmt(gain) }), t('toast.roundClosedText', { x: fmt(g.m.invMult) }), 'achievement');
+          this.toast(this.space ? '🌊' : '🦄', this.tl('toast.roundClosed', { n: fmt(gain) }), this.tl('toast.roundClosedText', { x: fmt(g.m.invMult) }), 'achievement');
           this.hooks.save?.();
         }
         break;
       }
-      case 'toggle-sound': s.settings.sound = !s.settings.sound; setSound(s.settings.sound); this.updateSoundBtn(); if (s.settings.sound) play('buy'); this.sigs.company = ''; this.updateAll(true); break;
+      case 'layer': this.switchLayer(id); break;
+      case 'layers-open': this.showLayers(); break;
+      case 'layer-start': this.confirmLayerStart(); break;
+      case 'layer-start-confirm': {
+        this.closeModal();
+        const next = this.co.nextLayer();
+        if (this.co.unlockLayer(next, Date.now())) {
+          play('prestige');
+          this.switchLayer(next, true);
+          this.toast(LAYERS[next].icon, t('space.welcome'), t('space.welcomeText'), 'achievement');
+          this.hooks.save?.();
+        }
+        break;
+      }
+      case 'feed': {
+        const from = this.co.layers[el.dataset.layer];
+        if (from && from.setFeed(Number(el.dataset.v))) { this.co.feedLinks(); this.showLayers(); }
+        break;
+      }
+      case 'toggle-sound': s.meta.settings.sound = !s.meta.settings.sound; setSound(s.meta.settings.sound); this.updateSoundBtn(); if (s.meta.settings.sound) play('buy'); this.sigs.company = ''; this.updateAll(true); break;
       case 'modal-close': this.closeModal(); break;
       case 'rename': this.rename(); break;
       case 'set-lang': this.changeLang(el.dataset.v); break;
@@ -263,7 +309,7 @@ export class UI {
       }
       case 'welcome-start': {
         const v = ($('welcome-name')?.value || '').trim();
-        if (v) s.companyName = v.slice(0, 28);
+        if (v) s.meta.companyName = v.slice(0, 28);
         this.closeModal();
         this.scene.render(g, true);
         this.updateAll(true);
@@ -276,9 +322,9 @@ export class UI {
       case 'reset': this.confirmReset(); break;
       case 'reset-confirm': this.closeModal(); this.hooks.reset?.(); break;
       case 'ach-info': {
-        const a = ACHIEVEMENTS.find((x) => x.id === id);
+        const a = this.co.achievements().find((x) => x.id === id);
         if (!a) break;
-        const got = !!s.achievements[a.id];
+        const got = !!s.meta.achievements[a.id];
         if (got || !a.hidden) this.toast(got ? a.icon : '🔒', TX.achName(a), TX.achDesc(a), got ? 'achievement' : 'info');
         else this.toast('❓', t('ach.hidden'), t('ach.hiddenText'), 'info');
         break;
@@ -307,8 +353,8 @@ export class UI {
       }
       case 'zen': this.enterZen(); break;
       case 'toggle-music': {
-        s.settings.music = !s.settings.music;
-        if (s.settings.music) startMusic(); else stopMusic();
+        s.meta.settings.music = !s.meta.settings.music;
+        if (s.meta.settings.music) startMusic(); else stopMusic();
         this.updateAll(true);
         break;
       }
@@ -319,9 +365,9 @@ export class UI {
       case 'chart-range': this.chartRange = el.dataset.v; this.updateAll(true); break;
       case 'scale-info': {
         const i = Number(id);
-        const reached = s.scaleMax >= i;
+        const reached = s.meta.scaleMax >= i;
         const L = SCALE_LEVELS[i];
-        const need = !reached && L.tech && !s.techs[L.tech] ? ` · ${t('sc.needTech', { tech: TX.techName(L.tech) })}` : '';
+        const need = !reached && L.tech && !g.hasTech(L.tech) ? ` · ${t('sc.needTech', { tech: TX.techName(L.tech) })}` : '';
         this.toast(reached ? L.icon : '🔒', TX.scaleName(i), `${TX.scaleDesc(i)} · ${money(SCALE_THRESHOLDS[i])}/${t('time.y')}${need}`, reached ? 'achievement' : 'info');
         break;
       }
@@ -329,14 +375,24 @@ export class UI {
     }
   }
 
-  buyAmount() { return this.g.s.settings.buyAmount || 1; }
+  buyAmount() { return this.g.s.meta.settings.buyAmount || 1; }
 
   // Teksty zapisane na sztywno w index.html (zakładki, nagłówki, przycisk kodowania).
   applyStatic() {
     document.documentElement.lang = getLang();
     document.title = t('appName');
-    for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = t(el.dataset.i18n);
-    for (const el of document.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', t(el.dataset.i18nAria));
+    for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = this.tl(el.dataset.i18n);
+    for (const el of document.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', this.tl(el.dataset.i18nAria));
+    $('app').dataset.layer = this.g.D.id;
+    const icon = document.querySelector('.tap-icon');
+    if (icon) {
+      if (!this.tapIconEarth) this.tapIconEarth = icon.innerHTML;
+      icon.innerHTML = this.space ? TAP_ROCKET : this.tapIconEarth;
+    }
+    const world = document.querySelector('.scene-tool[data-sub="world"]');
+    if (world) world.textContent = this.space ? '🪐' : '🌍';
+    const inv = document.querySelector('#hud-inv-chip .chip-ico');
+    if (inv) inv.textContent = this.space ? '👩‍🚀' : '💎';
   }
 
   changeLang(lang) {
@@ -344,8 +400,8 @@ export class UI {
     const old = getLang();
     if (lang === old) return;
     // Domyślna nazwa firmy podąża za językiem, własna zostaje.
-    if (s.companyName === DICT[old].defaultCompany) s.companyName = DICT[lang].defaultCompany;
-    s.settings.lang = lang;
+    if (s.meta.companyName === DICT[old].defaultCompany) s.meta.companyName = DICT[lang].defaultCompany;
+    s.meta.settings.lang = lang;
     setLang(lang);
     this.applyStatic();
     this.renderBuySegs();
@@ -428,11 +484,18 @@ export class UI {
 
   renderTeamTabs() {
     $('team-tabs').innerHTML = TEAM_TABS.map((k) =>
-      `<button class="pill ${k === this.teamSub ? 'on' : ''}" data-act="team-sub" data-sub="${k}">${t(`team.${k}`)}<i class="dot" data-dot="t-${k}" hidden></i></button>`).join('');
+      `<button class="pill ${k === this.teamSub ? 'on' : ''}" data-act="team-sub" data-sub="${k}">${this.tl(`team.${k}`)}<i class="dot" data-dot="t-${k}" hidden></i></button>`).join('');
+  }
+
+  // Giełda i wyzwania są tylko na Ziemi.
+  companyTabs() {
+    const F = this.g.D.FEATURES;
+    return COMPANY_TABS.filter((k) => (k !== 'market' || F.market) && (k !== 'challenges' || F.challenges));
   }
 
   renderCompanyTabs() {
-    $('company-tabs').innerHTML = COMPANY_TABS.map((k) =>
+    if (!this.companyTabs().includes(this.companySub)) this.companySub = 'investors';
+    $('company-tabs').innerHTML = this.companyTabs().map((k) =>
       `<button class="pill ${k === this.companySub ? 'on' : ''}" data-act="company-sub" data-sub="${k}">${t(`ct.${k}`)}<i class="dot" data-dot="${k}" hidden></i></button>`).join('');
   }
 
@@ -453,20 +516,22 @@ export class UI {
   everySecond(dt) {
     const s = this.g.s;
     if (this.zen) {
-      s.stats.zenTime += dt;
+      s.meta.stats.zenTime += dt;
       const d = new Date();
       this.setText($('zen-clock'), `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`);
-      this.setText($('zen-sub'), `${s.companyName} · ${money(this.g.income)}/s`);
+      this.setText($('zen-sub'), `${s.meta.companyName} · ${money(this.g.income)}/s`);
     }
-    if (musicAudible()) s.stats.musicTime += dt;
+    if (musicAudible()) s.meta.stats.musicTime += dt;
     const env = this.scene.env;
-    // pogoda ze sceny wpływa na dziwactwo „deszczowe natchnienie” w zarządzie
-    if (env && this.g.weather !== env.weather) { this.g.weather = env.weather; this.g.recalc(); }
+    // pogoda ze sceny Ziemi wpływa na dziwactwo „deszczowe natchnienie” w zarządzie (w kosmosie nie pada)
+    if (env && !this.space) {
+      for (const L of Object.values(this.co.layers)) if (L.weather !== env.weather) { L.weather = env.weather; L.recalc(); }
+    }
     if (env && this.tab === 'office') {
       const d = new Date();
-      if (env.weather === 'snow') s.flags.snow = true;
-      if (d.getMonth() === 9 && d.getDate() === 31) s.flags.halloween = true;
-      if (d.getMonth() === 11 && d.getDate() >= 24 && d.getDate() <= 26) s.flags.xmas = true;
+      if (env.weather === 'snow') s.meta.flags.snow = true;
+      if (d.getMonth() === 9 && d.getDate() === 31) s.meta.flags.halloween = true;
+      if (d.getMonth() === 11 && d.getDate() >= 24 && d.getDate() <= 26) s.meta.flags.xmas = true;
     }
   }
 
@@ -498,7 +563,135 @@ export class UI {
     }
     this.updateBadges();
     this.updateSceneBadges();
+    this.updateLayerBar();
     if (this.scene) this.scene.render(this.g);
+  }
+
+  // ---------------------------------------------------------------------
+  // Warstwy imperium: pasek nad sceną, arkusz z zasilaniem i start w kosmos
+  // ---------------------------------------------------------------------
+  updateLayerBar() {
+    const co = this.co;
+    const p = co.unlockProgress();
+    const sig = `${this.g.D.id}|${Object.keys(co.layers).join(',')}|${p ? p.id + p.ready : ''}|${getLang()}`;
+    const bar = $('layer-bar');
+    if (bar && bar._sig !== sig) {
+      bar._sig = sig;
+      bar.innerHTML = LAYER_CHIPS.map((c) => {
+        const open = !!co.layers[c.id];
+        const active = c.id === this.g.D.id;
+        const ready = !!(p && p.id === c.id && p.ready);
+        const cls = active ? 'on' : open ? '' : ready ? 'ready' : 'locked';
+        const act = open && !active ? `data-act="layer" data-id="${c.id}"` : ready ? 'data-act="layer-start"' : 'data-act="layers-open"';
+        return `<button class="layer-chip ${cls}" ${act} aria-label="${esc(t(`layer.${c.id}`))}"><i>${c.icon}</i>${active ? `<span>${esc(t(`layer.${c.id}`))}</span>` : ''}</button>`;
+      }).join('');
+    }
+    // jednorazowy sygnał, że kolejna warstwa czeka
+    if (p && p.ready && !co.meta.flags[`ready_${p.id}`]) {
+      co.meta.flags[`ready_${p.id}`] = true;
+      this.toast(LAYERS[p.id].icon, t('layer.readyToast'), t('layer.readyToastText'), 'achievement');
+      this.pendingNews.unshift(`${LAYERS[p.id].icon} <b>${esc(t('layer.readyToast'))}</b> ${esc(t('layer.readyToastText'))}`);
+      play('achievement');
+    }
+  }
+
+  layerCard(c) {
+    const co = this.co;
+    const g = co.layers[c.id];
+    const name = esc(t(`layer.${c.id}`));
+    const tile = `<div class="tile" style="${grad(LAYER_GRADS[c.id])}">${c.icon}</div>`;
+    if (g) {
+      const active = g === this.g;
+      const rounds = c.id === 'earth' ? t('layer.rounds', { n: g.s.prestigeCount }) : t('layer.waves', { n: g.s.prestigeCount });
+      const fin = g.feedIn > 0 ? ` · ${t('layer.feedIn')}: <b>+${money(g.feedIn)}/s</b>` : '';
+      let feed = '';
+      if (g.feedTarget()) {
+        feed = `<div class="layer-feed"><div class="budget-head"><b>${t('layer.feedTitle')}</b>
+          <div class="seg">${FEED_SHARES.map((v) => `<button data-act="feed" data-layer="${c.id}" data-v="${v}" class="${v === g.s.feed ? 'on' : ''}">${Math.round(v * 100)}%</button>`).join('')}</div></div>
+          <div class="card-sub" style="margin-top:6px">${t('layer.feedText', { v: money(g.feedOut) })}</div></div>`;
+      }
+      return `<div class="card layer-card ${active ? 'on' : ''}">${tile}
+        <div class="card-title"><h3>${name}</h3><span class="lvl">${active ? t('layer.active') : t('layer.bg')}</span></div>
+        <div class="card-sub">${t('layer.income', { v: money(g.income) })}${fin}</div>
+        <div class="card-desc">${t('layer.techs', { n: g.techCount(), m: g.D.TECHS.length })} · ${rounds}</div>${feed}
+        ${active ? '' : `<div class="card-foot"><div class="prog"></div><button class="btn violet" data-act="layer" data-id="${c.id}">${t('layer.go')}</button></div>`}
+      </div>`;
+    }
+    const p = co.unlockProgress(c.id);
+    if (p) {
+      const tp = p.techs / p.techsNeed;
+      const rp = Math.min(1, p.revenue / p.need);
+      return `<div class="card layer-card ${p.ready ? 'ready' : 'locked'}">${tile}
+        <div class="card-title"><h3>${name}</h3><span class="lvl">${p.ready ? '✨' : '🔒'}</span></div>
+        <div class="prog" style="margin-top:6px"><div class="prog-bar"><i style="width:${tp * 100}%"></i></div><div class="prog-label">${t('layer.needTechs', { n: p.techs, m: p.techsNeed })}</div></div>
+        <div class="prog" style="margin-top:6px"><div class="prog-bar"><i style="width:${rp * 100}%"></i></div><div class="prog-label">${t('layer.needRevenue', { v: money(p.revenue), need: money(p.need) })}</div></div>
+        ${p.ready ? `<div class="card-foot"><div class="prog"></div><button class="btn gold" data-act="layer-start">${t('layer.start')}</button></div>` : ''}
+      </div>`;
+    }
+    return `<div class="card layer-card locked">${tile}
+      <div class="card-title"><h3>${name}</h3><span class="lvl">🔒</span></div>
+      <div class="card-sub">${t('layer.soon')}</div></div>`;
+  }
+
+  showLayers() {
+    this.openModal(`
+      <div class="hero">🌌</div>
+      <h2>${t('layer.title')}</h2>
+      <p style="text-align:center">${t('layer.lead')}</p>
+      <div class="list">${LAYER_CHIPS.map((c) => this.layerCard(c)).join('')}</div>
+      <div class="actions"><button class="btn ghost btn-wide" data-act="modal-close">${t('close')}</button></div>`);
+  }
+
+  confirmLayerStart() {
+    const p = this.co.unlockProgress();
+    if (!p || !p.ready) { this.showLayers(); return; }
+    const from = this.co.layers[p.from];
+    const feed = from.income * (from.s.feed || 0.25);
+    this.openModal(`
+      <div class="hero">🚀</div>
+      <h2>${t('space.title')}</h2>
+      <p style="text-align:center">${t('space.lead')}</p>
+      <ul>
+        <li>${t('space.p1')}</li>
+        <li>${t('space.p2', { grant: money(from.income * LAYER_GRANT_SECONDS), feed: money(feed) })}</li>
+        <li>${t('space.p3')}</li><li>${t('space.p4')}</li><li>${t('space.p5')}</li>
+      </ul>
+      <div class="actions">
+        <button class="btn gold btn-wide" data-act="layer-start-confirm">${t('space.go')}</button>
+        <button class="btn ghost btn-wide" data-act="modal-close">${t('space.later')}</button>
+      </div>`);
+  }
+
+  // Przełączenie ekranu na inną warstwę: inne dane, scena, teksty i pasek wiadomości.
+  switchLayer(id, quiet = false) {
+    if (!this.co.setLayer(id)) return;
+    this.closeModal();
+    this.sigs = {};
+    // powiadomienia z poprzedniego ekranu są już nieaktualne
+    this.toastQueue = [];
+    $('toasts').innerHTML = '';
+    this.applyStatic();
+    this.renderCompanyTabs();
+    this.renderTeamTabs();
+    this.renderBuySegs();
+    this.scene.render(this.g, true);
+    this.syncBubble(true);
+    this.syncDecision();
+    this.pendingNews = [];
+    this.restartTicker();
+    this.showTab(this.tab);
+    $('scene-wrap').animate([{ opacity: 0.2, transform: 'scale(.98)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: 'ease-out' });
+    if (!quiet) { play('unlock'); this.toast(LAYERS[id].icon, t('layer.switched', { name: t(`layer.${id}`) }), '', 'info'); }
+    this.hooks.save?.();
+  }
+
+  showLayersIntro() {
+    this.openModal(`
+      <div class="hero">🌍🛰️</div>
+      <h2>${t('lay.title')}</h2>
+      <p>${t('lay.text')}</p>
+      <p>${t('lay.kept')}</p>
+      <div class="actions"><button class="btn violet btn-wide" data-act="modal-close">${t('lay.ok')}</button></div>`);
   }
 
   setText(el, text) { if (el && el.textContent !== text) el.textContent = text; }
@@ -511,27 +704,30 @@ export class UI {
     this.setText($('hud-income'), money(g.netIncome));
     $('hud-income').parentElement.classList.toggle('rd', (g.m.rdShare || 0) > 0);
     $('hud-income').parentElement.classList.toggle('boosted', g.m.boostIncome > 1);
-    this.setText($('hud-company'), s.companyName);
+    this.setText($('hud-company'), s.meta.companyName);
     this.setText($('hud-stage'), this.stageName());
-    const rpVis = s.deptUnlocked.rnd || s.rp > 0 || g.techCount() > 0;
+    const rpVis = s.deptUnlocked[g.D.RD_DEPT] || s.rp > 0 || g.techCount() > 0;
     $('hud-rp-chip').hidden = !rpVis;
     if (rpVis) this.setText($('hud-rp'), fmt(s.rp));
     $('hud-inv-chip').hidden = !(s.investors > 0);
     if (s.investors > 0) this.setText($('hud-inv'), fmt(s.investors));
     const noClick = !(g.clickValue > 0);
-    this.setText($('click-value'), noClick ? t('tap.off') : '+' + money(g.clickValue));
+    this.setText($('click-value'), noClick ? this.tl('tap.off') : '+' + money(g.clickValue));
     $('tap-btn').classList.toggle('hack', !!g.boostActive('click') || !!g.boostActive('dClick'));
     $('tap-btn').classList.toggle('off', noClick);
   }
 
   stageName() {
     const s = this.g.s;
-    const stage = TX.stageName(this.g.deptCount() - 1);
-    return s.prestigeCount > 0 ? `${stage} · ${TX.roundName(s.prestigeCount - 1)}` : stage;
+    const n = this.g.deptCount() - 1;
+    const stage = this.space ? t('sp.stages')[n >= 8 ? 5 : n >= 6 ? 4 : n >= 4 ? 3 : n >= 2 ? 2 : n >= 1 ? 1 : 0] : TX.stageName(n);
+    return s.prestigeCount > 0 ? `${stage} · ${this.roundLabel(s.prestigeCount - 1)}` : stage;
   }
+  // Nazwa rundy finansowania (Ziemia) albo fali kolonizacji (Kosmos) o numerze i (od zera).
+  roundLabel(i) { return this.space ? t('sp.round', { n: i + 1 }) : TX.roundName(i); }
 
   updateSoundBtn() {
-    $('sound-btn').innerHTML = this.g.s.settings.sound ? SOUND_ON : SOUND_OFF;
+    $('sound-btn').innerHTML = this.g.s.meta.settings.sound ? SOUND_ON : SOUND_OFF;
   }
 
   // ---------------------------------------------------------------------
@@ -540,24 +736,25 @@ export class UI {
   updateOffice() {
     const g = this.g;
     const s = g.s;
-    const owned = PRODUCTS.reduce((a, p) => a + (s.products[p.id] || 0), 0);
+    const owned = this.g.D.PRODUCTS.reduce((a, p) => a + (s.products[p.id] || 0), 0);
     let left = '';
     if (owned === 0) {
-      left = `<div class="mini-stat">${t('off.firstStep')}<b>${t('off.collect', { v: money(PRODUCT_MAP.landing.cost) })}</b></div><button class="mini-btn" data-act="goto" data-tab="products">${t('off.toProducts')}</button>`;
+      left = `<div class="mini-stat">${t('off.firstStep')}<b>${t('off.collect', { v: money(this.g.D.PRODUCTS[0].cost) })}</b></div><button class="mini-btn" data-act="goto" data-tab="products">${t('off.toProducts')}</button>`;
     } else {
       left = `<div class="mini-stat">${t('off.team')}<b>${t('off.people', { n: fmtInt(g.totalHeads()) })}</b></div>`;
-      if (g.rpRate > 0) left += `<div class="mini-stat">${t('off.research')}<b>${fmt(g.rpRate)} ${t('unit.rp')}/s</b></div>`;
+      if (g.feedIn > 0) left += `<div class="mini-stat">${t('layer.feedIn')}<b>+${money(g.feedIn)}/s</b></div>`;
+      else if (g.rpRate > 0) left += `<div class="mini-stat">${t('off.research')}<b>${fmt(g.rpRate)} ${t('unit.rp')}/s</b></div>`;
       else left += `<div class="mini-stat">${t('off.products')}<b>${t('off.levels', { n: fmtInt(owned) })}</b></div>`;
     }
     let right = `<div class="mini-stat">${t('off.valuation')}<b>${money(g.valuation())}</b></div>`;
     const gain = g.prestigeGain();
     const offers = s.contracts.offers.length;
     if (gain >= 1 && gain >= Math.max(1, s.investors * 0.5)) {
-      right += `<button class="mini-btn glow" data-act="goto" data-tab="company" data-sub="investors">💎 +${fmt(gain)}</button>`;
+      right += `<button class="mini-btn glow" data-act="goto" data-tab="company" data-sub="investors">${this.space ? '👩‍🚀' : '💎'} +${fmt(gain)}</button>`;
     } else if (g.contractsUnlocked() && offers > 0) {
       right += `<button class="mini-btn" data-act="goto" data-tab="company" data-sub="contracts">${t('off.offers', { n: offers })}</button>`;
     } else {
-      right += `<div class="mini-stat">${t('off.coding')}<b>${money(g.clickValue)}</b></div>`;
+      right += `<div class="mini-stat">${this.tl('off.coding')}<b>${money(g.clickValue)}</b></div>`;
     }
     const L = $('office-left'); const R = $('office-right');
     if (L.innerHTML !== left) L.innerHTML = left;
@@ -651,9 +848,9 @@ export class UI {
     let html;
     if (this.pendingNews.length) html = this.pendingNews.shift();
     else {
-      const news = TX.newsList();
+      const news = TX.newsList(this.g.D.id);
       this.newsIdx = (this.newsIdx + 1 + Math.floor(Math.random() * 3)) % news.length;
-      html = '📰 ' + esc(news[this.newsIdx]).replace(/\{c\}/g, `<b>${esc(this.g.s.companyName)}</b>`);
+      html = '📰 ' + esc(news[this.newsIdx]).replace(/\{c\}/g, `<b>${esc(this.g.s.meta.companyName)}</b>`);
     }
     el.innerHTML = html;
     const w = el.scrollWidth;
@@ -674,7 +871,7 @@ export class UI {
     const g = this.g;
     const list = [];
     let teaser = null;
-    for (const p of PRODUCTS) {
+    for (const p of this.g.D.PRODUCTS) {
       if (g.productUnlocked(p.id)) list.push(p);
       else if (!teaser) teaser = p;
     }
@@ -691,7 +888,7 @@ export class UI {
       this.sigs.products = sig;
       let html = list.map((p) => `
         <div class="card" data-pid="${p.id}">
-          <div class="tile" style="${grad(CATEGORIES[p.cat].grad)}">${p.icon}</div>
+          <div class="tile" style="${grad(this.g.D.CATEGORIES[p.cat].grad)}">${p.icon}</div>
           <div class="card-title"><h3>${esc(TX.prodName(p.id))}</h3><span class="lvl" data-f="lvl"></span></div>
           <div class="card-sub" data-f="inc"></div>
           <div class="card-desc">${esc(TX.prodDesc(p.id))}</div>
@@ -701,10 +898,10 @@ export class UI {
           </div>
         </div>`).join('');
       if (teaser) {
-        const tech = TECH_MAP[teaser.tech];
+        const tech = this.g.D.TECH_MAP[teaser.tech];
         html += `
         <div class="card teaser locked">
-          <div class="tile" style="${grad(CATEGORIES[teaser.cat].grad)}">${teaser.icon}</div>
+          <div class="tile" style="${grad(this.g.D.CATEGORIES[teaser.cat].grad)}">${teaser.icon}</div>
           <div class="card-title"><h3>${esc(TX.prodName(teaser.id))}</h3><span class="lvl">🔒</span></div>
           <div class="card-sub">${t('prod.requires')} <span class="rp">${tech.icon} ${esc(TX.techName(tech.id))}</span></div>
           <div class="card-desc">${esc(TX.prodDesc(teaser.id))}</div>
@@ -793,8 +990,8 @@ export class UI {
     if (this.teamSub === 'board') { this.updateBoard(); return; }
     const g = this.g;
     const s = g.s;
-    const unlocked = DEPTS.filter((d) => s.deptUnlocked[d.id]);
-    const next = DEPTS.find((d) => !s.deptUnlocked[d.id]);
+    const unlocked = this.g.D.DEPTS.filter((d) => s.deptUnlocked[d.id]);
+    const next = this.g.D.DEPTS.find((d) => !s.deptUnlocked[d.id]);
     const sig = unlocked.map((d) => d.id).join(',') + '|' + (next ? next.id + (g.deptAvailable(next.id) ? '1' : '0') : '') + '|' + (g.rule()?.id || '');
     const root = $('team-list');
     if (this.sigs.team !== sig) {
@@ -815,12 +1012,12 @@ export class UI {
         html += `<div class="hint">${t('team.solo')}</div>`;
       } else if (next) {
         const avail = g.deptAvailable(next.id);
-        const tech = next.tech ? TECH_MAP[next.tech] : null;
+        const tech = next.tech ? this.g.D.TECH_MAP[next.tech] : null;
         html += `
         <div class="card ${avail ? '' : 'locked'}" data-next="${next.id}">
           <div class="tile" style="${grad([next.color, '#2b2f5c'])}">${next.icon}</div>
-          <div class="card-title"><h3>${esc(TX.deptName(next.id))}</h3><span class="lvl">${t('team.newFloor')}</span></div>
-          <div class="card-sub">${avail || !tech ? t('team.openHint') : `${t('prod.requires')} <span class="rp">${tech.icon} ${esc(TX.techName(tech.id))}</span>`}</div>
+          <div class="card-title"><h3>${esc(TX.deptName(next.id))}</h3><span class="lvl">${this.tl('team.newFloor')}</span></div>
+          <div class="card-sub">${avail || !tech ? this.tl('team.openHint') : `${t('prod.requires')} <span class="rp">${tech.icon} ${esc(TX.techName(tech.id))}</span>`}</div>
           <div class="card-desc">${esc(TX.deptDesc(next.id))}</div>
           <div class="card-foot"><div class="prog"></div>
             ${avail ? `<button class="btn violet" data-act="unlock-dept" data-id="${next.id}"><span>${t('team.open')}</span><small data-f="ucost">${money(next.unlock)}</small></button>`
@@ -833,7 +1030,7 @@ export class UI {
     const amt = this.buyAmount();
     for (const card of root.querySelectorAll('[data-did]')) {
       const id = card.dataset.did;
-      const d = DEPT_MAP[id];
+      const d = this.g.D.DEPT_MAP[id];
       const n = s.depts[id] || 0;
       this.setText(card.querySelector('[data-f="lvl"]'), `👥 ${fmtInt(n)}`);
       const fxEl = card.querySelector('[data-f="fx"]');
@@ -859,7 +1056,7 @@ export class UI {
     const nx = root.querySelector('[data-next]');
     if (nx) {
       const btn = nx.querySelector('[data-act="unlock-dept"]');
-      if (btn) btn.classList.toggle('off', s.cash < DEPT_MAP[nx.dataset.next].unlock);
+      if (btn) btn.classList.toggle('off', s.cash < this.g.D.DEPT_MAP[nx.dataset.next].unlock);
     }
   }
 
@@ -869,25 +1066,21 @@ export class UI {
   updateWorld() {
     const g = this.g;
     const s = g.s;
-    const avail = OFFICES.map((o) => (g.officeAvailable(o.id) ? 1 : 0)).join('');
-    const sig = `world|${JSON.stringify(s.offices)}|${avail}|${s.settings.view}|${getLang()}`;
+    const avail = this.g.D.OFFICES.map((o) => (g.officeAvailable(o.id) ? 1 : 0)).join('');
+    const sig = `world|${JSON.stringify(s.offices)}|${avail}|${s.view}|${getLang()}`;
     const root = $('world-body');
     if (this.sigs.world !== sig) {
       this.sigs.world = sig;
-      const earth = OFFICES.filter((o) => o.kind === 'earth');
-      const space = OFFICES.filter((o) => o.kind === 'space');
-      const opened = earth.filter((o) => !o.hq && g.officeLevel(o.id) > 0).length;
+      const list = this.g.D.OFFICES;
+      const opened = list.filter((o) => !o.hq && g.officeLevel(o.id) > 0).length;
       root.innerHTML = `
-        <div class="map-card">${this.mapSvg()}</div>
-        <div class="kv"><span>${t('off.title')}</span><b>${t('off.count', { n: opened, m: earth.length - 1 })}</b></div>
-        <p class="card-sub" style="margin:8px 2px 0">${t('off.lead')} ${t('off.viewHint')}</p>
-        <div class="list" style="margin-top:12px">${earth.map((o) => this.officeCard(o)).join('')}</div>
-        <div class="section-title">🚀 ${t('off.space')}</div>
-        <div class="map-card space">${this.spaceSvg()}</div>
-        <div class="list" style="margin-top:12px">${space.map((o) => this.officeCard(o)).join('')}</div>`;
+        <div class="map-card ${this.space ? 'space solar' : ''}">${this.space ? this.solarSvg() : this.mapSvg()}</div>
+        <div class="kv"><span>${this.tl('off.title')}</span><b>${this.tl('off.count', { n: opened, m: list.length - 1 })}</b></div>
+        <p class="card-sub" style="margin:8px 2px 0">${this.tl('off.lead')} ${this.tl('off.viewHint')}</p>
+        <div class="list" style="margin-top:12px">${list.map((o) => this.officeCard(o)).join('')}</div>`;
     }
     const vals = {};
-    for (const o of OFFICES) {
+    for (const o of this.g.D.OFFICES) {
       const cost = g.officeCost(o.id);
       vals[`of-${o.id}`] = { off: !(cost <= s.cash) };
     }
@@ -905,11 +1098,11 @@ export class UI {
       if (this.sigs.world !== `bd-locked|${getLang()}`) { this.sigs.world = `bd-locked|${getLang()}`; root.innerHTML = `<div class="hint">${t('bd.locked')}</div>`; }
       return;
     }
-    const sig = `bd|${getLang()}|${Object.values(s.board).map((e) => e.id).join(',')}|${s.candidates.map((c) => c.id).join(',')}|${g.boardSignature()}`;
+    const sig = `bd|${getLang()}|${Object.values(s.meta.board).map((e) => e.id).join(',')}|${s.meta.candidates.map((c) => c.id).join(',')}|${g.boardSignature()}`;
     if (this.sigs.world !== sig) {
       this.sigs.world = sig;
       const seats = ROLES.map((r) => {
-        const e = s.board[r.id];
+        const e = s.meta.board[r.id];
         if (!e) {
           return `<div class="card exec empty"><div class="avatar-wrap">${emptyAvatar()}</div>
             <div class="card-title"><h3>${t('bd.empty')}</h3><span class="lvl role-badge" style="color:${r.color}">${r.name}</span></div>
@@ -917,7 +1110,7 @@ export class UI {
         }
         return this.execCard(e, true);
       }).join('');
-      const cands = s.candidates.map((c) => this.execCard(c, false)).join('');
+      const cands = s.meta.candidates.map((c) => this.execCard(c, false)).join('');
       root.innerHTML = `
         <p class="card-sub" style="margin:0 2px 10px">${t('bd.lead')}</p>
         <div class="list">${seats}</div>
@@ -926,11 +1119,11 @@ export class UI {
         <div class="hint" data-v="bdwait" style="margin-top:${cands ? 10 : 0}px"></div>`;
     }
     const vals = {
-      bdshares: t('inv.shares', { n: fmt(s.shares) }),
-      bdwait: s.candidates.length >= BOARD.poolMax ? t('bd.poolFull') : t('bd.waiting', { t: fmtTime(Math.max(0, (s.nextCandidateAt - Date.now()) / 1000)) }),
+      bdshares: t('inv.shares', { n: fmt(s.meta.shares) }),
+      bdwait: s.meta.candidates.length >= BOARD.poolMax ? t('bd.poolFull') : t('bd.waiting', { t: fmtTime(Math.max(0, (s.meta.nextCandidateAt - Date.now()) / 1000)) }),
     };
-    for (const c of s.candidates) vals[`hire-${c.id}`] = { off: s.shares < g.candidateCost(c) };
-    for (const e of Object.values(s.board)) {
+    for (const c of s.meta.candidates) vals[`hire-${c.id}`] = { off: s.meta.shares < g.candidateCost(c) };
+    for (const e of Object.values(s.meta.board)) {
       const lvl = g.execLevel(e);
       if (lvl < BOARD.maxLevel) {
         const fast = e.q === 'fast' ? 2 : 1;
@@ -949,7 +1142,7 @@ export class UI {
     const k = hired ? g.execPower(e) : 1;
     const fx = TX.describeFx(e.traits.map((tr) => scaleTrait(tr, k)));
     const qOn = hired && q && q.when !== 'xp' && g.quirkActive(e);
-    const current = !hired ? g.s.board[e.role] : null;
+    const current = !hired ? g.s.meta.board[e.role] : null;
     const quirk = q ? `<div class="quirk ${qOn ? 'on' : ''}">${q.icon} <b>${esc(TX.quirkName(q.id))}</b>: ${esc(TX.quirkDesc(q.id))}${qOn ? ` <span class="q-on">· ${t('bd.quirkOn')}</span>` : ''}</div>` : '';
     const foot = hired
       ? `<div class="prog"><div class="prog-label" data-v="lvl-${e.id}"></div></div><button class="btn btn-small ghost" data-act="fire-exec" data-id="${e.role}">${t('bd.fire')}</button>`
@@ -966,7 +1159,7 @@ export class UI {
   }
 
   confirmFire(role) {
-    const e = this.g.s.board[role];
+    const e = this.g.s.meta.board[role];
     if (!e) return;
     this.openModal(`
       <div class="hero" style="display:flex;justify-content:center">${avatar(e.seed, ROLE_MAP[role].color, e.r, 72)}</div>
@@ -983,13 +1176,13 @@ export class UI {
     const lvl = g.officeLevel(o.id);
     const maxed = lvl >= OFFICE_MAX_LEVEL;
     const avail = g.officeAvailable(o.id);
-    const tech = o.req ? TECH_MAP[o.req] : null;
-    const viewing = this.g.s.settings.view === o.id;
-    const lvlName = lvl > 0 ? `${o.hq ? t('off.hq') : t('off.levelNames')[lvl - 1]} · ` : '';
+    const tech = o.req ? this.g.D.TECH_MAP[o.req] : null;
+    const viewing = this.g.s.view === o.id;
+    const lvlName = lvl > 0 ? `${o.hq ? this.tl('off.hq') : t('off.levelNames')[lvl - 1]} · ` : '';
     const fxNow = lvl > 1 ? ` · ${t('off.now', { fx: esc(TX.describeFx(scaledFx(o.fx, lvl))) })}` : '';
     let action;
     if (maxed) action = `<span class="lvl" style="color:var(--money)">${t('off.max')}</span>`;
-    else if (avail) action = `<button class="btn violet" data-act="open-office" data-id="${o.id}" data-v="of-${o.id}"><span>${lvl ? t('off.upgrade') : t('off.open')}</span><small>${money(g.officeCost(o.id))}</small></button>`;
+    else if (avail) action = `<button class="btn violet" data-act="open-office" data-id="${o.id}" data-v="of-${o.id}"><span>${lvl ? t('off.upgrade') : this.tl('off.open')}</span><small>${money(g.officeCost(o.id))}</small></button>`;
     else action = `<button class="btn violet" data-act="goto" data-tab="research">${t('goResearch')}</button>`;
     const viewBtn = lvl > 0 ? `<button class="btn btn-small ghost ${viewing ? 'on-view' : ''}" data-act="set-view" data-id="${o.id}">${viewing ? '👁' : '🪟'} ${viewing ? t('off.viewing') : t('off.view')}</button>` : '';
     return `<div class="card office ${lvl ? '' : avail ? '' : 'locked'}" id="office-${o.id}">
@@ -1003,12 +1196,12 @@ export class UI {
 
   mapSvg() {
     const g = this.g;
-    const hq = OFFICE_MAP.waw;
+    const hq = this.g.D.OFFICE_MAP[this.g.D.HQ];
     const hx = mapX(hq.lon);
     const hy = mapY(hq.lat);
     let arcs = '';
     let marks = '';
-    for (const o of OFFICES) {
+    for (const o of this.g.D.OFFICES) {
       if (o.kind !== 'earth') continue;
       const x = mapX(o.lon);
       const y = mapY(o.lat);
@@ -1032,23 +1225,41 @@ export class UI {
     </svg><div class="map-hint">${t('off.mapHint')}</div>`;
   }
 
-  spaceSvg() {
+  // Układ Słoneczny z góry: orbity planet i kolonie (dotknięcie przewija do karty kolonii).
+  solarSvg() {
     const g = this.g;
-    const on = (id) => g.officeLevel(id) > 0;
-    const glow = (id) => (on(id) ? 'filter="url(#spGlow)"' : 'opacity=".45"');
-    const tap = (id, x, y) => `<circle cx="${x}" cy="${y}" r="16" fill="transparent" data-act="office-focus" data-id="${id}"/>`;
-    return `<svg viewBox="0 0 360 96" role="img" aria-label="${t('off.space')}">
-      <defs><filter id="spGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-      <path d="M22 60 C 90 20, 160 90, 230 46 S 330 40, 344 30" fill="none" stroke="rgba(255,255,255,.14)" stroke-dasharray="2 4"/>
-      <circle cx="22" cy="60" r="13" fill="#3b82f6"/><path d="M14 55 q6 -4 10 2 q4 5 9 1" stroke="#4ade80" stroke-width="3" fill="none"/>
-      <g ${glow('leo')}><rect x="36" y="38" width="10" height="4" fill="#cbd5e1"/><rect x="30" y="37" width="5" height="6" fill="#60a5fa"/><rect x="47" y="37" width="5" height="6" fill="#60a5fa"/></g>${tap('leo', 41, 40)}
-      <g ${glow('moon')}><circle cx="72" cy="64" r="7" fill="#d1d5db"/><circle cx="70" cy="62" r="1.6" fill="#9ca3af"/></g>${tap('moon', 72, 64)}
-      <g ${glow('mars')}><circle cx="118" cy="50" r="9" fill="#e4572e"/><circle cx="115" cy="47" r="2" fill="#b33d1c"/></g>${tap('mars', 118, 50)}
-      <g ${glow('ceres')}><circle cx="166" cy="58" r="4.5" fill="#9ca3af"/><circle cx="156" cy="66" r="1.5" fill="#6b7280"/><circle cx="176" cy="66" r="1.2" fill="#6b7280"/><circle cx="160" cy="50" r="1" fill="#6b7280"/></g>${tap('ceres', 166, 58)}
-      <g ${glow('europa')}><circle cx="226" cy="46" r="17" fill="#d6a46b"/><path d="M210 41 h32 M209 48 h34 M212 54 h28" stroke="#b07a45" stroke-width="2.4"/><circle cx="249" cy="30" r="4" fill="#e0f2fe"/></g>${tap('europa', 236, 40)}
-      <g ${glow('titan')}><ellipse cx="288" cy="54" rx="22" ry="5" fill="none" stroke="#e7cf9b" stroke-width="2"/><circle cx="288" cy="54" r="12" fill="#e9c27b"/><circle cx="305" cy="70" r="3.6" fill="#f59e0b"/></g>${tap('titan', 292, 58)}
-      <g ${glow('proxima')}><circle cx="342" cy="28" r="8" fill="#ff7a59"/><circle cx="342" cy="28" r="12" fill="#ff7a59" opacity=".25"/><circle cx="330" cy="44" r="3" fill="#a78bfa"/></g>${tap('proxima', 338, 34)}
-    </svg>`;
+    const cx = 180; const cy = 84;
+    const pos = (p) => {
+      const rx = 168 * Math.sqrt(p.au / 9.5) + 6;
+      const a = (p.ang * Math.PI) / 180;
+      return { rx, ry: rx * 0.42, x: cx + rx * Math.cos(a), y: cy + rx * 0.42 * Math.sin(a) };
+    };
+    let orbits = '';
+    let bodies = '';
+    for (const [id, p] of Object.entries(PLANETS)) {
+      const q = pos(p);
+      orbits += `<ellipse cx="${cx}" cy="${cy}" rx="${q.rx.toFixed(1)}" ry="${q.ry.toFixed(1)}" fill="none" stroke="rgba(255,255,255,.12)" stroke-dasharray="${id === 'ceres' ? '1 3' : '0'}"/>`;
+      if (id === 'saturn') bodies += `<ellipse cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" rx="${p.r * 1.9}" ry="${p.r * 0.5}" fill="none" stroke="#f1dcae" stroke-width="1.5" opacity=".8"/>`;
+      bodies += `<circle cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${p.r}" fill="${p.c}"/>`;
+    }
+    let marks = '';
+    for (const o of this.g.D.OFFICES) {
+      const at = COLONY_AT[o.id];
+      if (!at) continue;
+      const q = pos(PLANETS[at[0]]);
+      const x = q.x + at[1];
+      const y = q.y + at[2];
+      const lvl = g.officeLevel(o.id);
+      const cls = lvl > 0 ? 'm-on' : g.officeAvailable(o.id) ? 'm-avail' : 'm-lock';
+      marks += `<g class="marker ${cls}" data-act="office-focus" data-id="${o.id}">
+        ${lvl > 0 ? `<circle class="ping" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${3 + lvl}"/>` : ''}
+        <circle class="dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${lvl > 0 ? 2.2 + lvl * 0.5 : 2}"/>
+        <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="10" fill="transparent"/></g>`;
+    }
+    return `<svg viewBox="0 0 360 168" role="img" aria-label="${this.tl('off.title')}">
+      <defs><radialGradient id="sunR"><stop offset="0" stop-color="#fff7c2"/><stop offset=".5" stop-color="#ffd166"/><stop offset="1" stop-color="#ff9f43" stop-opacity="0"/></radialGradient></defs>
+      ${orbits}<circle cx="${cx}" cy="${cy}" r="22" fill="url(#sunR)"/><circle cx="${cx}" cy="${cy}" r="9" fill="#ffe08a"/>${bodies}${marks}
+    </svg><div class="map-hint">${this.tl('off.mapHint')}</div>`;
   }
 
   // ---------------------------------------------------------------------
@@ -1059,7 +1270,7 @@ export class UI {
     const s = g.s;
     const head = $('research-head');
     // Nagłówek budujemy raz (przyciski budżetu muszą przetrwać odświeżanie), a liczby podmieniamy.
-    const rnd = !!s.deptUnlocked.rnd;
+    const rnd = !!s.deptUnlocked[g.D.RD_DEPT];
     const share = g.m.rdShare || 0;
     const headSig = `rh|${getLang()}|${rnd}|${share}`;
     if (this.sigs.researchHead !== headSig) {
@@ -1072,7 +1283,7 @@ export class UI {
       ${!rnd ? `<div class="hint" style="margin-top:10px">${t('rs.needRnd')}</div>` : `
       <div class="budget-card">
         <div class="budget-head"><b>🧪 ${t('rs.budget')}</b>
-          <div class="seg">${RD_BUDGET.shares.map((v) => `<button data-act="rd-budget" data-v="${v}" class="${v === share ? 'on' : ''}">${Math.round(v * 100)}%</button>`).join('')}</div>
+          <div class="seg">${this.g.D.RD_BUDGET.shares.map((v) => `<button data-act="rd-budget" data-v="${v}" class="${v === share ? 'on' : ''}">${Math.round(v * 100)}%</button>`).join('')}</div>
         </div>
         <div class="card-sub" data-v="rdinfo" style="margin-top:6px"></div>
         <div class="card-sub" style="margin-top:4px;color:var(--faint)">${t('rs.budgetHint')}</div>
@@ -1086,21 +1297,21 @@ export class UI {
     this.patch({
       rpv: `${fmt(s.rp)} ${t('unit.rp')}`,
       rprate: `+${fmt(g.rpRate)} ${t('unit.rp')}/s`,
-      rpcount: t('rs.techCount', { n: g.techCount(), m: TECHS.length }),
+      rpcount: t('rs.techCount', { n: g.techCount(), m: this.g.D.TECHS.length }),
       rdinfo: { html: share > 0 ? t('rs.budgetInfo', { rp: budgetRp, pct: budgetPct, v: money(g.income * share) }) : t('rs.budgetOff') },
     }, head);
 
-    const done = TECHS.filter((t) => s.techs[t.id]).map((t) => t.id);
-    const avail = TECHS.filter((t) => !s.techs[t.id] && g.techAvailable(t.id)).map((t) => t.id);
-    const maxEra = Math.max(1, ...TECHS.filter((t) => s.techs[t.id] || g.techAvailable(t.id)).map((t) => t.era));
-    const repeats = REPEAT_TECHS.filter((r) => g.techAvailable(r.id));
+    const done = this.g.D.TECHS.filter((t) => s.techs[t.id]).map((t) => t.id);
+    const avail = this.g.D.TECHS.filter((t) => !s.techs[t.id] && g.techAvailable(t.id)).map((t) => t.id);
+    const maxEra = Math.max(this.g.D.ERAS[0].id, ...this.g.D.TECHS.filter((t) => s.techs[t.id] || g.techAvailable(t.id)).map((t) => t.era));
+    const repeats = this.g.D.REPEAT_TECHS.filter((r) => g.techAvailable(r.id));
     const sig = done.join(',') + '|' + avail.join(',') + '|' + repeats.map((r) => r.id + (s.techLevels[r.id] || 0)).join(',');
     const root = $('research-list');
     if (this.sigs.research !== sig) {
       this.sigs.research = sig;
       let html = '';
-      for (const era of ERAS) {
-        const techs = TECHS.filter((t) => t.era === era.id);
+      for (const era of this.g.D.ERAS) {
+        const techs = this.g.D.TECHS.filter((t) => t.era === era.id);
         const cnt = techs.filter((t) => s.techs[t.id]).length;
         if (era.id > maxEra + 1) {
           html += `<div class="era-head" style="opacity:.45"><span class="era-ico">🔒</span><h3>${esc(t('rs.lockedEra', { n: era.id, name: TX.eraName(era.id) }))}</h3><span class="era-count">${cnt}/${techs.length}</span></div>`;
@@ -1115,7 +1326,7 @@ export class UI {
           html += `<div class="tech ${cls}" data-tid="${tech.id}">
             ${isDone ? '<span class="check">✓</span>' : ''}
             <div class="tech-top"><div class="tech-ico">${tech.icon}</div><h4>${esc(TX.techName(tech.id))}</h4></div>
-            <div class="fx">${esc(TX.describeFx(tech.fx))}${TECH_CAP_STEP[tech.id] ? ` · ${t('rs.reach', { x: reachX(TECH_CAP_STEP[tech.id]) })}` : ''}</div>
+            <div class="fx">${esc(TX.describeFx(tech.fx))}${this.g.D.TECH_CAP_STEP[tech.id] ? ` · ${t('rs.reach', { x: reachX(this.g.D.TECH_CAP_STEP[tech.id]) })}` : ''}</div>
             ${req}
             ${isAvail ? `<button class="btn violet" data-act="research" data-id="${tech.id}"><span>${fmt(tech.cost)} ${t('unit.rp')}</span><small></small></button>` : ''}
           </div>`;
@@ -1138,7 +1349,7 @@ export class UI {
     // czas do zakupu przy obecnym tempie badań
     const eta = (cost) => (s.rp >= cost || !(g.rpRate > 0) ? '' : t('rs.eta', { t: fmtTime((cost - s.rp) / g.rpRate) }));
     for (const el of root.querySelectorAll('[data-tid] .btn')) {
-      const cost = TECH_MAP[el.dataset.id].cost;
+      const cost = this.g.D.TECH_MAP[el.dataset.id].cost;
       el.classList.toggle('off', s.rp < cost);
       this.setText(el.querySelector('small'), eta(cost));
     }
@@ -1153,8 +1364,8 @@ export class UI {
   // Ulepszenia
   // ---------------------------------------------------------------------
   upgradeTile(u) {
-    if (u.kind === 'product') return grad(CATEGORIES[u.cat].grad);
-    if (u.kind === 'dept') return grad([DEPT_MAP[u.did].color, '#2b2f5c']);
+    if (u.kind === 'product') return grad(this.g.D.CATEGORIES[u.cat].grad);
+    if (u.kind === 'dept') return grad([this.g.D.DEPT_MAP[u.did].color, '#2b2f5c']);
     if (u.kind === 'click') return grad(['#22d3ee', '#3b5bdb']);
     return grad(['#f59e0b', '#db2777']);
   }
@@ -1184,13 +1395,13 @@ export class UI {
       }
       if (ownedIds.length) {
         html += `<div class="section-title">${t('up.owned', { n: ownedIds.length })}</div><div class="owned-list">`
-          + ownedIds.map((id) => UPGRADE_MAP[id]).filter(Boolean).map((u) => `<span title="${esc(TX.upgradeName(u))}">${u.icon}</span>`).join('') + '</div>';
+          + ownedIds.map((id) => this.g.D.UPGRADE_MAP[id]).filter(Boolean).map((u) => `<span title="${esc(TX.upgradeName(u))}">${u.icon}</span>`).join('') + '</div>';
       }
       root.innerHTML = html;
     }
     let can = 0;
     for (const el of root.querySelectorAll('[data-uid]')) {
-      const u = UPGRADE_MAP[el.dataset.uid];
+      const u = this.g.D.UPGRADE_MAP[el.dataset.uid];
       const ok = s.cash >= u.cost;
       if (ok) can++;
       el.classList.toggle('can', ok);
@@ -1244,8 +1455,8 @@ export class UI {
     const g = this.g;
     const s = g.s;
     const gain = g.prestigeGain();
-    const per = INVESTOR_BONUS + g.m.investorPct;
-    const sig = `inv|${JSON.stringify(s.perks)}|${JSON.stringify(s.autopilot)}|${s.prestigeCount}|${getLang()}`;
+    const per = g.D.PRESTIGE.bonus + g.m.investorPct;
+    const sig = `inv|${g.D.id}|${JSON.stringify(s.meta.perks)}|${JSON.stringify(s.meta.autopilot)}|${s.prestigeCount}|${getLang()}`;
     this.setBody(sig, `
       <div class="inv-card">
         <div class="round" data-v="round"></div>
@@ -1260,15 +1471,15 @@ export class UI {
       </div>
       <p class="card-sub" style="margin:8px 2px 0">${t('inv.valNote')}</p>
       <div class="kv">
-        <span>${t('inv.run')}</span><b data-v="run"></b>
+        <span>${this.tl('inv.run')}</span><b data-v="run"></b>
         <span>${t('inv.total')}</span><b data-v="total"></b>
-        <span>${t('inv.next')}</span><b data-v="next"></b>
+        <span>${this.tl('inv.next')}</span><b data-v="next"></b>
         <span data-v="boardl">${t('inv.board')}</span><b data-v="board"></b>
       </div>
       <div style="margin-top:12px">
-        <button class="btn gold btn-wide" data-act="prestige" data-v="pbtn">${t('inv.raise')}</button>
+        <button class="btn gold btn-wide" data-act="prestige" data-v="pbtn">${this.tl('inv.raise')}</button>
       </div>
-      <p class="card-sub" style="margin:10px 2px">${t('inv.explain')}</p>
+      <p class="card-sub" style="margin:10px 2px">${this.tl('inv.explain')}</p>
       <div class="section-title">🤖 ${t('ap.title')} <span style="color:var(--gold)" data-v="shares2"></span></div>
       ${!g.apUnlocked() ? `<div class="hint">${t('ap.locked')}</div>` : `
       <p class="card-sub" style="margin:0 2px 8px">${t('ap.lead')}</p>
@@ -1287,7 +1498,7 @@ export class UI {
       <div class="section-title">${t('inv.boardTitle')} <span style="color:var(--gold)" data-v="shares"></span></div>
       <div class="list">
         ${PERKS.map((p) => {
-    const lvl = s.perks[p.id] || 0;
+    const lvl = s.meta.perks[p.id] || 0;
     const maxed = lvl >= p.max;
     return `<div class="card">
             <div class="tile" style="${grad(['#f59e0b', '#7c3aed'])}">${p.icon}</div>
@@ -1300,9 +1511,9 @@ export class UI {
       </div>`);
     const vp = g.valuationParts();
     const vals = {
-      round: t('inv.nextRound', { r: TX.roundName(s.prestigeCount) }),
-      gain: `+${fmt(gain)} 💎`,
-      invsub: { html: `${t('inv.now', { n: fmt(s.investors), x: fmt(g.m.invMult) })}<br>${t('inv.perPoint', { p: num(per * 100) })}` },
+      round: this.tl('inv.nextRound', { r: this.roundLabel(s.prestigeCount) }),
+      gain: `+${fmt(gain)} ${this.space ? '👩‍🚀' : '💎'}`,
+      invsub: { html: `${this.tl('inv.now', { n: fmt(s.investors), x: fmt(g.m.invMult) })}<br>${this.tl('inv.perPoint', { p: num(per * 100) })}` },
       val: money(vp.total),
       assets: money(vp.assets),
       annual: money(vp.annual),
@@ -1313,11 +1524,11 @@ export class UI {
       board: { text: `×${fmt(g.m.prestige)}`, hidden: !(g.m.prestige > 1) },
       boardl: { hidden: !(g.m.prestige > 1) },
       pbtn: { off: gain < 1 },
-      shares: t('inv.shares', { n: fmt(s.shares) }),
-      shares2: g.apUnlocked() ? t('inv.shares', { n: fmt(s.shares) }) : '',
+      shares: t('inv.shares', { n: fmt(s.meta.shares) }),
+      shares2: g.apUnlocked() ? t('inv.shares', { n: fmt(s.meta.shares) }) : '',
     };
-    for (const p of PERKS) vals[`perk-${p.id}`] = { off: s.shares < g.perkCost(p.id) };
-    for (const a of AUTOPILOT) vals[`ap-${a.id}`] = { off: s.shares < a.cost };
+    for (const p of PERKS) vals[`perk-${p.id}`] = { off: s.meta.shares < g.perkCost(p.id) };
+    for (const a of AUTOPILOT) vals[`ap-${a.id}`] = { off: s.meta.shares < a.cost };
     this.patch(vals);
   }
 
@@ -1329,7 +1540,7 @@ export class UI {
       return;
     }
     const active = s.challenge;
-    const sig = `chal|${JSON.stringify(s.challenges)}|${active ? active.id + active.tier : ''}|${getLang()}`;
+    const sig = `chal|${JSON.stringify(s.meta.challenges)}|${active ? active.id + active.tier : ''}|${getLang()}`;
     let html = `<p class="card-sub" style="margin:0 2px 10px">${t('chal.lead')}</p>`;
     if (active) {
       const ch = CHALLENGE_MAP[active.id];
@@ -1342,7 +1553,7 @@ export class UI {
       </div>`;
     }
     html += '<div class="list">' + CHALLENGES.map((ch) => {
-      const tier = s.challenges[ch.id] || 0;
+      const tier = s.meta.challenges[ch.id] || 0;
       const done = tier >= CHALLENGE_GOALS.length;
       const dots = CHALLENGE_GOALS.map((_, i) => `<i class="${i < tier ? 'on' : ''}"></i>`).join('');
       const have = tier > 0 ? `<div class="chal-meta">${t('chal.have', { fx: `<b>${esc(TX.describeFx(scaledFx(ch.fx, tier)))}</b>` })}</div>` : '';
@@ -1370,12 +1581,12 @@ export class UI {
       return;
     }
     const stakes = s.market.stakes;
-    const sig = `mk|${getLang()}|${this.mkStep}|${Object.keys(stakes).join(',')}|${s.companyName}`;
+    const sig = `mk|${getLang()}|${this.mkStep}|${Object.keys(stakes).join(',')}|${s.meta.companyName}`;
     const steps = [[0.01, '1%'], [0.1, '10%']];
     this.setBody(sig, `
       <div class="stock-card">
         <div class="stock-head">
-          <div><div class="lbl">${t('mk.yours')}</div><h3>${esc(s.companyName)} <span class="ticker">${esc(TX.ownTicker(s.companyName))}</span></h3></div>
+          <div><div class="lbl">${t('mk.yours')}</div><h3>${esc(s.meta.companyName)} <span class="ticker">${esc(TX.ownTicker(s.meta.companyName))}</span></h3></div>
           <div class="stock-price"><b data-v="mprice"></b><small>${t('mk.price')}</small></div>
         </div>
         <div class="spark big" data-v="mspark"></div>
@@ -1442,7 +1653,7 @@ export class UI {
     const s = g.s;
     if (s.challenge) { this.toast('🏅', t('chal.otherActive'), '', 'info'); return; }
     const ch = CHALLENGE_MAP[id];
-    const tier = s.challenges[id] || 0;
+    const tier = s.meta.challenges[id] || 0;
     if (tier >= CHALLENGE_GOALS.length) return;
     const gain = g.prestigeGain();
     this.openModal(`
@@ -1513,7 +1724,7 @@ export class UI {
       this.setBody(`acq-locked|${getLang()}`, `<div class="hint">${t('acq.locked')}</div>`);
       return;
     }
-    this.setBody(`acq|${Object.keys(s.acquisitions).join(',')}|${getLang()}`, '<div class="list">' + ACQUISITIONS.map((a) => {
+    this.setBody(`acq|${Object.keys(s.acquisitions).join(',')}|${getLang()}`, '<div class="list">' + this.g.D.ACQUISITIONS.map((a) => {
       const own = !!s.acquisitions[a.id];
       return `<div class="card">
         <div class="tile" style="${grad(['#0ea5e9', '#6d28d9'])}">${a.icon}</div>
@@ -1524,7 +1735,7 @@ export class UI {
       </div>`;
     }).join('') + '</div>');
     const vals = {};
-    for (const a of ACQUISITIONS) vals[`acq-${a.id}`] = { off: s.cash < g.acqCost(a.id) };
+    for (const a of this.g.D.ACQUISITIONS) vals[`acq-${a.id}`] = { off: s.cash < g.acqCost(a.id) };
     this.patch(vals);
   }
 
@@ -1532,10 +1743,11 @@ export class UI {
     const g = this.g;
     const s = g.s;
     const count = g.achCount();
-    const html = `<div class="kv"><span>${t('ach.count')}</span><b>${count}/${ACHIEVEMENTS.length}</b><span>${t('ach.bonus')}</span><b>+${Math.round(count * ACH_BONUS * 100)}%</b></div>
+    const all = this.co.achievements();
+    const html = `<div class="kv"><span>${t('ach.count')}</span><b>${count}/${all.length}</b><span>${t('ach.bonus')}</span><b>+${Math.round(count * ACH_BONUS * 100)}%</b></div>
       <p class="card-sub" style="margin:10px 2px">${t('ach.tap')}</p>
-      <div class="ach-grid">${ACHIEVEMENTS.map((a) => {
-    const got = !!s.achievements[a.id];
+      <div class="ach-grid">${all.map((a) => {
+    const got = !!s.meta.achievements[a.id];
     return `<button class="ach ${got ? 'got' : 'locked'}" data-act="ach-info" data-id="${a.id}">${got || !a.hidden ? a.icon : '❓'}</button>`;
   }).join('')}</div>`;
     this.setBody(`ach|${count}|${getLang()}`, html);
@@ -1550,7 +1762,7 @@ export class UI {
     const rev = g.annualRevenue();
     const cur = g.scaleIdx();
     const last = rows.length ? rows[rows.length - 1][0] : 0;
-    const sig = `stats|${getLang()}|${this.chartSeries}|${this.chartRange}|${rows.length}|${last}|${s.scaleMax}|${cur}`;
+    const sig = `stats|${getLang()}|${this.chartSeries}|${this.chartRange}|${rows.length}|${last}|${s.meta.scaleMax}|${cur}`;
     const keys = ['income', 'maxIncome', 'click', 'auto', 'total', 'run', 'bestRun', 'bestValuation', 'clicks', 'staff', 'hired',
       'upgrades', 'techs', 'bubbles', 'contracts', 'decisions', 'challenges', 'autoBuys', 'rounds', 'offlineCap', 'offlineEff', 'playTime', 'founded'];
     const seg = (act, cur2, opts) => `<div class="seg">${opts.map(([v, l]) => `<button data-act="${act}" data-v="${v}" class="${v === cur2 ? 'on' : ''}">${l}</button>`).join('')}</div>`;
@@ -1563,7 +1775,7 @@ export class UI {
         <div class="scale-row" data-v="scnext"></div>
         <div class="scale-row" data-v="sctop"></div>
         <div class="scale-row" data-v="screach"></div>
-        <div class="scale-grid">${SCALE_LEVELS.map((L, i) => `<button class="scale-dot ${i <= s.scaleMax ? '' : 'off'} ${i === cur ? 'cur' : ''}" data-act="scale-info" data-id="${i}" aria-label="${esc(TX.scaleName(i))}">${L.icon}</button>`).join('')}</div>
+        <div class="scale-grid">${SCALE_LEVELS.map((L, i) => `<button class="scale-dot ${i <= s.meta.scaleMax ? '' : 'off'} ${i === cur ? 'cur' : ''}" data-act="scale-info" data-id="${i}" aria-label="${esc(TX.scaleName(i))}">${L.icon}</button>`).join('')}</div>
         <p class="chart-note">${t('sc.explain')}</p>
       </div>
       <div class="chart-card">
@@ -1582,12 +1794,12 @@ export class UI {
     const prevT = cur >= 0 ? SCALE_THRESHOLDS[cur] : 1;
     const nextT = SCALE_THRESHOLDS[cur + 1];
     const p = nextT ? Math.max(0, Math.min(1, (Math.log10(Math.max(rev, 1)) - Math.log10(prevT)) / (Math.log10(nextT) - Math.log10(prevT)))) : 1;
-    const top = s.scaleMax;
+    const top = s.meta.scaleMax;
     const vals = {
       sck: k === null ? '—' : minus(decimal(k.toFixed(2))),
       scbar: { width: `${p * 100}%` },
       screv: `${money(rev)}/${t('time.y')}`,
-      scnext: { html: !nextT ? '' : SCALE_LEVELS[cur + 1].tech && !s.techs[SCALE_LEVELS[cur + 1].tech]
+      scnext: { html: !nextT ? '' : SCALE_LEVELS[cur + 1].tech && !g.hasTech(SCALE_LEVELS[cur + 1].tech)
         ? t('sc.nextTech', { icon: SCALE_LEVELS[cur + 1].icon, name: `<b>${esc(TX.scaleName(cur + 1))}</b>`, v: money(nextT), tech: esc(TX.techName(SCALE_LEVELS[cur + 1].tech)) })
         : t('sc.next', { icon: SCALE_LEVELS[cur + 1].icon, name: `<b>${esc(TX.scaleName(cur + 1))}</b>`, v: money(nextT) }) },
       screach: { html: `${t('reach.row', { stage: t(`reach.${g.marketStage()}`), v: money(g.marketCap) })}${g.rawIncome > g.marketCap ? ` · ${t('reach.satShort')}` : ''}` },
@@ -1604,7 +1816,7 @@ export class UI {
       'st-staff': fmtInt(g.totalHeads()),
       'st-hired': fmtInt(st.hired),
       'st-upgrades': fmtInt(st.upgradesBought),
-      'st-techs': `${g.techCount()}/${TECHS.length}`,
+      'st-techs': `${g.techCount()}/${this.g.D.TECHS.length}`,
       'st-bubbles': fmtInt(st.bubbles),
       'st-contracts': fmtInt(st.contracts),
       'st-decisions': fmtInt(st.decisions),
@@ -1666,30 +1878,30 @@ export class UI {
       <div class="section-title">${t('set.company')}</div>
       <div class="setting" style="flex-direction:column;align-items:stretch">
         <div>${t('set.name')}<p>${t('set.nameHint')}</p></div>
-        <div style="display:flex;gap:8px"><input class="text-input" id="rename-input" maxlength="28" value="${esc(s.companyName)}" enterkeyhint="done"><button class="btn btn-small violet" data-act="rename">${t('set.save')}</button></div>
+        <div style="display:flex;gap:8px"><input class="text-input" id="rename-input" maxlength="28" value="${esc(s.meta.companyName)}" enterkeyhint="done"><button class="btn btn-small violet" data-act="rename">${t('set.save')}</button></div>
       </div>
       <div class="section-title">${t('set.game')}</div>
       <div class="setting"><div>${t('set.lang')}<p>${t('set.langHint')}</p></div>${this.langSeg('set-lang')}</div>
-      <div class="setting"><div>${t('set.sound')}<p>${t('set.soundHint')}</p></div><button class="switch ${s.settings.sound ? 'on' : ''}" data-act="toggle-sound" aria-label="${t('set.sound')}"></button></div>
-      <div class="setting"><div>${t('set.music')}<p>${t('set.musicHint')}</p></div><button class="switch ${s.settings.music ? 'on' : ''}" data-act="toggle-music" aria-label="${t('set.music')}"></button></div>
+      <div class="setting"><div>${t('set.sound')}<p>${t('set.soundHint')}</p></div><button class="switch ${s.meta.settings.sound ? 'on' : ''}" data-act="toggle-sound" aria-label="${t('set.sound')}"></button></div>
+      <div class="setting"><div>${t('set.music')}<p>${t('set.musicHint')}</p></div><button class="switch ${s.meta.settings.music ? 'on' : ''}" data-act="toggle-music" aria-label="${t('set.music')}"></button></div>
       <div class="setting"><div>${t('set.install')}<p>${t('set.installHint')}</p></div><button class="btn btn-small ghost" data-act="install-help">${t('set.show')}</button></div>
       <div class="section-title">${t('set.saveTitle')}</div>
       <div class="setting"><div>${t('set.export')}<p>${t('set.exportHint')}</p></div><button class="btn btn-small ghost" data-act="export">${t('set.exportBtn')}</button></div>
       <div class="setting"><div>${t('set.import')}<p>${t('set.importHint')}</p></div><button class="btn btn-small ghost" data-act="import">${t('set.importBtn')}</button></div>
       <div class="setting"><div>${t('set.reset')}<p>${t('set.resetHint')}</p></div><button class="btn btn-small danger" data-act="reset">${t('set.resetBtn')}</button></div>
       <p class="card-sub" style="text-align:center;margin-top:18px">${esc(t('appName'))} · ${t('set.footer', { v: esc(this.hooks.version || '1.0') })}</p>`;
-    this.setBody(`settings|${s.settings.sound}|${s.settings.music}|${getLang()}`, html);
+    this.setBody(`settings|${s.meta.settings.sound}|${s.meta.settings.music}|${getLang()}`, html);
   }
 
   rename() {
     const v = ($('rename-input')?.value || '').trim();
     if (!v) return;
     const s = this.g.s;
-    if (v !== s.companyName) {
-      s.companyName = v.slice(0, 28);
-      s.flags.renamed = true;
+    if (v !== s.meta.companyName) {
+      s.meta.companyName = v.slice(0, 28);
+      s.meta.flags.renamed = true;
       this.scene.render(this.g, true);
-      this.toast('🪪', t('toast.renamed'), s.companyName, 'info');
+      this.toast('🪪', t('toast.renamed'), s.meta.companyName, 'info');
       this.hooks.save?.();
     }
     document.activeElement?.blur();
@@ -1702,18 +1914,18 @@ export class UI {
     const g = this.g;
     const s = g.s;
     const counts = {};
-    counts.products = PRODUCTS.filter((p) => g.productUnlocked(p.id) && g.productCost(p.id, 1) <= s.cash).length;
-    counts.team = DEPTS.filter((d) => (s.deptUnlocked[d.id] && g.hireCost(d.id, 1) <= s.cash)
+    counts.products = this.g.D.PRODUCTS.filter((p) => g.productUnlocked(p.id) && g.productCost(p.id, 1) <= s.cash).length;
+    counts.team = this.g.D.DEPTS.filter((d) => (s.deptUnlocked[d.id] && g.hireCost(d.id, 1) <= s.cash)
       || (!s.deptUnlocked[d.id] && g.deptAvailable(d.id) && s.cash >= d.unlock)).length;
-    const officesReady = OFFICES.filter((o) => g.officeAvailable(o.id) && g.officeCost(o.id) <= s.cash).length;
+    const officesReady = this.g.D.OFFICES.filter((o) => g.officeAvailable(o.id) && g.officeCost(o.id) <= s.cash).length;
     counts.team += officesReady;
-    counts.research = TECHS.filter((t) => !s.techs[t.id] && g.techAvailable(t.id) && s.rp >= t.cost).length;
+    counts.research = this.g.D.TECHS.filter((t) => !s.techs[t.id] && g.techAvailable(t.id) && s.rp >= t.cost).length;
     counts.upgrades = g.availableUpgrades().filter((u) => u.cost <= s.cash).length;
     const offers = g.contractsUnlocked() && s.contracts.active.length < g.m.slots ? s.contracts.offers.length : 0;
     const gain = g.prestigeGain();
     const prestigeReady = gain >= 1 && gain >= Math.max(1, s.investors * 0.5);
-    const perkReady = PERKS.some((p) => (s.perks[p.id] || 0) < p.max && s.shares >= g.perkCost(p.id))
-      || (g.apUnlocked() && AUTOPILOT.some((a) => !g.apOwned(a.id) && s.shares >= a.cost));
+    const perkReady = PERKS.some((p) => (s.meta.perks[p.id] || 0) < p.max && s.meta.shares >= g.perkCost(p.id))
+      || (g.apUnlocked() && AUTOPILOT.some((a) => !g.apOwned(a.id) && s.meta.shares >= a.cost));
     counts.company = offers + (prestigeReady ? 1 : 0) + (perkReady ? 1 : 0);
     for (const tab of document.querySelectorAll('.tab')) {
       const b = tab.querySelector('.badge');
@@ -1722,7 +1934,7 @@ export class UI {
       b.hidden = !show;
       if (show) this.setText(b, n > 9 ? '9+' : String(n));
     }
-    const candReady = g.boardUnlocked() && s.candidates.some((c) => s.shares >= g.candidateCost(c));
+    const candReady = g.boardUnlocked() && s.meta.candidates.some((c) => s.meta.shares >= g.candidateCost(c));
     if (candReady) counts.team += 1;
     const dots = { investors: prestigeReady || perkReady, contracts: offers > 0, 't-world': officesReady > 0, 't-board': candReady };
     for (const d of document.querySelectorAll('[data-dot]')) d.hidden = !dots[d.dataset.dot];
@@ -1798,7 +2010,7 @@ export class UI {
 
   // Koperta z decyzją w rogu sceny
   syncDecision() {
-    const d = this.g.s.decision;
+    const d = this.g.s.meta.decision;
     if (!d) {
       if (this.envelopeEl) { this.envelopeEl.remove(); this.envelopeEl = null; }
       return;
@@ -1815,7 +2027,7 @@ export class UI {
 
   showDecision() {
     const g = this.g;
-    const d = g.s.decision;
+    const d = g.s.meta.decision;
     if (!d) return;
     const D = DECISIONS[d.i];
     const opt = (w) => {
@@ -1831,14 +2043,30 @@ export class UI {
       </div>`);
   }
 
-  showOffline(r) {
-    if (!r || r.elapsed < 60 || !(r.cash > 0 || r.rp > 0)) return;
+  queueOffline(r, layer) {
+    if (!this.offlineBuf) {
+      this.offlineBuf = {};
+      setTimeout(() => {
+        const buf = this.offlineBuf || {};
+        this.offlineBuf = null;
+        const main = buf[this.g.D.id];
+        const others = Object.entries(buf).filter(([id, x]) => id !== this.g.D.id && x.cash > 0);
+        if (main) this.showOffline(main, others);
+      }, 0);
+    }
+    this.offlineBuf[layer.D.id] = r;
+  }
+
+  showOffline(r, others = []) {
+    const cash = r ? r.cash + (r.feed || 0) : 0;
+    if (!r || r.elapsed < 60 || !(cash > 0 || r.rp > 0)) return;
+    const extra = others.map(([id, x]) => `<p style="text-align:center;margin:4px 0">${t('o.other', { icon: LAYERS[id].icon, name: t(`layer.${id}`), v: money(x.cash) })}</p>`).join('');
     this.openModal(`
       <div class="hero">🌙</div>
       <h2>${t('o.title')}</h2>
-      <p style="text-align:center">${t('o.away', { t: fmtTime(r.elapsed) })}</p>
-      <div class="big-money">+${money(r.cash)}</div>
-      ${r.rp > 0 ? `<p style="text-align:center;color:var(--rp);font-weight:800;margin:6px 0">${t('o.rp', { v: fmt(r.rp) })}</p>` : ''}
+      <p style="text-align:center">${this.tl('o.away', { t: fmtTime(r.elapsed) })}</p>
+      <div class="big-money">+${money(cash)}</div>
+      ${r.rp > 0 ? `<p style="text-align:center;color:var(--rp);font-weight:800;margin:6px 0">${t('o.rp', { v: fmt(r.rp) })}</p>` : ''}${extra}
       ${r.contracts ? `<p style="text-align:center">${t('o.contracts', { n: r.contracts })}</p>` : ''}
       <p style="text-align:center;font-size:12.5px">${t('o.note', { p: Math.round(r.eff * 100), t: fmtTime(r.cap), reached: r.elapsed > r.cap ? t('o.reached') : '' })}</p>
       <div class="actions"><button class="btn btn-wide" data-act="modal-close">${t('o.ok')}</button></div>`);
@@ -1850,20 +2078,20 @@ export class UI {
     const s = g.s;
     const gain = g.prestigeGain();
     if (gain < 1) {
-      this.toast('💎', t('toast.tooEarly'), t('toast.tooEarlyText', { v: money(g.nextPrestigeAt()) }), 'info');
+      this.toast(this.space ? '👩‍🚀' : '💎', this.tl('toast.tooEarly'), this.tl('toast.tooEarlyText', { v: money(g.nextPrestigeAt()) }), 'info');
       return;
     }
-    const per = INVESTOR_BONUS + g.m.investorPct;
+    const per = g.D.PRESTIGE.bonus + g.m.investorPct;
     const after = 1 + (s.investors + gain) * per;
     this.openModal(`
-      <div class="hero">🦄</div>
-      <h2>${esc(t('p.title', { r: TX.roundName(s.prestigeCount) }))}</h2>
-      <p style="text-align:center">${t('p.lead')}</p>
-      <div class="big-money" style="color:var(--gold)">+${fmt(gain)} 💎</div>
-      <p style="text-align:center">${t('p.gain', { a: fmt(g.m.invMult), b: fmt(after), n: fmt(gain) })}</p>
-      <ul><li>${t('p.resets')}</li><li>${t('p.keeps')}</li></ul>
+      <div class="hero">${this.space ? '🌊' : '🦄'}</div>
+      <h2>${esc(this.tl('p.title', { r: this.roundLabel(s.prestigeCount) }))}</h2>
+      <p style="text-align:center">${this.tl('p.lead')}</p>
+      <div class="big-money" style="color:var(--gold)">+${fmt(gain)} ${this.space ? '👩‍🚀' : '💎'}</div>
+      <p style="text-align:center">${this.tl('p.gain', { a: fmt(g.m.invMult), b: fmt(after), n: fmt(gain) })}</p>
+      <ul><li>${this.tl('p.resets')}</li><li>${this.tl('p.keeps')}</li></ul>
       <div class="actions">
-        <button class="btn gold btn-wide" data-act="prestige-confirm">${t('p.confirm')}</button>
+        <button class="btn gold btn-wide" data-act="prestige-confirm">${this.tl('p.confirm')}</button>
         <button class="btn ghost btn-wide" data-act="modal-close">${t('p.cancel')}</button>
       </div>`);
   }
@@ -1930,7 +2158,8 @@ export class UI {
       this.fullRender();
       this.restartTicker();
       this.toast('✅', t('toast.imported'), '', 'info');
-      if (this.g.migrated) this.showMigration();
+      if (this.co.migrated) this.showMigration();
+      else if (this.co.converted) this.showLayersIntro();
     } else {
       this.toast('❌', t('toast.importBad'), t('toast.importBadText'), 'info');
     }
@@ -1947,6 +2176,9 @@ export class UI {
 
   fullRender() {
     this.sigs = {};
+    this.applyStatic();
+    this.renderCompanyTabs();
+    this.renderTeamTabs();
     this.renderBuySegs();
     this.updateSoundBtn();
     this.scene.render(this.g, true);

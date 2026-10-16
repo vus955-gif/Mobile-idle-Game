@@ -1,10 +1,10 @@
 // Start gry: wczytanie zapisu, pętla, autozapis, service worker.
-import { Game, createState, sanitizeState } from './engine.js';
+import { Company } from './engine.js';
 import { UI } from './ui.js';
 import { setLang, detectLang } from './i18n.js';
 import { startMusic, stopMusic } from './music.js';
 
-export const VERSION = '1.2.0';
+export const VERSION = '2.0.0';
 const SAVE_KEY = 'krzemowe-imperium-save';
 const BACKUP_KEY = 'krzemowe-imperium-backup';
 
@@ -18,14 +18,16 @@ function readSave() {
 }
 
 const saved = readSave();
-// Język: zapisany w grze, a przy pierwszym uruchomieniu — język telefonu.
-setLang(saved?.settings?.lang || detectLang());
-const game = new Game(saved, { now: Date.now() });
+// Język: zapisany w grze (v3: w meta, starsze zapisy: na wierzchu), a przy pierwszym uruchomieniu — język telefonu.
+const savedLang = (s) => s?.meta?.settings?.lang || s?.settings?.lang;
+setLang(savedLang(saved) || detectLang());
+// Firma ze wszystkimi warstwami (Ziemia, Kosmos…); co.g to warstwa na ekranie.
+const co = new Company(saved, { now: Date.now() });
 let lastSaveJson = '';
 
 function save() {
   try {
-    const json = game.serialize();
+    const json = co.serialize();
     if (json === lastSaveJson) return;
     if (lastSaveJson) localStorage.setItem(BACKUP_KEY, lastSaveJson);
     localStorage.setItem(SAVE_KEY, json);
@@ -49,19 +51,20 @@ function decodeSave(text) {
   return JSON.parse(new TextDecoder().decode(bytes));
 }
 
-const ui = new UI(game, {
+const ui = new UI(co, {
   version: VERSION,
   save,
-  exportSave: () => encodeSave(game.serialize()),
+  exportSave: () => encodeSave(co.serialize()),
   importSave: (text) => {
     try {
       const data = decodeSave(text);
-      if (!data || typeof data !== 'object' || typeof data.cash !== 'number') return false;
-      if (data.settings?.lang) setLang(data.settings.lang);
-      game.s = sanitizeState(data, Date.now());
-      game.s.lastTick = Date.now();
-      game.recalc();
-      game.afterLoad(Date.now());
+      const ok = data && typeof data === 'object' && (typeof data.layers === 'object' || typeof data.cash === 'number');
+      if (!ok) return false;
+      if (savedLang(data)) setLang(savedLang(data));
+      const now = Date.now();
+      co.load(data, now);
+      for (const g of Object.values(co.layers)) g.s.lastTick = now;
+      co.recalc();
       save();
       return true;
     } catch {
@@ -70,8 +73,7 @@ const ui = new UI(game, {
   },
   reset: () => {
     try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(BACKUP_KEY); } catch { /* ignoruj */ }
-    game.s = createState(Date.now());
-    game.recalc();
+    co.load(null, Date.now());
     lastSaveJson = '';
     ui.fullRender();
     ui.showWelcome();
@@ -83,16 +85,17 @@ ui.init();
 if (!saved) ui.showWelcome();
 
 // Pierwszy tick nalicza zarobki offline (UI pokaże podsumowanie).
-game.tick(Date.now());
-// Zapis sprzed nowej ekonomii: krótko wyjaśniamy, co się zmieniło.
-if (game.migrated) ui.showMigration();
+co.tick(Date.now());
+// Zapis sprzed nowej ekonomii albo sprzed warstw: krótko wyjaśniamy, co się zmieniło.
+if (co.migrated) ui.showMigration();
+else if (co.converted) setTimeout(() => ui.showLayersIntro(), 600);
 
 // Logika gry nie potrzebuje 60 klatek — 20 Hz wystarcza i oszczędza baterię.
 let lastLoop = 0;
 function loop(ts) {
   if (ts - lastLoop >= 50) {
     lastLoop = ts;
-    game.tick(Date.now());
+    co.tick(Date.now());
     ui.frame(performance.now());
   }
   requestAnimationFrame(loop);
@@ -105,8 +108,8 @@ document.addEventListener('visibilitychange', () => {
     save();
     stopMusic(false);
   } else {
-    game.tick(Date.now());
-    if (game.s.settings.music) startMusic();
+    co.tick(Date.now());
+    if (co.meta.settings.music) startMusic();
   }
 });
 window.addEventListener('pagehide', save);
@@ -118,5 +121,6 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   });
 }
 
-// Dostęp do gry z konsoli (debug)
-window.__game = game;
+// Dostęp do gry z konsoli (debug): __game to warstwa na ekranie, __co cała firma.
+window.__co = co;
+Object.defineProperty(window, '__game', { get: () => co.g });

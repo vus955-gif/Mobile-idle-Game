@@ -16,8 +16,9 @@ const newGame = () => new Game(null, { now: T0, rng: () => 0.5 });
 function veteran() {
   const g = newGame();
   g.s.prestigeCount = 1;
+  g.s.meta.rounds = 1;
   g.s.investors = 50;
-  g.s.shares = 100;
+  g.s.meta.shares = 100;
   g.recalc();
   return g;
 }
@@ -41,12 +42,12 @@ test('angielska treść obejmuje nowe systemy', () => {
 
 test('autopilot: moduły po pierwszej rundzie, za udziały', () => {
   const fresh = newGame();
-  fresh.s.shares = 100;
+  fresh.s.meta.shares = 100;
   assert.equal(fresh.buyAutopilot('products'), false, 'przed pierwszą rundą niedostępny');
   const g = veteran();
   const cost = AP_MAP.products.cost;
   assert.ok(g.buyAutopilot('products'));
-  assert.equal(g.s.shares, 100 - cost);
+  assert.equal(g.s.meta.shares, 100 - cost);
   assert.equal(g.buyAutopilot('products'), false, 'drugi raz nie da się kupić');
   assert.ok(g.apOn('products'));
   assert.equal(g.toggleAutopilot('products'), false);
@@ -137,7 +138,7 @@ test('wyzwania: cel daje trwałą nagrodę i kończy ograniczenie', () => {
   g.s.products = { landing: 10 };
   g.s.runEarned = CHALLENGE_GOALS[0];
   assert.ok(g.updateChallenge(T0));
-  assert.equal(g.s.challenges.noclick, 1);
+  assert.equal(g.s.meta.challenges.noclick, 1);
   assert.equal(g.s.challenge, null);
   g.recalc();
   assert.ok(Math.abs(g.income / base - 1.15) < 1e-6, 'nagroda: przychód ×1,15');
@@ -164,7 +165,7 @@ test('skala cywilizacji: PKB Ziemi to ok. 0,73 w skali Kardaszowa', () => {
   g.s.products.landing = 50;
   g.recalc();
   g.updateScale();
-  assert.ok(g.s.scaleMax >= 0);
+  assert.ok(g.s.meta.scaleMax >= 0);
   assert.equal(seen.length, 1);
   g.updateScale();
   assert.equal(seen.length, 1, 'ten sam poziom nie ogłasza się drugi raz');
@@ -175,21 +176,21 @@ test('decyzje: pojawiają się z czasem, obie opcje działają', () => {
   g.s.products.landing = 10;
   g.recalc();
   g.tick(T0 + 1000);
-  assert.equal(g.s.decision, null);
+  assert.equal(g.s.meta.decision, null);
   let t = T0;
-  while (!g.s.decision && t < T0 + DECISION_FIRST + 60e3) { t += 1000; g.tick(t); }
-  assert.ok(g.s.decision, 'decyzja po kilku minutach gry');
+  while (!g.s.meta.decision && t < T0 + DECISION_FIRST + 60e3) { t += 1000; g.tick(t); }
+  assert.ok(g.s.meta.decision, 'decyzja po kilku minutach gry');
   const cash = g.s.cash;
   // wymuszamy decyzję z gotówką od ręki
-  g.s.decision = { i: DECISIONS.findIndex((d) => d.id === 'bigtech'), at: t };
+  g.s.meta.decision = { i: DECISIONS.findIndex((d) => d.id === 'bigtech'), at: t };
   const e = g.chooseDecision('a', t);
   assert.equal(e.t, 'cash');
   assert.ok(g.s.cash > cash);
-  assert.equal(g.s.decision, null);
+  assert.equal(g.s.meta.decision, null);
   assert.equal(g.s.stats.decisions, 1);
   // premia z decyzji nie wpływa na wycenę
   const v = g.valuation();
-  g.s.decision = { i: DECISIONS.findIndex((d) => d.id === 'bigtech'), at: t };
+  g.s.meta.decision = { i: DECISIONS.findIndex((d) => d.id === 'bigtech'), at: t };
   g.chooseDecision('b', t);
   assert.ok(g.m.boostIncome > 1);
   assert.ok(Math.abs(g.valuation() - v) / v < 0.01);
@@ -200,7 +201,7 @@ test('decyzje: nagroda odroczona wpływa także offline; badania bez działu R&D
   g.s.products.landing = 10;
   g.recalc();
   const di = DECISIONS.findIndex((d) => d.a.fx.t === 'delayed');
-  g.s.decision = { i: di, at: T0 };
+  g.s.meta.decision = { i: di, at: T0 };
   const e = g.chooseDecision('a', T0);
   assert.equal(g.s.pending.length, 1);
   const cash = g.s.cash;
@@ -231,10 +232,10 @@ test('stary zapis bez nowych pól wczytuje się poprawnie', () => {
   const old = JSON.parse(newGame().serialize());
   for (const k of ['autopilot', 'challenge', 'challenges', 'decision', 'pending', 'history', 'scaleMax', 'nextDecisionAt', 'recentDecisions']) delete old[k];
   const g = new Game(old, { now: T0 });
-  assert.deepEqual(g.s.autopilot, { owned: {}, off: {} });
-  assert.equal(g.s.scaleMax, -1);
+  assert.deepEqual(g.s.meta.autopilot, { owned: {}, off: {} });
+  assert.equal(g.s.meta.scaleMax, -1);
   assert.ok(Array.isArray(g.s.history.short));
-  assert.ok(g.s.nextDecisionAt > 0);
+  assert.ok(g.s.meta.nextDecisionAt > 0);
   g.tick(T0 + 1000);
 });
 
@@ -338,32 +339,32 @@ test('giełda: po IPO, udziały dają premię, 51% to kontrola, rynek nie pompuj
 test('zarząd: kandydaci, zatrudnianie za udziały, poziomy i dziwactwa', async () => {
   const { BOARD, ROLES, QUIRKS } = await import('../js/data.js');
   const g = veteran();
-  g.s.shares = 1000;
+  g.s.meta.shares = 1000;
   g.s.products.landing = 20;
   g.recalc();
   let t = T0;
-  while (!g.s.candidates.length && t < T0 + 3600e3) { t += 1000; g.tick(t); }
-  assert.ok(g.s.candidates.length > 0, 'headhunter przysyła kandydatów');
+  while (!g.s.meta.candidates.length && t < T0 + 3600e3) { t += 1000; g.tick(t); }
+  assert.ok(g.s.meta.candidates.length > 0, 'headhunter przysyła kandydatów');
   // pula ma limit, nowi nie wypierają starych
-  for (let i = 0; i < 10; i++) g.s.candidates.length < BOARD.poolMax && g.s.candidates.push(g.makeCandidate(t));
-  assert.equal(g.s.candidates.length, BOARD.poolMax);
-  g.s.nextCandidateAt = t;
+  for (let i = 0; i < 10; i++) g.s.meta.candidates.length < BOARD.poolMax && g.s.meta.candidates.push(g.makeCandidate(t));
+  assert.equal(g.s.meta.candidates.length, BOARD.poolMax);
+  g.s.meta.nextCandidateAt = t;
   g.updateCandidates(t + 1);
-  assert.equal(g.s.candidates.length, BOARD.poolMax);
+  assert.equal(g.s.meta.candidates.length, BOARD.poolMax);
   // zatrudnienie kosztuje udziały i działa
   const c = { id: 999, role: 'cpo', r: 0, traits: [{ t: 'all', x: 1.2 }], q: null, n: 1, seed: 5, at: t };
-  g.s.candidates.push(c);
+  g.s.meta.candidates.push(c);
   const before = g.income;
-  const shares = g.s.shares;
+  const shares = g.s.meta.shares;
   assert.ok(g.hireExec(999, t));
-  assert.equal(g.s.shares, shares - g.candidateCost(c));
+  assert.equal(g.s.meta.shares, shares - g.candidateCost(c));
   assert.ok(Math.abs(g.income / before - 1.2) < 1e-6, 'cecha działa');
   // doświadczenie rośnie z czasem (także offline)
-  assert.equal(g.execLevel(g.s.board.cpo, t), 1);
-  assert.equal(g.execLevel(g.s.board.cpo, t + 3 * 3.6e6), 3);
-  assert.equal(g.execLevel(g.s.board.cpo, t + 1e4 * 3.6e6), BOARD.maxLevel);
+  assert.equal(g.execLevel(g.s.meta.board.cpo, t), 1);
+  assert.equal(g.execLevel(g.s.meta.board.cpo, t + 3 * 3.6e6), 3);
+  assert.equal(g.execLevel(g.s.meta.board.cpo, t + 1e4 * 3.6e6), BOARD.maxLevel);
   // dziwactwo nocne działa tylko w nocy
-  const e = { ...g.s.board.cpo, q: 'night' };
+  const e = { ...g.s.meta.board.cpo, q: 'night' };
   const night = new Date(2026, 9, 14, 23, 0).getTime();
   const noon = new Date(2026, 9, 14, 12, 0).getTime();
   assert.ok(g.quirkActive(e, night));
@@ -373,9 +374,9 @@ test('zarząd: kandydaci, zatrudnianie za udziały, poziomy i dziwactwa', async 
   // zarząd zostaje po rundzie finansowania
   g.s.totalEarned = 1e20;
   g.doPrestige(t);
-  assert.ok(g.s.board.cpo);
+  assert.ok(g.s.meta.board.cpo);
   assert.ok(g.fireExec('cpo'));
-  assert.equal(g.s.board.cpo, undefined);
+  assert.equal(g.s.meta.board.cpo, undefined);
   // każda rola i dziwactwo mają tłumaczenie
   for (const lang of ['pl', 'en']) {
     setLang(lang);

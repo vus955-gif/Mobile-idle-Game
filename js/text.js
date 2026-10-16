@@ -5,23 +5,30 @@ import {
   PRODUCT_UP_NAMED, AUTOPILOT, CHALLENGES, SCALE_LEVELS, DECISIONS, OFFICES, COMPETITORS, MARKET_NEWS,
   ROLES, QUIRKS, EXEC_NAMES,
 } from './data.js';
+import {
+  SPACE_PRODUCTS, SPACE_DEPTS, SPACE_TECHS, SPACE_REPEAT, SPACE_CULTURE, SPACE_CLICK, SPACE_ACQUISITIONS, SPACE_OFFICES,
+  SPACE_ERAS, SPACE_CATEGORIES, SPACE_CLIENTS, SPACE_TASKS, SPACE_NEWS,
+} from './space.js';
 import { EN } from './lang/en.js';
 import { getLang, t, noun } from './i18n.js';
 import { fmt, fmtInt, money, num, fmtTime } from './format.js';
 
 const en = () => getLang() === 'en';
 const byId = (arr) => Object.fromEntries(arr.map((x) => [x.id, x]));
-const P = byId(PRODUCTS);
-const D = byId(DEPTS);
-const T = byId(TECHS);
-const R = byId(REPEAT_TECHS);
-const CU = byId(CULTURE_UPGRADES);
-const CL = byId(CLICK_UPGRADES);
-const A = byId(ACQUISITIONS);
+// Słowniki obejmują wszystkie warstwy (identyfikatory są unikalne w całej grze).
+const P = byId([...PRODUCTS, ...SPACE_PRODUCTS]);
+const D = byId([...DEPTS, ...SPACE_DEPTS]);
+const T = byId([...TECHS, ...SPACE_TECHS]);
+const R = byId([...REPEAT_TECHS, ...SPACE_REPEAT]);
+const CU = byId([...CULTURE_UPGRADES, ...SPACE_CULTURE]);
+const CL = byId([...CLICK_UPGRADES, ...SPACE_CLICK]);
+const A = byId([...ACQUISITIONS, ...SPACE_ACQUISITIONS]);
+const CATS = { ...CATEGORIES, ...SPACE_CATEGORIES };
+const ALL_ERAS = [...ERAS, ...SPACE_ERAS];
 const PK = byId(PERKS);
 const AP = byId(AUTOPILOT);
 const CH = byId(CHALLENGES);
-const OF = byId(OFFICES);
+const OF = byId([...OFFICES, ...SPACE_OFFICES]);
 const CO = byId(COMPETITORS);
 const RO = byId(ROLES);
 const QU = byId(QUIRKS);
@@ -30,7 +37,8 @@ export const prodName = (id) => (en() ? EN.products[id].name : P[id].name);
 export const prodDesc = (id) => (en() ? EN.products[id].desc : P[id].desc);
 export const deptName = (id) => (en() ? EN.depts[id].name : D[id].name);
 export const deptDesc = (id) => (en() ? EN.depts[id].desc : D[id].desc);
-export const techName = (id) => (en() ? EN.techs[id].name : T[id].name);
+// Technologie przyszłych etapów (galaktyka, wszechświat) jeszcze nie istnieją — wtedy ogólna nazwa.
+export const techName = (id) => (!T[id] ? t('sc.futureTech') : en() ? EN.techs[id].name : T[id].name);
 export const techDesc = (id) => (en() ? EN.techs[id].desc : T[id].desc);
 export const repeatName = (id) => (en() ? EN.repeat[id].name : R[id].name);
 export const repeatDesc = (id) => (en() ? EN.repeat[id].desc : R[id].desc);
@@ -38,10 +46,10 @@ export const acqName = (id) => (en() ? EN.acquisitions[id].name : A[id].name);
 export const acqDesc = (id) => (en() ? EN.acquisitions[id].desc : A[id].desc);
 export const perkName = (id) => (en() ? EN.perks[id].name : PK[id].name);
 export const perkDesc = (id) => (en() ? EN.perks[id].desc : PK[id].desc);
-export const catName = (cat) => (en() ? EN.categories[cat] : CATEGORIES[cat].name);
+export const catName = (cat) => (en() ? EN.categories[cat] : CATS[cat].name);
 export const bubbleName = (type) => (en() ? EN.bubbles[type] : BUBBLES[type].name);
-export const eraName = (id) => (en() ? EN.eras[id] : ERAS.find((e) => e.id === id).name);
-export const newsList = () => (en() ? EN.news : NEWS);
+export const eraName = (id) => (en() ? EN.eras[id] : ALL_ERAS.find((e) => e.id === id).name);
+export const newsList = (layer = 'earth') => (layer === 'space' ? (en() ? EN.spaceNews : SPACE_NEWS) : (en() ? EN.news : NEWS));
 export const roleArea = (id) => (en() ? EN.roles[id] : RO[id].area);
 export const quirkName = (id) => (en() ? EN.quirks[id].name : QU[id].name);
 export const quirkDesc = (id) => (en() ? EN.quirks[id].desc : QU[id].desc);
@@ -105,13 +113,16 @@ export function trendText(trend) {
 }
 
 // Kontrakty zapisują indeksy klienta i zadania; starsze zapisy miały gotowy tekst.
+// Zlecenia z kosmosu mają L: 'space' i własne listy klientów.
 export function clientName(o) {
-  if (o.ci !== undefined) return en() ? EN.clients[o.ci] : CONTRACT_CLIENTS[o.ci][0];
-  return o.client || '';
+  if (o.ci === undefined) return o.client || '';
+  if (o.L === 'space') return en() ? EN.spaceClients[o.ci] : SPACE_CLIENTS[o.ci][0];
+  return en() ? EN.clients[o.ci] : CONTRACT_CLIENTS[o.ci][0];
 }
 export function taskName(o) {
-  if (o.ti !== undefined) return en() ? EN.tasks[o.ti] : CONTRACT_TASKS[o.ti];
-  return o.task || '';
+  if (o.ti === undefined) return o.task || '';
+  if (o.L === 'space') return en() ? EN.spaceTasks[o.ti] : SPACE_TASKS[o.ti];
+  return en() ? EN.tasks[o.ti] : CONTRACT_TASKS[o.ti];
 }
 
 // ---------- ulepszenia ----------
@@ -177,6 +188,12 @@ export function achDesc(a) {
     case 'ap': return t('ach.ap', { n: v, noun: noun('modules', v) });
     case 'off': return t('ach.off', { n: v, noun: noun('offices', v) });
     case 'spc': return t('ach.spc', { n: v, noun: noun('offices', v) });
+    case 'crew': return t('ach.crew', { n: fmtInt(v), noun: noun('people', v) });
+    case 'stech': return t('ach.stech', { n: v, noun: noun('techsGen', v) });
+    case 'supg': return t('ach.supg', { n: v, noun: noun('upgrades', v) });
+    case 'wave': return t('ach.wave', { n: v, noun: noun('waves', v) });
+    case 'colon': return t('ach.colon', { n: fmt(v) });
+    case 'sacq': return t('ach.sacq', { n: v, noun: noun('companies', v) });
     case 'ctl': return t('ach.ctl', { n: v, noun: noun('companies', v) });
     case 'mkt': return t('ach.mktDesc')[a.i];
     case 'exec': return a.i < 2 ? t('ach.exec', { n: v, noun: noun('seats', v) }) : t('ach.execDesc')[a.i - 2];
