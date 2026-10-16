@@ -527,12 +527,12 @@ export class Scene {
       return d.id + SEATS.filter((t) => n >= t).length;
     }).join(',');
     const e = this.env || {};
-    return `${phase}|${floors}|${Math.min(s.prestigeCount, 8)}|${s.companyName}|${(s.products.landing || 0) > 0 ? 1 : 0}|${e.season}|${e.weather}|${e.holiday}|${e.newYear}|${s.settings.view}`;
+    return `${phase}|${floors}|${Math.min(s.prestigeCount, 8)}|${s.meta.companyName}|${(s.products.landing || 0) > 0 ? 1 : 0}|${e.season}|${e.weather}|${e.holiday}|${e.newYear}|${s.view}`;
   }
 
   render(game, force = false) {
     const phase = phaseFor();
-    const view = game.s.settings.view || 'waw';
+    const view = game.s.view || 'waw';
     const th = SPACE_VIEWS[view] || null;
     this.env = envFor();
     // W kosmosie nie ma pór roku ani pogody, ale święta zostają.
@@ -739,7 +739,7 @@ export class Scene {
     out += `<rect x="${gx + 134}" y="${gy + 20}" width="24" height="20" rx="2" fill="url(#glassG)" stroke="#fff" stroke-width="2"/>`;
     out += `<rect x="${gx + 134}" y="${gy + 48}" width="22" height="34" rx="2" fill="${night ? '#5c4636' : '#8b5e3c'}"/><circle cx="${gx + 151}" cy="${gy + 66}" r="1.6" fill="#ffd166"/>`;
     // szyld
-    const name = s.companyName.length > 22 ? s.companyName.slice(0, 21) + '…' : s.companyName;
+    const name = s.meta.companyName.length > 22 ? s.meta.companyName.slice(0, 21) + '…' : s.meta.companyName;
     out += `<rect x="${W / 2 - 62}" y="${gy + 6}" width="124" height="15" rx="4" fill="#23264a"/>`;
     out += `<text x="${W / 2}" y="${gy + 16.8}" text-anchor="middle" font-size="9" font-weight="700" fill="#ffe08a" font-family="system-ui, sans-serif">${esc(name)}</text>`;
     out += plant(gx + gw + 18, groundY + 1, 1.1);
@@ -767,7 +767,7 @@ export class Scene {
     for (let x = BX + 8 + 34; x < BX + BW - 8; x += 34) out += `<rect x="${x}" y="${ly + 16}" width="2" height="${LOBBY_H - 16}" fill="${wallBase}"/>`;
     out += `<rect x="${W / 2 - 18}" y="${ly + 20}" width="36" height="${LOBBY_H - 20}" fill="${night ? '#ffeab3' : '#bfe3ff'}" stroke="${wallBase}" stroke-width="2"/>`;
     out += `<line x1="${W / 2}" y1="${ly + 20}" x2="${W / 2}" y2="${groundY}" stroke="${wallBase}" stroke-width="2"/>`;
-    const name = s.companyName.length > 26 ? s.companyName.slice(0, 25) + '…' : s.companyName;
+    const name = s.meta.companyName.length > 26 ? s.meta.companyName.slice(0, 25) + '…' : s.meta.companyName;
     out += `<rect x="${BX + 20}" y="${ly + 2}" width="${BW - 40}" height="12" rx="3" fill="#1b1e3d"/>`;
     out += `<text x="${W / 2}" y="${ly + 11}" text-anchor="middle" font-size="8.5" font-weight="800" fill="#ffe08a" font-family="system-ui, sans-serif" letter-spacing=".6">${esc(name.toUpperCase())}</text>`;
     out += plant(BX + 18, groundY, 1);
@@ -819,7 +819,7 @@ export class Scene {
     }
     if (pc >= 2) {
       out += `<g filter="url(#glow)"><rect x="${W / 2 - 34}" y="${rt - 26}" width="68" height="18" rx="5" fill="#141738" stroke="#a78bfa" stroke-width="1.5"/>
-        <text x="${W / 2}" y="${rt - 13.5}" text-anchor="middle" font-size="10" font-weight="900" fill="#c4b5fd" font-family="system-ui, sans-serif">◆ ${esc((s.companyName.split(' ')[0] || '').slice(0, 8).toUpperCase())}</text></g>`;
+        <text x="${W / 2}" y="${rt - 13.5}" text-anchor="middle" font-size="10" font-weight="900" fill="#c4b5fd" font-family="system-ui, sans-serif">◆ ${esc((s.meta.companyName.split(' ')[0] || '').slice(0, 8).toUpperCase())}</text></g>`;
       out += `<line x1="${W / 2 - 20}" y1="${rt - 8}" x2="${W / 2 - 20}" y2="${rt - 6}" stroke="#666" stroke-width="2"/><line x1="${W / 2 + 20}" y1="${rt - 8}" x2="${W / 2 + 20}" y2="${rt - 6}" stroke="#666" stroke-width="2"/>`;
     }
     if (pc >= 3) {

@@ -89,9 +89,9 @@ test('formatowanie liczb po angielsku', () => {
 
 test('nowa gra dostaje domyślną nazwę w swoim języku', () => {
   setLang('en');
-  assert.equal(new Game(null, { now: T0 }).s.companyName, 'Garage Startup');
+  assert.equal(new Game(null, { now: T0 }).s.meta.companyName, 'Garage Startup');
   setLang('pl');
-  assert.equal(new Game(null, { now: T0 }).s.companyName, 'Garażowy Startup');
+  assert.equal(new Game(null, { now: T0 }).s.meta.companyName, 'Garażowy Startup');
 });
 
 test('wycena firmy jest realistyczna i ignoruje chwilowe premie', () => {

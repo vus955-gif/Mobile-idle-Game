@@ -135,26 +135,26 @@ function decide() {
   // budżet badawczy: rośnie z kolejnymi erami (gracz podkręca go, gdy gotówka się przelewa)
   if (!off.has('budget')) {
     const want = g.techCount() < 18 ? 0.1 : g.techCount() < 30 ? 0.25 : 0.5;
-    if (g.s.settings.rdBudget !== want) g.setRdBudget(want);
+    if (g.s.rdBudget !== want) g.setRdBudget(want);
   }
   // decyzje: bierzemy pierwszą opcję
-  if (g.s.decision) { if (off.has('decisions')) g.s.decision = null; else g.chooseDecision('a', now); }
+  if (g.s.meta.decision) { if (off.has('decisions')) g.s.meta.decision = null; else g.chooseDecision('a', now); }
   // moduły autopilota (gracz kupi je jako pierwsze) i zarząd
-  if (g.apUnlocked()) for (const a of AUTOPILOT) if (!g.apOwned(a.id) && g.s.shares >= a.cost) g.buyAutopilot(a.id);
-  if (off.has('board')) g.s.candidates = [];
-  for (const c of [...g.s.candidates]) {
-    const cur = g.s.board[c.role];
-    if ((!cur || c.r > cur.r) && g.s.shares >= g.candidateCost(c)) g.hireExec(c.id, now);
+  if (g.apUnlocked()) for (const a of AUTOPILOT) if (!g.apOwned(a.id) && g.s.meta.shares >= a.cost) g.buyAutopilot(a.id);
+  if (off.has('board')) g.s.meta.candidates = [];
+  for (const c of [...g.s.meta.candidates]) {
+    const cur = g.s.meta.board[c.role];
+    if ((!cur || c.r > cur.r) && g.s.meta.shares >= g.candidateCost(c)) g.hireExec(c.id, now);
     else if (cur && c.r <= cur.r) g.dismissCandidate(c.id);
   }
   // perki
-  if (g.s.shares > 0) {
+  if (g.s.meta.shares > 0) {
     const order = ['p_click', 'p_trust', 'p_mentors', 'p_academy', 'p_seed', 'p_head', 'p_night', 'p_dream', 'p_auto', 'p_hr', 'p_brand', 'p_network'];
     let ok = true;
     while (ok) {
       ok = false;
-      const cands = order.filter((id) => (g.s.perks[id] || 0) < PERKS.find((p) => p.id === id).max).sort((a, b) => g.perkCost(a) - g.perkCost(b));
-      if (cands.length && g.s.shares >= g.perkCost(cands[0])) { g.buyPerk(cands[0]); ok = true; }
+      const cands = order.filter((id) => (g.s.meta.perks[id] || 0) < PERKS.find((p) => p.id === id).max).sort((a, b) => g.perkCost(a) - g.perkCost(b));
+      if (cands.length && g.s.meta.shares >= g.perkCost(cands[0])) { g.buyPerk(cands[0]); ok = true; }
     }
   }
 }
@@ -210,7 +210,7 @@ while (now < end) {
   if (now >= nextReport) {
     nextReport += (verbose ? 10 : (now - T0 < 3 * 3600e3 ? 15 : 120)) * 60000;
     const prods = PRODUCTS.filter((p) => g.s.products[p.id]).map((p) => `${p.icon}${g.s.products[p.id]}`).join(' ');
-    note(`stan: cash $${fmt(g.s.cash)} | $${fmt(g.income)}/s | klik $${fmt(g.clickValue)} | rp ${fmt(g.s.rp)} (+${fmt(g.rpRate)}/s) | techs ${g.techCount()} | ups ${g.upgradeCount()} | ludzie ${g.totalHeads()} | ach ${g.achCount()} | inv ${fmt(g.s.investors)} | biura ${Object.keys(g.s.offices).length} | zarząd ${Object.keys(g.s.board).length} | K ${(kardashev(g.annualRevenue()) ?? 0).toFixed(2)}`);
+    note(`stan: cash $${fmt(g.s.cash)} | $${fmt(g.income)}/s | klik $${fmt(g.clickValue)} | rp ${fmt(g.s.rp)} (+${fmt(g.rpRate)}/s) | techs ${g.techCount()} | ups ${g.upgradeCount()} | ludzie ${g.totalHeads()} | ach ${g.achCount()} | inv ${fmt(g.s.investors)} | biura ${Object.keys(g.s.offices).length} | zarząd ${Object.keys(g.s.meta.board).length} | K ${(kardashev(g.annualRevenue()) ?? 0).toFixed(2)}`);
     if (verbose) {
       note(`      ${prods}`);
       const m = g.m;
@@ -223,7 +223,7 @@ while (now < end) {
 }
 
 console.log(`Profil: ${profile}, ${days} dni\n`);
-console.log(`\nKoniec: techs ${g.techCount()}/${TECHS.length}, osiągnięcia ${g.achCount()}, rundy ${g.s.prestigeCount}, kapitał ${fmt(g.s.investors)}, biura ${Object.keys(g.s.offices).length}/${OFFICES.length}, zarząd ${Object.keys(g.s.board).length}, skala ${g.s.scaleMax}`);
+console.log(`\nKoniec: techs ${g.techCount()}/${TECHS.length}, osiągnięcia ${g.achCount()}, rundy ${g.s.prestigeCount}, kapitał ${fmt(g.s.investors)}, biura ${Object.keys(g.s.offices).length}/${OFFICES.length}, zarząd ${Object.keys(g.s.meta.board).length}, skala ${g.s.meta.scaleMax}`);
 
 // --chal: na koniec bot próbuje każdego wyzwania przez 2 h aktywnej gry
 if (process.argv.includes('--chal')) {
@@ -231,7 +231,7 @@ if (process.argv.includes('--chal')) {
   for (const ch of CHALLENGES) {
     g.s = sanitizeState(JSON.parse(saved), now);
     g.recalc();
-    const startTier = g.s.challenges[ch.id] || 0;
+    const startTier = g.s.meta.challenges[ch.id] || 0;
     const t0 = now;
     g.startChallenge(ch.id, now);
     let tnow = now;
@@ -240,9 +240,9 @@ if (process.argv.includes('--chal')) {
       g.tick(tnow);
       for (let k = 0; k < 4; k++) g.click(tnow);
       if (i % 5 === 0) decide();
-      if (!g.s.challenge && (g.s.challenges[ch.id] || 0) < CHALLENGE_GOALS.length && i % 60 === 0) g.startChallenge(ch.id, tnow);
+      if (!g.s.challenge && (g.s.meta.challenges[ch.id] || 0) < CHALLENGE_GOALS.length && i % 60 === 0) g.startChallenge(ch.id, tnow);
     }
-    console.log(`wyzwanie ${ch.id}: poziomy ${startTier} → ${g.s.challenges[ch.id] || 0} w 2 h (run $${fmt(g.s.runEarned)})`);
+    console.log(`wyzwanie ${ch.id}: poziomy ${startTier} → ${g.s.meta.challenges[ch.id] || 0} w 2 h (run $${fmt(g.s.runEarned)})`);
     void t0;
   }
 }

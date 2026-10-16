@@ -106,8 +106,8 @@ export class UI {
     this.renderTeamTabs();
     this.bindEvents();
     this.bindGame();
-    setSound(!!this.g.s.settings.sound);
-    if (this.g.s.settings.music) startMusic();
+    setSound(!!this.g.s.meta.settings.sound);
+    if (this.g.s.meta.settings.music) startMusic();
     this.updateSoundBtn();
     this.scene.render(this.g, true);
     this.syncBubble();
@@ -172,7 +172,7 @@ export class UI {
     g.on('prestige', () => play('prestige'));
     g.on('autopilot', (a) => {
       for (const id of a.researched || []) {
-        const tech = TECH_MAP[id];
+        const tech = this.g.D.TECH_MAP[id];
         if (tech) this.toast(tech.icon, t('toast.researched', { name: TX.techName(id) }), TX.describeFx(tech.fx), 'tech');
       }
       this.scene.render(g);
@@ -207,7 +207,7 @@ export class UI {
     unlockAudio();
     switch (act) {
       case 'goto': this.showTab(el.dataset.tab, el.dataset.sub); break;
-      case 'set-buy': s.settings.buyAmount = el.dataset.v === 'max' ? 'max' : Number(el.dataset.v); this.renderBuySegs(); this.updateAll(true); break;
+      case 'set-buy': s.meta.settings.buyAmount = el.dataset.v === 'max' ? 'max' : Number(el.dataset.v); this.renderBuySegs(); this.updateAll(true); break;
       case 'buy-product': if (g.buyProduct(id, this.buyAmount())) this.pulse(el); this.updateAll(); break;
       case 'unlock-dept': if (g.unlockDept(id)) { play('unlock'); this.scene.render(g); } this.updateAll(true); break;
       case 'hire': if (g.hire(id, this.buyAmount())) this.pulse(el); this.updateAll(); break;
@@ -223,8 +223,8 @@ export class UI {
       case 'company-sub': this.companySub = el.dataset.sub; this.renderCompanyTabs(); this.updateAll(true); break;
       case 'team-sub': this.teamSub = el.dataset.sub; this.renderTeamTabs(); this.updateAll(true); $('view-team').scrollTop = 0; break;
       case 'open-office': if (g.openOffice(id)) { play('unlock'); this.scene.render(g); } this.updateAll(true); break;
-      case 'set-view': if (g.setView(id)) { this.scene.render(g, true); this.toast(OFFICE_MAP[id].icon, t('off.viewing'), TX.officeName(id), 'info'); } this.updateAll(true); break;
-      case 'hire-exec': if (g.hireExec(Number(id), Date.now())) { play('unlock'); const e = Object.values(s.board).find((x) => x.id === Number(id)); if (e) this.toast(ROLE_MAP[e.role].icon, t('bd.hired', { name: TX.execName(e.n) }), TX.describeFx(e.traits), 'achievement'); } this.updateAll(true); break;
+      case 'set-view': if (g.setView(id)) { this.scene.render(g, true); this.toast(this.g.D.OFFICE_MAP[id].icon, t('off.viewing'), TX.officeName(id), 'info'); } this.updateAll(true); break;
+      case 'hire-exec': if (g.hireExec(Number(id), Date.now())) { play('unlock'); const e = Object.values(s.meta.board).find((x) => x.id === Number(id)); if (e) this.toast(ROLE_MAP[e.role].icon, t('bd.hired', { name: TX.execName(e.n) }), TX.describeFx(e.traits), 'achievement'); } this.updateAll(true); break;
       case 'dismiss-cand': g.dismissCandidate(Number(id)); this.updateAll(true); break;
       case 'fire-exec': this.confirmFire(id); break;
       case 'fire-confirm': this.closeModal(); g.fireExec(id); this.updateAll(true); break;
@@ -249,7 +249,7 @@ export class UI {
         }
         break;
       }
-      case 'toggle-sound': s.settings.sound = !s.settings.sound; setSound(s.settings.sound); this.updateSoundBtn(); if (s.settings.sound) play('buy'); this.sigs.company = ''; this.updateAll(true); break;
+      case 'toggle-sound': s.meta.settings.sound = !s.meta.settings.sound; setSound(s.meta.settings.sound); this.updateSoundBtn(); if (s.meta.settings.sound) play('buy'); this.sigs.company = ''; this.updateAll(true); break;
       case 'modal-close': this.closeModal(); break;
       case 'rename': this.rename(); break;
       case 'set-lang': this.changeLang(el.dataset.v); break;
@@ -263,7 +263,7 @@ export class UI {
       }
       case 'welcome-start': {
         const v = ($('welcome-name')?.value || '').trim();
-        if (v) s.companyName = v.slice(0, 28);
+        if (v) s.meta.companyName = v.slice(0, 28);
         this.closeModal();
         this.scene.render(g, true);
         this.updateAll(true);
@@ -276,9 +276,9 @@ export class UI {
       case 'reset': this.confirmReset(); break;
       case 'reset-confirm': this.closeModal(); this.hooks.reset?.(); break;
       case 'ach-info': {
-        const a = ACHIEVEMENTS.find((x) => x.id === id);
+        const a = this.g.D.ACHIEVEMENTS.find((x) => x.id === id);
         if (!a) break;
-        const got = !!s.achievements[a.id];
+        const got = !!s.meta.achievements[a.id];
         if (got || !a.hidden) this.toast(got ? a.icon : '🔒', TX.achName(a), TX.achDesc(a), got ? 'achievement' : 'info');
         else this.toast('❓', t('ach.hidden'), t('ach.hiddenText'), 'info');
         break;
@@ -307,8 +307,8 @@ export class UI {
       }
       case 'zen': this.enterZen(); break;
       case 'toggle-music': {
-        s.settings.music = !s.settings.music;
-        if (s.settings.music) startMusic(); else stopMusic();
+        s.meta.settings.music = !s.meta.settings.music;
+        if (s.meta.settings.music) startMusic(); else stopMusic();
         this.updateAll(true);
         break;
       }
@@ -319,7 +319,7 @@ export class UI {
       case 'chart-range': this.chartRange = el.dataset.v; this.updateAll(true); break;
       case 'scale-info': {
         const i = Number(id);
-        const reached = s.scaleMax >= i;
+        const reached = s.meta.scaleMax >= i;
         const L = SCALE_LEVELS[i];
         const need = !reached && L.tech && !s.techs[L.tech] ? ` · ${t('sc.needTech', { tech: TX.techName(L.tech) })}` : '';
         this.toast(reached ? L.icon : '🔒', TX.scaleName(i), `${TX.scaleDesc(i)} · ${money(SCALE_THRESHOLDS[i])}/${t('time.y')}${need}`, reached ? 'achievement' : 'info');
@@ -329,7 +329,7 @@ export class UI {
     }
   }
 
-  buyAmount() { return this.g.s.settings.buyAmount || 1; }
+  buyAmount() { return this.g.s.meta.settings.buyAmount || 1; }
 
   // Teksty zapisane na sztywno w index.html (zakładki, nagłówki, przycisk kodowania).
   applyStatic() {
@@ -344,8 +344,8 @@ export class UI {
     const old = getLang();
     if (lang === old) return;
     // Domyślna nazwa firmy podąża za językiem, własna zostaje.
-    if (s.companyName === DICT[old].defaultCompany) s.companyName = DICT[lang].defaultCompany;
-    s.settings.lang = lang;
+    if (s.meta.companyName === DICT[old].defaultCompany) s.meta.companyName = DICT[lang].defaultCompany;
+    s.meta.settings.lang = lang;
     setLang(lang);
     this.applyStatic();
     this.renderBuySegs();
@@ -453,20 +453,20 @@ export class UI {
   everySecond(dt) {
     const s = this.g.s;
     if (this.zen) {
-      s.stats.zenTime += dt;
+      s.meta.stats.zenTime += dt;
       const d = new Date();
       this.setText($('zen-clock'), `${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`);
-      this.setText($('zen-sub'), `${s.companyName} · ${money(this.g.income)}/s`);
+      this.setText($('zen-sub'), `${s.meta.companyName} · ${money(this.g.income)}/s`);
     }
-    if (musicAudible()) s.stats.musicTime += dt;
+    if (musicAudible()) s.meta.stats.musicTime += dt;
     const env = this.scene.env;
     // pogoda ze sceny wpływa na dziwactwo „deszczowe natchnienie” w zarządzie
     if (env && this.g.weather !== env.weather) { this.g.weather = env.weather; this.g.recalc(); }
     if (env && this.tab === 'office') {
       const d = new Date();
-      if (env.weather === 'snow') s.flags.snow = true;
-      if (d.getMonth() === 9 && d.getDate() === 31) s.flags.halloween = true;
-      if (d.getMonth() === 11 && d.getDate() >= 24 && d.getDate() <= 26) s.flags.xmas = true;
+      if (env.weather === 'snow') s.meta.flags.snow = true;
+      if (d.getMonth() === 9 && d.getDate() === 31) s.meta.flags.halloween = true;
+      if (d.getMonth() === 11 && d.getDate() >= 24 && d.getDate() <= 26) s.meta.flags.xmas = true;
     }
   }
 
@@ -511,9 +511,9 @@ export class UI {
     this.setText($('hud-income'), money(g.netIncome));
     $('hud-income').parentElement.classList.toggle('rd', (g.m.rdShare || 0) > 0);
     $('hud-income').parentElement.classList.toggle('boosted', g.m.boostIncome > 1);
-    this.setText($('hud-company'), s.companyName);
+    this.setText($('hud-company'), s.meta.companyName);
     this.setText($('hud-stage'), this.stageName());
-    const rpVis = s.deptUnlocked.rnd || s.rp > 0 || g.techCount() > 0;
+    const rpVis = s.deptUnlocked[g.D.RD_DEPT] || s.rp > 0 || g.techCount() > 0;
     $('hud-rp-chip').hidden = !rpVis;
     if (rpVis) this.setText($('hud-rp'), fmt(s.rp));
     $('hud-inv-chip').hidden = !(s.investors > 0);
@@ -531,7 +531,7 @@ export class UI {
   }
 
   updateSoundBtn() {
-    $('sound-btn').innerHTML = this.g.s.settings.sound ? SOUND_ON : SOUND_OFF;
+    $('sound-btn').innerHTML = this.g.s.meta.settings.sound ? SOUND_ON : SOUND_OFF;
   }
 
   // ---------------------------------------------------------------------
@@ -540,10 +540,10 @@ export class UI {
   updateOffice() {
     const g = this.g;
     const s = g.s;
-    const owned = PRODUCTS.reduce((a, p) => a + (s.products[p.id] || 0), 0);
+    const owned = this.g.D.PRODUCTS.reduce((a, p) => a + (s.products[p.id] || 0), 0);
     let left = '';
     if (owned === 0) {
-      left = `<div class="mini-stat">${t('off.firstStep')}<b>${t('off.collect', { v: money(PRODUCT_MAP.landing.cost) })}</b></div><button class="mini-btn" data-act="goto" data-tab="products">${t('off.toProducts')}</button>`;
+      left = `<div class="mini-stat">${t('off.firstStep')}<b>${t('off.collect', { v: money(this.g.D.PRODUCT_MAP.landing.cost) })}</b></div><button class="mini-btn" data-act="goto" data-tab="products">${t('off.toProducts')}</button>`;
     } else {
       left = `<div class="mini-stat">${t('off.team')}<b>${t('off.people', { n: fmtInt(g.totalHeads()) })}</b></div>`;
       if (g.rpRate > 0) left += `<div class="mini-stat">${t('off.research')}<b>${fmt(g.rpRate)} ${t('unit.rp')}/s</b></div>`;
@@ -653,7 +653,7 @@ export class UI {
     else {
       const news = TX.newsList();
       this.newsIdx = (this.newsIdx + 1 + Math.floor(Math.random() * 3)) % news.length;
-      html = '📰 ' + esc(news[this.newsIdx]).replace(/\{c\}/g, `<b>${esc(this.g.s.companyName)}</b>`);
+      html = '📰 ' + esc(news[this.newsIdx]).replace(/\{c\}/g, `<b>${esc(this.g.s.meta.companyName)}</b>`);
     }
     el.innerHTML = html;
     const w = el.scrollWidth;
@@ -674,7 +674,7 @@ export class UI {
     const g = this.g;
     const list = [];
     let teaser = null;
-    for (const p of PRODUCTS) {
+    for (const p of this.g.D.PRODUCTS) {
       if (g.productUnlocked(p.id)) list.push(p);
       else if (!teaser) teaser = p;
     }
@@ -701,7 +701,7 @@ export class UI {
           </div>
         </div>`).join('');
       if (teaser) {
-        const tech = TECH_MAP[teaser.tech];
+        const tech = this.g.D.TECH_MAP[teaser.tech];
         html += `
         <div class="card teaser locked">
           <div class="tile" style="${grad(CATEGORIES[teaser.cat].grad)}">${teaser.icon}</div>
@@ -793,8 +793,8 @@ export class UI {
     if (this.teamSub === 'board') { this.updateBoard(); return; }
     const g = this.g;
     const s = g.s;
-    const unlocked = DEPTS.filter((d) => s.deptUnlocked[d.id]);
-    const next = DEPTS.find((d) => !s.deptUnlocked[d.id]);
+    const unlocked = this.g.D.DEPTS.filter((d) => s.deptUnlocked[d.id]);
+    const next = this.g.D.DEPTS.find((d) => !s.deptUnlocked[d.id]);
     const sig = unlocked.map((d) => d.id).join(',') + '|' + (next ? next.id + (g.deptAvailable(next.id) ? '1' : '0') : '') + '|' + (g.rule()?.id || '');
     const root = $('team-list');
     if (this.sigs.team !== sig) {
@@ -815,7 +815,7 @@ export class UI {
         html += `<div class="hint">${t('team.solo')}</div>`;
       } else if (next) {
         const avail = g.deptAvailable(next.id);
-        const tech = next.tech ? TECH_MAP[next.tech] : null;
+        const tech = next.tech ? this.g.D.TECH_MAP[next.tech] : null;
         html += `
         <div class="card ${avail ? '' : 'locked'}" data-next="${next.id}">
           <div class="tile" style="${grad([next.color, '#2b2f5c'])}">${next.icon}</div>
@@ -833,7 +833,7 @@ export class UI {
     const amt = this.buyAmount();
     for (const card of root.querySelectorAll('[data-did]')) {
       const id = card.dataset.did;
-      const d = DEPT_MAP[id];
+      const d = this.g.D.DEPT_MAP[id];
       const n = s.depts[id] || 0;
       this.setText(card.querySelector('[data-f="lvl"]'), `👥 ${fmtInt(n)}`);
       const fxEl = card.querySelector('[data-f="fx"]');
@@ -859,7 +859,7 @@ export class UI {
     const nx = root.querySelector('[data-next]');
     if (nx) {
       const btn = nx.querySelector('[data-act="unlock-dept"]');
-      if (btn) btn.classList.toggle('off', s.cash < DEPT_MAP[nx.dataset.next].unlock);
+      if (btn) btn.classList.toggle('off', s.cash < this.g.D.DEPT_MAP[nx.dataset.next].unlock);
     }
   }
 
@@ -869,13 +869,13 @@ export class UI {
   updateWorld() {
     const g = this.g;
     const s = g.s;
-    const avail = OFFICES.map((o) => (g.officeAvailable(o.id) ? 1 : 0)).join('');
-    const sig = `world|${JSON.stringify(s.offices)}|${avail}|${s.settings.view}|${getLang()}`;
+    const avail = this.g.D.OFFICES.map((o) => (g.officeAvailable(o.id) ? 1 : 0)).join('');
+    const sig = `world|${JSON.stringify(s.offices)}|${avail}|${s.view}|${getLang()}`;
     const root = $('world-body');
     if (this.sigs.world !== sig) {
       this.sigs.world = sig;
-      const earth = OFFICES.filter((o) => o.kind === 'earth');
-      const space = OFFICES.filter((o) => o.kind === 'space');
+      const earth = this.g.D.OFFICES.filter((o) => o.kind === 'earth');
+      const space = this.g.D.OFFICES.filter((o) => o.kind === 'space');
       const opened = earth.filter((o) => !o.hq && g.officeLevel(o.id) > 0).length;
       root.innerHTML = `
         <div class="map-card">${this.mapSvg()}</div>
@@ -887,7 +887,7 @@ export class UI {
         <div class="list" style="margin-top:12px">${space.map((o) => this.officeCard(o)).join('')}</div>`;
     }
     const vals = {};
-    for (const o of OFFICES) {
+    for (const o of this.g.D.OFFICES) {
       const cost = g.officeCost(o.id);
       vals[`of-${o.id}`] = { off: !(cost <= s.cash) };
     }
@@ -905,11 +905,11 @@ export class UI {
       if (this.sigs.world !== `bd-locked|${getLang()}`) { this.sigs.world = `bd-locked|${getLang()}`; root.innerHTML = `<div class="hint">${t('bd.locked')}</div>`; }
       return;
     }
-    const sig = `bd|${getLang()}|${Object.values(s.board).map((e) => e.id).join(',')}|${s.candidates.map((c) => c.id).join(',')}|${g.boardSignature()}`;
+    const sig = `bd|${getLang()}|${Object.values(s.meta.board).map((e) => e.id).join(',')}|${s.meta.candidates.map((c) => c.id).join(',')}|${g.boardSignature()}`;
     if (this.sigs.world !== sig) {
       this.sigs.world = sig;
       const seats = ROLES.map((r) => {
-        const e = s.board[r.id];
+        const e = s.meta.board[r.id];
         if (!e) {
           return `<div class="card exec empty"><div class="avatar-wrap">${emptyAvatar()}</div>
             <div class="card-title"><h3>${t('bd.empty')}</h3><span class="lvl role-badge" style="color:${r.color}">${r.name}</span></div>
@@ -917,7 +917,7 @@ export class UI {
         }
         return this.execCard(e, true);
       }).join('');
-      const cands = s.candidates.map((c) => this.execCard(c, false)).join('');
+      const cands = s.meta.candidates.map((c) => this.execCard(c, false)).join('');
       root.innerHTML = `
         <p class="card-sub" style="margin:0 2px 10px">${t('bd.lead')}</p>
         <div class="list">${seats}</div>
@@ -926,11 +926,11 @@ export class UI {
         <div class="hint" data-v="bdwait" style="margin-top:${cands ? 10 : 0}px"></div>`;
     }
     const vals = {
-      bdshares: t('inv.shares', { n: fmt(s.shares) }),
-      bdwait: s.candidates.length >= BOARD.poolMax ? t('bd.poolFull') : t('bd.waiting', { t: fmtTime(Math.max(0, (s.nextCandidateAt - Date.now()) / 1000)) }),
+      bdshares: t('inv.shares', { n: fmt(s.meta.shares) }),
+      bdwait: s.meta.candidates.length >= BOARD.poolMax ? t('bd.poolFull') : t('bd.waiting', { t: fmtTime(Math.max(0, (s.meta.nextCandidateAt - Date.now()) / 1000)) }),
     };
-    for (const c of s.candidates) vals[`hire-${c.id}`] = { off: s.shares < g.candidateCost(c) };
-    for (const e of Object.values(s.board)) {
+    for (const c of s.meta.candidates) vals[`hire-${c.id}`] = { off: s.meta.shares < g.candidateCost(c) };
+    for (const e of Object.values(s.meta.board)) {
       const lvl = g.execLevel(e);
       if (lvl < BOARD.maxLevel) {
         const fast = e.q === 'fast' ? 2 : 1;
@@ -949,7 +949,7 @@ export class UI {
     const k = hired ? g.execPower(e) : 1;
     const fx = TX.describeFx(e.traits.map((tr) => scaleTrait(tr, k)));
     const qOn = hired && q && q.when !== 'xp' && g.quirkActive(e);
-    const current = !hired ? g.s.board[e.role] : null;
+    const current = !hired ? g.s.meta.board[e.role] : null;
     const quirk = q ? `<div class="quirk ${qOn ? 'on' : ''}">${q.icon} <b>${esc(TX.quirkName(q.id))}</b>: ${esc(TX.quirkDesc(q.id))}${qOn ? ` <span class="q-on">· ${t('bd.quirkOn')}</span>` : ''}</div>` : '';
     const foot = hired
       ? `<div class="prog"><div class="prog-label" data-v="lvl-${e.id}"></div></div><button class="btn btn-small ghost" data-act="fire-exec" data-id="${e.role}">${t('bd.fire')}</button>`
@@ -966,7 +966,7 @@ export class UI {
   }
 
   confirmFire(role) {
-    const e = this.g.s.board[role];
+    const e = this.g.s.meta.board[role];
     if (!e) return;
     this.openModal(`
       <div class="hero" style="display:flex;justify-content:center">${avatar(e.seed, ROLE_MAP[role].color, e.r, 72)}</div>
@@ -983,8 +983,8 @@ export class UI {
     const lvl = g.officeLevel(o.id);
     const maxed = lvl >= OFFICE_MAX_LEVEL;
     const avail = g.officeAvailable(o.id);
-    const tech = o.req ? TECH_MAP[o.req] : null;
-    const viewing = this.g.s.settings.view === o.id;
+    const tech = o.req ? this.g.D.TECH_MAP[o.req] : null;
+    const viewing = this.g.s.view === o.id;
     const lvlName = lvl > 0 ? `${o.hq ? t('off.hq') : t('off.levelNames')[lvl - 1]} · ` : '';
     const fxNow = lvl > 1 ? ` · ${t('off.now', { fx: esc(TX.describeFx(scaledFx(o.fx, lvl))) })}` : '';
     let action;
@@ -1003,12 +1003,12 @@ export class UI {
 
   mapSvg() {
     const g = this.g;
-    const hq = OFFICE_MAP.waw;
+    const hq = this.g.D.OFFICE_MAP[this.g.D.HQ];
     const hx = mapX(hq.lon);
     const hy = mapY(hq.lat);
     let arcs = '';
     let marks = '';
-    for (const o of OFFICES) {
+    for (const o of this.g.D.OFFICES) {
       if (o.kind !== 'earth') continue;
       const x = mapX(o.lon);
       const y = mapY(o.lat);
@@ -1059,7 +1059,7 @@ export class UI {
     const s = g.s;
     const head = $('research-head');
     // Nagłówek budujemy raz (przyciski budżetu muszą przetrwać odświeżanie), a liczby podmieniamy.
-    const rnd = !!s.deptUnlocked.rnd;
+    const rnd = !!s.deptUnlocked[g.D.RD_DEPT];
     const share = g.m.rdShare || 0;
     const headSig = `rh|${getLang()}|${rnd}|${share}`;
     if (this.sigs.researchHead !== headSig) {
@@ -1072,7 +1072,7 @@ export class UI {
       ${!rnd ? `<div class="hint" style="margin-top:10px">${t('rs.needRnd')}</div>` : `
       <div class="budget-card">
         <div class="budget-head"><b>🧪 ${t('rs.budget')}</b>
-          <div class="seg">${RD_BUDGET.shares.map((v) => `<button data-act="rd-budget" data-v="${v}" class="${v === share ? 'on' : ''}">${Math.round(v * 100)}%</button>`).join('')}</div>
+          <div class="seg">${this.g.D.RD_BUDGET.shares.map((v) => `<button data-act="rd-budget" data-v="${v}" class="${v === share ? 'on' : ''}">${Math.round(v * 100)}%</button>`).join('')}</div>
         </div>
         <div class="card-sub" data-v="rdinfo" style="margin-top:6px"></div>
         <div class="card-sub" style="margin-top:4px;color:var(--faint)">${t('rs.budgetHint')}</div>
@@ -1086,21 +1086,21 @@ export class UI {
     this.patch({
       rpv: `${fmt(s.rp)} ${t('unit.rp')}`,
       rprate: `+${fmt(g.rpRate)} ${t('unit.rp')}/s`,
-      rpcount: t('rs.techCount', { n: g.techCount(), m: TECHS.length }),
+      rpcount: t('rs.techCount', { n: g.techCount(), m: this.g.D.TECHS.length }),
       rdinfo: { html: share > 0 ? t('rs.budgetInfo', { rp: budgetRp, pct: budgetPct, v: money(g.income * share) }) : t('rs.budgetOff') },
     }, head);
 
-    const done = TECHS.filter((t) => s.techs[t.id]).map((t) => t.id);
-    const avail = TECHS.filter((t) => !s.techs[t.id] && g.techAvailable(t.id)).map((t) => t.id);
+    const done = this.g.D.TECHS.filter((t) => s.techs[t.id]).map((t) => t.id);
+    const avail = this.g.D.TECHS.filter((t) => !s.techs[t.id] && g.techAvailable(t.id)).map((t) => t.id);
     const maxEra = Math.max(1, ...TECHS.filter((t) => s.techs[t.id] || g.techAvailable(t.id)).map((t) => t.era));
-    const repeats = REPEAT_TECHS.filter((r) => g.techAvailable(r.id));
+    const repeats = this.g.D.REPEAT_TECHS.filter((r) => g.techAvailable(r.id));
     const sig = done.join(',') + '|' + avail.join(',') + '|' + repeats.map((r) => r.id + (s.techLevels[r.id] || 0)).join(',');
     const root = $('research-list');
     if (this.sigs.research !== sig) {
       this.sigs.research = sig;
       let html = '';
-      for (const era of ERAS) {
-        const techs = TECHS.filter((t) => t.era === era.id);
+      for (const era of this.g.D.ERAS) {
+        const techs = this.g.D.TECHS.filter((t) => t.era === era.id);
         const cnt = techs.filter((t) => s.techs[t.id]).length;
         if (era.id > maxEra + 1) {
           html += `<div class="era-head" style="opacity:.45"><span class="era-ico">🔒</span><h3>${esc(t('rs.lockedEra', { n: era.id, name: TX.eraName(era.id) }))}</h3><span class="era-count">${cnt}/${techs.length}</span></div>`;
@@ -1115,7 +1115,7 @@ export class UI {
           html += `<div class="tech ${cls}" data-tid="${tech.id}">
             ${isDone ? '<span class="check">✓</span>' : ''}
             <div class="tech-top"><div class="tech-ico">${tech.icon}</div><h4>${esc(TX.techName(tech.id))}</h4></div>
-            <div class="fx">${esc(TX.describeFx(tech.fx))}${TECH_CAP_STEP[tech.id] ? ` · ${t('rs.reach', { x: reachX(TECH_CAP_STEP[tech.id]) })}` : ''}</div>
+            <div class="fx">${esc(TX.describeFx(tech.fx))}${this.g.D.TECH_CAP_STEP[tech.id] ? ` · ${t('rs.reach', { x: reachX(this.g.D.TECH_CAP_STEP[tech.id]) })}` : ''}</div>
             ${req}
             ${isAvail ? `<button class="btn violet" data-act="research" data-id="${tech.id}"><span>${fmt(tech.cost)} ${t('unit.rp')}</span><small></small></button>` : ''}
           </div>`;
@@ -1138,7 +1138,7 @@ export class UI {
     // czas do zakupu przy obecnym tempie badań
     const eta = (cost) => (s.rp >= cost || !(g.rpRate > 0) ? '' : t('rs.eta', { t: fmtTime((cost - s.rp) / g.rpRate) }));
     for (const el of root.querySelectorAll('[data-tid] .btn')) {
-      const cost = TECH_MAP[el.dataset.id].cost;
+      const cost = this.g.D.TECH_MAP[el.dataset.id].cost;
       el.classList.toggle('off', s.rp < cost);
       this.setText(el.querySelector('small'), eta(cost));
     }
@@ -1154,7 +1154,7 @@ export class UI {
   // ---------------------------------------------------------------------
   upgradeTile(u) {
     if (u.kind === 'product') return grad(CATEGORIES[u.cat].grad);
-    if (u.kind === 'dept') return grad([DEPT_MAP[u.did].color, '#2b2f5c']);
+    if (u.kind === 'dept') return grad([this.g.D.DEPT_MAP[u.did].color, '#2b2f5c']);
     if (u.kind === 'click') return grad(['#22d3ee', '#3b5bdb']);
     return grad(['#f59e0b', '#db2777']);
   }
@@ -1184,13 +1184,13 @@ export class UI {
       }
       if (ownedIds.length) {
         html += `<div class="section-title">${t('up.owned', { n: ownedIds.length })}</div><div class="owned-list">`
-          + ownedIds.map((id) => UPGRADE_MAP[id]).filter(Boolean).map((u) => `<span title="${esc(TX.upgradeName(u))}">${u.icon}</span>`).join('') + '</div>';
+          + ownedIds.map((id) => this.g.D.UPGRADE_MAP[id]).filter(Boolean).map((u) => `<span title="${esc(TX.upgradeName(u))}">${u.icon}</span>`).join('') + '</div>';
       }
       root.innerHTML = html;
     }
     let can = 0;
     for (const el of root.querySelectorAll('[data-uid]')) {
-      const u = UPGRADE_MAP[el.dataset.uid];
+      const u = this.g.D.UPGRADE_MAP[el.dataset.uid];
       const ok = s.cash >= u.cost;
       if (ok) can++;
       el.classList.toggle('can', ok);
@@ -1244,8 +1244,8 @@ export class UI {
     const g = this.g;
     const s = g.s;
     const gain = g.prestigeGain();
-    const per = INVESTOR_BONUS + g.m.investorPct;
-    const sig = `inv|${JSON.stringify(s.perks)}|${JSON.stringify(s.autopilot)}|${s.prestigeCount}|${getLang()}`;
+    const per = g.D.PRESTIGE.bonus + g.m.investorPct;
+    const sig = `inv|${JSON.stringify(s.meta.perks)}|${JSON.stringify(s.meta.autopilot)}|${s.prestigeCount}|${getLang()}`;
     this.setBody(sig, `
       <div class="inv-card">
         <div class="round" data-v="round"></div>
@@ -1287,7 +1287,7 @@ export class UI {
       <div class="section-title">${t('inv.boardTitle')} <span style="color:var(--gold)" data-v="shares"></span></div>
       <div class="list">
         ${PERKS.map((p) => {
-    const lvl = s.perks[p.id] || 0;
+    const lvl = s.meta.perks[p.id] || 0;
     const maxed = lvl >= p.max;
     return `<div class="card">
             <div class="tile" style="${grad(['#f59e0b', '#7c3aed'])}">${p.icon}</div>
@@ -1313,11 +1313,11 @@ export class UI {
       board: { text: `×${fmt(g.m.prestige)}`, hidden: !(g.m.prestige > 1) },
       boardl: { hidden: !(g.m.prestige > 1) },
       pbtn: { off: gain < 1 },
-      shares: t('inv.shares', { n: fmt(s.shares) }),
-      shares2: g.apUnlocked() ? t('inv.shares', { n: fmt(s.shares) }) : '',
+      shares: t('inv.shares', { n: fmt(s.meta.shares) }),
+      shares2: g.apUnlocked() ? t('inv.shares', { n: fmt(s.meta.shares) }) : '',
     };
-    for (const p of PERKS) vals[`perk-${p.id}`] = { off: s.shares < g.perkCost(p.id) };
-    for (const a of AUTOPILOT) vals[`ap-${a.id}`] = { off: s.shares < a.cost };
+    for (const p of PERKS) vals[`perk-${p.id}`] = { off: s.meta.shares < g.perkCost(p.id) };
+    for (const a of AUTOPILOT) vals[`ap-${a.id}`] = { off: s.meta.shares < a.cost };
     this.patch(vals);
   }
 
@@ -1329,7 +1329,7 @@ export class UI {
       return;
     }
     const active = s.challenge;
-    const sig = `chal|${JSON.stringify(s.challenges)}|${active ? active.id + active.tier : ''}|${getLang()}`;
+    const sig = `chal|${JSON.stringify(s.meta.challenges)}|${active ? active.id + active.tier : ''}|${getLang()}`;
     let html = `<p class="card-sub" style="margin:0 2px 10px">${t('chal.lead')}</p>`;
     if (active) {
       const ch = CHALLENGE_MAP[active.id];
@@ -1342,7 +1342,7 @@ export class UI {
       </div>`;
     }
     html += '<div class="list">' + CHALLENGES.map((ch) => {
-      const tier = s.challenges[ch.id] || 0;
+      const tier = s.meta.challenges[ch.id] || 0;
       const done = tier >= CHALLENGE_GOALS.length;
       const dots = CHALLENGE_GOALS.map((_, i) => `<i class="${i < tier ? 'on' : ''}"></i>`).join('');
       const have = tier > 0 ? `<div class="chal-meta">${t('chal.have', { fx: `<b>${esc(TX.describeFx(scaledFx(ch.fx, tier)))}</b>` })}</div>` : '';
@@ -1370,12 +1370,12 @@ export class UI {
       return;
     }
     const stakes = s.market.stakes;
-    const sig = `mk|${getLang()}|${this.mkStep}|${Object.keys(stakes).join(',')}|${s.companyName}`;
+    const sig = `mk|${getLang()}|${this.mkStep}|${Object.keys(stakes).join(',')}|${s.meta.companyName}`;
     const steps = [[0.01, '1%'], [0.1, '10%']];
     this.setBody(sig, `
       <div class="stock-card">
         <div class="stock-head">
-          <div><div class="lbl">${t('mk.yours')}</div><h3>${esc(s.companyName)} <span class="ticker">${esc(TX.ownTicker(s.companyName))}</span></h3></div>
+          <div><div class="lbl">${t('mk.yours')}</div><h3>${esc(s.meta.companyName)} <span class="ticker">${esc(TX.ownTicker(s.meta.companyName))}</span></h3></div>
           <div class="stock-price"><b data-v="mprice"></b><small>${t('mk.price')}</small></div>
         </div>
         <div class="spark big" data-v="mspark"></div>
@@ -1442,7 +1442,7 @@ export class UI {
     const s = g.s;
     if (s.challenge) { this.toast('🏅', t('chal.otherActive'), '', 'info'); return; }
     const ch = CHALLENGE_MAP[id];
-    const tier = s.challenges[id] || 0;
+    const tier = s.meta.challenges[id] || 0;
     if (tier >= CHALLENGE_GOALS.length) return;
     const gain = g.prestigeGain();
     this.openModal(`
@@ -1513,7 +1513,7 @@ export class UI {
       this.setBody(`acq-locked|${getLang()}`, `<div class="hint">${t('acq.locked')}</div>`);
       return;
     }
-    this.setBody(`acq|${Object.keys(s.acquisitions).join(',')}|${getLang()}`, '<div class="list">' + ACQUISITIONS.map((a) => {
+    this.setBody(`acq|${Object.keys(s.acquisitions).join(',')}|${getLang()}`, '<div class="list">' + this.g.D.ACQUISITIONS.map((a) => {
       const own = !!s.acquisitions[a.id];
       return `<div class="card">
         <div class="tile" style="${grad(['#0ea5e9', '#6d28d9'])}">${a.icon}</div>
@@ -1524,7 +1524,7 @@ export class UI {
       </div>`;
     }).join('') + '</div>');
     const vals = {};
-    for (const a of ACQUISITIONS) vals[`acq-${a.id}`] = { off: s.cash < g.acqCost(a.id) };
+    for (const a of this.g.D.ACQUISITIONS) vals[`acq-${a.id}`] = { off: s.cash < g.acqCost(a.id) };
     this.patch(vals);
   }
 
@@ -1532,10 +1532,10 @@ export class UI {
     const g = this.g;
     const s = g.s;
     const count = g.achCount();
-    const html = `<div class="kv"><span>${t('ach.count')}</span><b>${count}/${ACHIEVEMENTS.length}</b><span>${t('ach.bonus')}</span><b>+${Math.round(count * ACH_BONUS * 100)}%</b></div>
+    const html = `<div class="kv"><span>${t('ach.count')}</span><b>${count}/${this.g.D.ACHIEVEMENTS.length}</b><span>${t('ach.bonus')}</span><b>+${Math.round(count * ACH_BONUS * 100)}%</b></div>
       <p class="card-sub" style="margin:10px 2px">${t('ach.tap')}</p>
-      <div class="ach-grid">${ACHIEVEMENTS.map((a) => {
-    const got = !!s.achievements[a.id];
+      <div class="ach-grid">${this.g.D.ACHIEVEMENTS.map((a) => {
+    const got = !!s.meta.achievements[a.id];
     return `<button class="ach ${got ? 'got' : 'locked'}" data-act="ach-info" data-id="${a.id}">${got || !a.hidden ? a.icon : '❓'}</button>`;
   }).join('')}</div>`;
     this.setBody(`ach|${count}|${getLang()}`, html);
@@ -1550,7 +1550,7 @@ export class UI {
     const rev = g.annualRevenue();
     const cur = g.scaleIdx();
     const last = rows.length ? rows[rows.length - 1][0] : 0;
-    const sig = `stats|${getLang()}|${this.chartSeries}|${this.chartRange}|${rows.length}|${last}|${s.scaleMax}|${cur}`;
+    const sig = `stats|${getLang()}|${this.chartSeries}|${this.chartRange}|${rows.length}|${last}|${s.meta.scaleMax}|${cur}`;
     const keys = ['income', 'maxIncome', 'click', 'auto', 'total', 'run', 'bestRun', 'bestValuation', 'clicks', 'staff', 'hired',
       'upgrades', 'techs', 'bubbles', 'contracts', 'decisions', 'challenges', 'autoBuys', 'rounds', 'offlineCap', 'offlineEff', 'playTime', 'founded'];
     const seg = (act, cur2, opts) => `<div class="seg">${opts.map(([v, l]) => `<button data-act="${act}" data-v="${v}" class="${v === cur2 ? 'on' : ''}">${l}</button>`).join('')}</div>`;
@@ -1563,7 +1563,7 @@ export class UI {
         <div class="scale-row" data-v="scnext"></div>
         <div class="scale-row" data-v="sctop"></div>
         <div class="scale-row" data-v="screach"></div>
-        <div class="scale-grid">${SCALE_LEVELS.map((L, i) => `<button class="scale-dot ${i <= s.scaleMax ? '' : 'off'} ${i === cur ? 'cur' : ''}" data-act="scale-info" data-id="${i}" aria-label="${esc(TX.scaleName(i))}">${L.icon}</button>`).join('')}</div>
+        <div class="scale-grid">${SCALE_LEVELS.map((L, i) => `<button class="scale-dot ${i <= s.meta.scaleMax ? '' : 'off'} ${i === cur ? 'cur' : ''}" data-act="scale-info" data-id="${i}" aria-label="${esc(TX.scaleName(i))}">${L.icon}</button>`).join('')}</div>
         <p class="chart-note">${t('sc.explain')}</p>
       </div>
       <div class="chart-card">
@@ -1582,7 +1582,7 @@ export class UI {
     const prevT = cur >= 0 ? SCALE_THRESHOLDS[cur] : 1;
     const nextT = SCALE_THRESHOLDS[cur + 1];
     const p = nextT ? Math.max(0, Math.min(1, (Math.log10(Math.max(rev, 1)) - Math.log10(prevT)) / (Math.log10(nextT) - Math.log10(prevT)))) : 1;
-    const top = s.scaleMax;
+    const top = s.meta.scaleMax;
     const vals = {
       sck: k === null ? '—' : minus(decimal(k.toFixed(2))),
       scbar: { width: `${p * 100}%` },
@@ -1604,7 +1604,7 @@ export class UI {
       'st-staff': fmtInt(g.totalHeads()),
       'st-hired': fmtInt(st.hired),
       'st-upgrades': fmtInt(st.upgradesBought),
-      'st-techs': `${g.techCount()}/${TECHS.length}`,
+      'st-techs': `${g.techCount()}/${this.g.D.TECHS.length}`,
       'st-bubbles': fmtInt(st.bubbles),
       'st-contracts': fmtInt(st.contracts),
       'st-decisions': fmtInt(st.decisions),
@@ -1666,30 +1666,30 @@ export class UI {
       <div class="section-title">${t('set.company')}</div>
       <div class="setting" style="flex-direction:column;align-items:stretch">
         <div>${t('set.name')}<p>${t('set.nameHint')}</p></div>
-        <div style="display:flex;gap:8px"><input class="text-input" id="rename-input" maxlength="28" value="${esc(s.companyName)}" enterkeyhint="done"><button class="btn btn-small violet" data-act="rename">${t('set.save')}</button></div>
+        <div style="display:flex;gap:8px"><input class="text-input" id="rename-input" maxlength="28" value="${esc(s.meta.companyName)}" enterkeyhint="done"><button class="btn btn-small violet" data-act="rename">${t('set.save')}</button></div>
       </div>
       <div class="section-title">${t('set.game')}</div>
       <div class="setting"><div>${t('set.lang')}<p>${t('set.langHint')}</p></div>${this.langSeg('set-lang')}</div>
-      <div class="setting"><div>${t('set.sound')}<p>${t('set.soundHint')}</p></div><button class="switch ${s.settings.sound ? 'on' : ''}" data-act="toggle-sound" aria-label="${t('set.sound')}"></button></div>
-      <div class="setting"><div>${t('set.music')}<p>${t('set.musicHint')}</p></div><button class="switch ${s.settings.music ? 'on' : ''}" data-act="toggle-music" aria-label="${t('set.music')}"></button></div>
+      <div class="setting"><div>${t('set.sound')}<p>${t('set.soundHint')}</p></div><button class="switch ${s.meta.settings.sound ? 'on' : ''}" data-act="toggle-sound" aria-label="${t('set.sound')}"></button></div>
+      <div class="setting"><div>${t('set.music')}<p>${t('set.musicHint')}</p></div><button class="switch ${s.meta.settings.music ? 'on' : ''}" data-act="toggle-music" aria-label="${t('set.music')}"></button></div>
       <div class="setting"><div>${t('set.install')}<p>${t('set.installHint')}</p></div><button class="btn btn-small ghost" data-act="install-help">${t('set.show')}</button></div>
       <div class="section-title">${t('set.saveTitle')}</div>
       <div class="setting"><div>${t('set.export')}<p>${t('set.exportHint')}</p></div><button class="btn btn-small ghost" data-act="export">${t('set.exportBtn')}</button></div>
       <div class="setting"><div>${t('set.import')}<p>${t('set.importHint')}</p></div><button class="btn btn-small ghost" data-act="import">${t('set.importBtn')}</button></div>
       <div class="setting"><div>${t('set.reset')}<p>${t('set.resetHint')}</p></div><button class="btn btn-small danger" data-act="reset">${t('set.resetBtn')}</button></div>
       <p class="card-sub" style="text-align:center;margin-top:18px">${esc(t('appName'))} · ${t('set.footer', { v: esc(this.hooks.version || '1.0') })}</p>`;
-    this.setBody(`settings|${s.settings.sound}|${s.settings.music}|${getLang()}`, html);
+    this.setBody(`settings|${s.meta.settings.sound}|${s.meta.settings.music}|${getLang()}`, html);
   }
 
   rename() {
     const v = ($('rename-input')?.value || '').trim();
     if (!v) return;
     const s = this.g.s;
-    if (v !== s.companyName) {
-      s.companyName = v.slice(0, 28);
-      s.flags.renamed = true;
+    if (v !== s.meta.companyName) {
+      s.meta.companyName = v.slice(0, 28);
+      s.meta.flags.renamed = true;
       this.scene.render(this.g, true);
-      this.toast('🪪', t('toast.renamed'), s.companyName, 'info');
+      this.toast('🪪', t('toast.renamed'), s.meta.companyName, 'info');
       this.hooks.save?.();
     }
     document.activeElement?.blur();
@@ -1702,18 +1702,18 @@ export class UI {
     const g = this.g;
     const s = g.s;
     const counts = {};
-    counts.products = PRODUCTS.filter((p) => g.productUnlocked(p.id) && g.productCost(p.id, 1) <= s.cash).length;
-    counts.team = DEPTS.filter((d) => (s.deptUnlocked[d.id] && g.hireCost(d.id, 1) <= s.cash)
+    counts.products = this.g.D.PRODUCTS.filter((p) => g.productUnlocked(p.id) && g.productCost(p.id, 1) <= s.cash).length;
+    counts.team = this.g.D.DEPTS.filter((d) => (s.deptUnlocked[d.id] && g.hireCost(d.id, 1) <= s.cash)
       || (!s.deptUnlocked[d.id] && g.deptAvailable(d.id) && s.cash >= d.unlock)).length;
-    const officesReady = OFFICES.filter((o) => g.officeAvailable(o.id) && g.officeCost(o.id) <= s.cash).length;
+    const officesReady = this.g.D.OFFICES.filter((o) => g.officeAvailable(o.id) && g.officeCost(o.id) <= s.cash).length;
     counts.team += officesReady;
-    counts.research = TECHS.filter((t) => !s.techs[t.id] && g.techAvailable(t.id) && s.rp >= t.cost).length;
+    counts.research = this.g.D.TECHS.filter((t) => !s.techs[t.id] && g.techAvailable(t.id) && s.rp >= t.cost).length;
     counts.upgrades = g.availableUpgrades().filter((u) => u.cost <= s.cash).length;
     const offers = g.contractsUnlocked() && s.contracts.active.length < g.m.slots ? s.contracts.offers.length : 0;
     const gain = g.prestigeGain();
     const prestigeReady = gain >= 1 && gain >= Math.max(1, s.investors * 0.5);
-    const perkReady = PERKS.some((p) => (s.perks[p.id] || 0) < p.max && s.shares >= g.perkCost(p.id))
-      || (g.apUnlocked() && AUTOPILOT.some((a) => !g.apOwned(a.id) && s.shares >= a.cost));
+    const perkReady = PERKS.some((p) => (s.meta.perks[p.id] || 0) < p.max && s.meta.shares >= g.perkCost(p.id))
+      || (g.apUnlocked() && AUTOPILOT.some((a) => !g.apOwned(a.id) && s.meta.shares >= a.cost));
     counts.company = offers + (prestigeReady ? 1 : 0) + (perkReady ? 1 : 0);
     for (const tab of document.querySelectorAll('.tab')) {
       const b = tab.querySelector('.badge');
@@ -1722,7 +1722,7 @@ export class UI {
       b.hidden = !show;
       if (show) this.setText(b, n > 9 ? '9+' : String(n));
     }
-    const candReady = g.boardUnlocked() && s.candidates.some((c) => s.shares >= g.candidateCost(c));
+    const candReady = g.boardUnlocked() && s.meta.candidates.some((c) => s.meta.shares >= g.candidateCost(c));
     if (candReady) counts.team += 1;
     const dots = { investors: prestigeReady || perkReady, contracts: offers > 0, 't-world': officesReady > 0, 't-board': candReady };
     for (const d of document.querySelectorAll('[data-dot]')) d.hidden = !dots[d.dataset.dot];
@@ -1798,7 +1798,7 @@ export class UI {
 
   // Koperta z decyzją w rogu sceny
   syncDecision() {
-    const d = this.g.s.decision;
+    const d = this.g.s.meta.decision;
     if (!d) {
       if (this.envelopeEl) { this.envelopeEl.remove(); this.envelopeEl = null; }
       return;
@@ -1815,7 +1815,7 @@ export class UI {
 
   showDecision() {
     const g = this.g;
-    const d = g.s.decision;
+    const d = g.s.meta.decision;
     if (!d) return;
     const D = DECISIONS[d.i];
     const opt = (w) => {
@@ -1853,7 +1853,7 @@ export class UI {
       this.toast('💎', t('toast.tooEarly'), t('toast.tooEarlyText', { v: money(g.nextPrestigeAt()) }), 'info');
       return;
     }
-    const per = INVESTOR_BONUS + g.m.investorPct;
+    const per = g.D.PRESTIGE.bonus + g.m.investorPct;
     const after = 1 + (s.investors + gain) * per;
     this.openModal(`
       <div class="hero">🦄</div>

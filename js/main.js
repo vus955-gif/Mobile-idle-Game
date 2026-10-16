@@ -106,7 +106,7 @@ document.addEventListener('visibilitychange', () => {
     stopMusic(false);
   } else {
     game.tick(Date.now());
-    if (game.s.settings.music) startMusic();
+    if (game.s.meta.settings.music) startMusic();
   }
 });
 window.addEventListener('pagehide', save);

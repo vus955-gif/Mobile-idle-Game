@@ -150,7 +150,7 @@ test('runda finansowania: reset postępu, zachowanie technologii i kapitału', (
   assert.ok(gain >= 1);
   assert.equal(g.doPrestige(T0), gain);
   assert.equal(g.s.investors, gain);
-  assert.equal(g.s.shares, gain);
+  assert.equal(g.s.meta.shares, gain);
   assert.equal(g.s.cash, 0);
   assert.deepEqual(g.s.products, {});
   assert.ok(g.s.techs.html);
@@ -166,7 +166,7 @@ test('zarobki offline są ograniczone limitem i wydajnością', () => {
   const res = g.applyOffline(T0 + 24 * 3600 * 1000);
   assert.ok(res.counted <= g.m.offlineCap);
   assert.ok(Math.abs(res.cash - inc * res.counted * res.eff) / res.cash < 1e-9);
-  assert.ok(g.s.flags.patience);
+  assert.ok(g.s.meta.flags.patience);
 });
 
 test('bąbelki, trendy i kontrakty pojawiają się w czasie', () => {
@@ -202,7 +202,7 @@ test('zapis: serializacja i sanityzacja uszkodzonych danych', () => {
   assert.deepEqual(broken.products, {});
   assert.equal(broken.stats.clicks, 0);
   assert.ok(broken.deptUnlocked.dev);
-  assert.ok(createState(T0).settings);
+  assert.ok(createState(T0).meta.settings);
 });
 
 test('osiągnięcia dają bonus do przychodu', () => {
