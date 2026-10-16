@@ -114,7 +114,7 @@ test('Kosmos startuje od zera: własne produkty, działy, drzewko i siedziba', (
   assert.ok(s.unlockDept('mission'));
   s.hire('mission', 5);
   assert.ok(s.rpRate > 0);
-  s.s.rp = 1e3;
+  s.s.rp = 1e5;
   assert.ok(s.research('rockets'));
   assert.ok(s.research('satellites'));
   assert.ok(s.productUnlocked('orbital'));
