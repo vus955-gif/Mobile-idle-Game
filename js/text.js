@@ -7,7 +7,7 @@ import {
 } from './data.js';
 import {
   SPACE_PRODUCTS, SPACE_DEPTS, SPACE_TECHS, SPACE_REPEAT, SPACE_CULTURE, SPACE_CLICK, SPACE_ACQUISITIONS, SPACE_OFFICES,
-  SPACE_ERAS, SPACE_CATEGORIES, SPACE_CLIENTS, SPACE_TASKS,
+  SPACE_ERAS, SPACE_CATEGORIES, SPACE_CLIENTS, SPACE_TASKS, SPACE_NEWS,
 } from './space.js';
 import { EN } from './lang/en.js';
 import { getLang, t, noun } from './i18n.js';
@@ -37,7 +37,8 @@ export const prodName = (id) => (en() ? EN.products[id].name : P[id].name);
 export const prodDesc = (id) => (en() ? EN.products[id].desc : P[id].desc);
 export const deptName = (id) => (en() ? EN.depts[id].name : D[id].name);
 export const deptDesc = (id) => (en() ? EN.depts[id].desc : D[id].desc);
-export const techName = (id) => (en() ? EN.techs[id].name : T[id].name);
+// Technologie przyszłych etapów (galaktyka, wszechświat) jeszcze nie istnieją — wtedy ogólna nazwa.
+export const techName = (id) => (!T[id] ? t('sc.futureTech') : en() ? EN.techs[id].name : T[id].name);
 export const techDesc = (id) => (en() ? EN.techs[id].desc : T[id].desc);
 export const repeatName = (id) => (en() ? EN.repeat[id].name : R[id].name);
 export const repeatDesc = (id) => (en() ? EN.repeat[id].desc : R[id].desc);
@@ -48,7 +49,7 @@ export const perkDesc = (id) => (en() ? EN.perks[id].desc : PK[id].desc);
 export const catName = (cat) => (en() ? EN.categories[cat] : CATS[cat].name);
 export const bubbleName = (type) => (en() ? EN.bubbles[type] : BUBBLES[type].name);
 export const eraName = (id) => (en() ? EN.eras[id] : ALL_ERAS.find((e) => e.id === id).name);
-export const newsList = () => (en() ? EN.news : NEWS);
+export const newsList = (layer = 'earth') => (layer === 'space' ? (en() ? EN.spaceNews : SPACE_NEWS) : (en() ? EN.news : NEWS));
 export const roleArea = (id) => (en() ? EN.roles[id] : RO[id].area);
 export const quirkName = (id) => (en() ? EN.quirks[id].name : QU[id].name);
 export const quirkDesc = (id) => (en() ? EN.quirks[id].desc : QU[id].desc);

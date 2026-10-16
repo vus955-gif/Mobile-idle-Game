@@ -1,5 +1,5 @@
 // Service worker: gra działa offline. Najpierw cache, w tle pobiera nowszą wersję.
-const CACHE = 'krzemowe-imperium-v4';
+const CACHE = 'krzemowe-imperium-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -7,6 +7,8 @@ const ASSETS = [
   './js/main.js',
   './js/engine.js',
   './js/data.js',
+  './js/space.js',
+  './js/layers.js',
   './js/format.js',
   './js/i18n.js',
   './js/text.js',

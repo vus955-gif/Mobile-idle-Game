@@ -118,7 +118,33 @@ input { font: inherit; -webkit-user-select: text; user-select: text; }
 .scene-wrap.paused * { animation-play-state: paused !important; }
 .fx-layer, .bubble-layer, .scene-badges { position: absolute; inset: 0; pointer-events: none; }
 .bubble-layer > * { pointer-events: auto; }
-.scene-badges { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px; }
+.scene-badges { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 52px 10px 10px; }
+
+/* pasek warstw imperium: Ziemia · Kosmos · Galaktyka · Wszechświat */
+.layer-bar { position: absolute; top: 8px; left: 8px; z-index: 3; display: flex; gap: 5px; }
+.layer-chip {
+  height: 34px; min-width: 34px; padding: 0 8px; border-radius: 12px; display: inline-flex; align-items: center; gap: 6px;
+  font-size: 13px; font-weight: 800; color: var(--text); background: rgba(12, 14, 36, .62); border: 1px solid rgba(255, 255, 255, .14);
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+}
+.layer-chip i { font-style: normal; font-size: 16px; line-height: 1; }
+.layer-chip.on { border-color: rgba(34, 211, 238, .75); background: rgba(14, 30, 64, .8); }
+.layer-chip.locked i { filter: grayscale(1); opacity: .45; }
+.layer-chip.ready { border-color: rgba(251, 191, 36, .9); animation: layerReady 1.6s ease-in-out infinite; }
+@keyframes layerReady { 0%, 100% { box-shadow: 0 0 0 0 rgba(251, 191, 36, .55); } 50% { box-shadow: 0 0 0 7px rgba(251, 191, 36, 0); } }
+#app.zen .layer-bar { display: none !important; }
+.layer-card.on { border-color: rgba(34, 211, 238, .55); }
+.layer-card.ready { border-color: rgba(251, 191, 36, .6); }
+.layer-card.locked .tile { filter: grayscale(.6); opacity: .7; }
+.layer-feed { grid-column: 1 / -1; margin-top: 8px; padding: 10px; border-radius: 14px; background: rgba(255, 255, 255, .04); border: 1px solid var(--line); }
+.layer-feed .seg button { padding: 5px 9px; font-size: 12px; }
+.layer-card > .prog { grid-column: 2; }
+
+/* Kosmos: chłodniejszy przycisk startu */
+#app[data-layer="space"] .tap-btn { background: radial-gradient(circle at 30% 25%, #7dd3fc, #2563eb 45%, #1e1b4b 100%); box-shadow: 0 12px 30px rgba(37, 99, 235, .5), inset 0 -6px 16px rgba(0, 0, 0, .25), inset 0 4px 10px rgba(255, 255, 255, .35); }
+#app[data-layer="space"] .tap-btn::before { border-color: rgba(56, 189, 248, .4); }
+#app[data-layer="space"] .scene-wrap { background: #02030c; }
+.map-card.solar { background: radial-gradient(90% 90% at 50% 50%, #1a1640, #05061a 75%); }
 .scene-badge {
   display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; font-size: 12px; font-weight: 700;
   background: rgba(12, 14, 36, .72); border: 1px solid rgba(255, 255, 255, .14); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);

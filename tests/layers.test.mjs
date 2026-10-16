@@ -205,7 +205,7 @@ test('zapis v3: warstwy i meta przechodzą przez serializację', () => {
 
 test('płaski zapis v2 wczytuje się jako Ziemia, a pola firmy trafiają do meta', () => {
   // zapis v2 miał wszystko na wierzchu (bez meta, rund całej firmy i listy warstw)
-  const { meta, layer, ...rest } = createState(T0);
+  const { meta, layer: _layer, ...rest } = createState(T0);
   const flat = { ...meta, ...rest, v: 2 };
   delete flat.rounds;
   delete flat.unlocked;
@@ -258,4 +258,9 @@ test('Game bez firmy działa jak dawniej (testy i symulator)', () => {
   assert.equal(s.D, SPACE);
   assert.ok(s.s.offices.leo);
   assert.ok(s.annualRevenue() === 0 && SECONDS_PER_GAME_YEAR > 0);
+});
+
+test('teksty skali i warstw nie wywracają się na technologiach przyszłych etapów', () => {
+  for (const L of SCALE_LEVELS) if (L.tech) assert.ok(TX.techName(L.tech).length > 3, L.tech);
+  for (const id of LAYER_ORDER) assert.ok(TX.newsList(id).length >= 10, id);
 });

@@ -735,7 +735,7 @@ export class Game {
     s.deptUnlocked[id] = true;
     s.depts[id] = 0;
     this.recalc();
-    this.toast(d.icon, t('toast.newDept', { name: TX.deptName(id) }), t('toast.newDeptText'), 'unlock');
+    this.toast(d.icon, t('toast.newDept', { name: TX.deptName(id) }), t(this.D.id === 'space' ? 'sp.toast.newDeptText' : 'toast.newDeptText'), 'unlock');
     this.emit('structure');
     return true;
   }
@@ -1686,6 +1686,8 @@ export class Company {
     this.layers = {};
     for (const id of LAYER_ORDER) if (this.meta.unlocked[id] && LAYERS[id]) this.addLayer(id, layersRaw[id] || null);
     this.migrated = !!this.layers.earth.migrated;
+    // zapis z jedną firmą (sprzed warstw): gracz dostaje jednorazowe wyjaśnienie nowego układu
+    this.converted = isObj(raw) && !isObj(raw.layers) && !isObj(raw.meta) && raw.v >= 2;
     this.setLayer(this.meta.settings.layer);
     this.feedLinks();
     this.recalc();

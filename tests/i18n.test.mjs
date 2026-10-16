@@ -4,8 +4,7 @@ import assert from 'node:assert/strict';
 import { DICT, setLang, t } from '../js/i18n.js';
 import { EN } from '../js/lang/en.js';
 import {
-  PRODUCTS, DEPTS, TECHS, REPEAT_TECHS, CULTURE_UPGRADES, CLICK_UPGRADES, ACQUISITIONS, PERKS, ERAS,
-  CATEGORIES, BUBBLES, ROUND_NAMES, COMPANY_STAGES, NEWS, TREND_TEMPLATES, CONTRACT_CLIENTS, CONTRACT_TASKS,
+  PERKS, CATEGORIES, BUBBLES, ROUND_NAMES, COMPANY_STAGES, NEWS, TREND_TEMPLATES, CONTRACT_CLIENTS, CONTRACT_TASKS,
 } from '../js/data.js';
 import { Game } from '../js/engine.js';
 import { LAYERS, LAYER_ORDER } from '../js/layers.js';

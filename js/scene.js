@@ -1,5 +1,5 @@
-// Ilustracja biura w SVG: garaż → biurowiec → wieżowiec. Pora dnia zgodna z zegarem urządzenia.
-import { DEPTS } from './data.js';
+// Ilustracja biura w SVG: garaż → biurowiec → wieżowiec, a w kosmosie: kapsuła → stacja z modułami.
+// Pora dnia zgodna z zegarem urządzenia. Działy (piętra/moduły) bierze z danych aktywnej warstwy.
 
 const W = 360;
 const GROUND = 52;
@@ -8,6 +8,11 @@ const FLOOR_H = 34;
 const BW = 224;
 const BX = (W - BW) / 2;
 const SEATS = [1, 5, 15, 40, 100];
+// Stacja kosmiczna: moduły jeden nad drugim, z pierścieniami dokującymi pomiędzy.
+const MOD_W = 168;
+const MOD_X = (W - MOD_W) / 2;
+const MOD_GAP = 6;
+const STATION_BASE = 30;
 
 const SKIES = {
   night: { stops: ['#070a24', '#141a46', '#2a2f66'], far: '#1d2250', farWin: '#ffd88a', ground: '#1a1f3d', grass: '#1f3a35', glass: '#ffe39a', glassOp: 0.9, wall: 0.55, cloud: 0.18 },
@@ -427,7 +432,10 @@ export const CITY_VIEWS = {
 
 // Krajobrazy kosmiczne: własne niebo, grunt i ciała niebieskie.
 export const SPACE_VIEWS = {
-  leo: { dark: true, stops: ['#000006', '#040616', '#0a1030'], ground: '#3a4256', edge: '#6a7495', far: '#2b3350', farWin: '#8fd3ff', stars: true },
+  leo: { dark: true, orbit: true, stops: ['#000006', '#040616', '#0a1030'], ground: '#3a4256', edge: '#6a7495', far: '#2b3350', farWin: '#8fd3ff', stars: true },
+  l2: { dark: true, orbit: true, stops: ['#000003', '#020310', '#060a22'], ground: '#3a4256', edge: '#6a7495', far: '#2b3350', farWin: '#8fd3ff', stars: true },
+  venus: { dark: false, orbit: true, stops: ['#6b4b12', '#c99a3a', '#f3d27a'], ground: '#e9cf8f', edge: '#f6e3b0', far: '#b8913f', farWin: '#fff3c4', stars: false },
+  mercury: { dark: true, stops: ['#000004', '#0a0608', '#1c120c'], ground: '#6f6a66', edge: '#8c8781', far: '#4a4643', farWin: '#ffd88a', stars: true },
   moon: { dark: true, stops: ['#000003', '#04050e', '#0c0e20'], ground: '#80838d', edge: '#a3a6af', far: '#5d616e', farWin: '#ffe39a', stars: true },
   mars: { dark: false, stops: ['#5c2f22', '#b8694a', '#e3a878'], ground: '#a3452a', edge: '#bf5d39', far: '#7a3824', farWin: '#ffd88a', stars: false },
   ceres: { dark: true, stops: ['#000004', '#05050e', '#0f0f22'], ground: '#57514b', edge: '#70675f', far: '#3c3733', farWin: '#ffd88a', stars: true },
@@ -462,6 +470,15 @@ function spaceBodies(view, groundY) {
         <circle cx="96" cy="74" r="30" fill="#ecd29a" opacity=".9"/><path d="M68 70 h56 M70 80 h52" stroke="#d2b177" stroke-width="3" opacity=".7"/>
         <path d="M30 74 A66 13 0 0 0 162 74" fill="none" stroke="#f1dcae" stroke-width="5" opacity=".8" transform="rotate(-12 96 74)"/>
         <rect x="-700" y="-400" width="1760" height="${groundY + 400}" fill="#e7a24d" opacity=".18"/>`;
+    case 'l2':
+      return `<circle cx="70" cy="70" r="11" fill="#2563eb"/><path d="M64 66 q4 -4 8 0 q3 4 -1 7z" fill="#4ade80"/><circle cx="70" cy="70" r="16" fill="#60a5fa" opacity=".12"/>
+        <circle cx="98" cy="60" r="3.4" fill="#d1d5db"/><path d="M-700 ${groundY + 60} h1760" stroke="#fff" stroke-opacity=".05"/>`;
+    case 'venus':
+      return `<circle cx="70" cy="58" r="40" fill="#fff6d0" opacity=".35"/><circle cx="70" cy="58" r="20" fill="#fff8dc"/>
+        ${[[groundY - 70, 0.35], [groundY - 40, 0.5], [groundY - 14, 0.7]].map(([y, o]) => `<path d="M-700 ${y} q 120 -16 240 0 t240 0 t240 0 t240 0 t240 0 t240 0 t240 0 t240 0 V ${groundY + 400} H -700 Z" fill="#f3dca0" opacity="${o}"/>`).join('')}`;
+    case 'mercury':
+      return `<circle cx="300" cy="44" r="80" fill="#ffd166" opacity=".16"/><circle cx="300" cy="44" r="52" fill="#ffe08a" opacity=".35"/><circle cx="300" cy="44" r="36" fill="#fff3b0"/>
+        ${[40, 120, 200].map((x, i) => `<rect x="${x}" y="${30 + i * 14}" width="18" height="8" fill="#9fb3d9" opacity=".7" transform="rotate(-20 ${x + 9} ${34 + i * 14})"/>`).join('')}`;
     case 'proxima':
       return `<circle cx="278" cy="70" r="60" fill="#ff6a3d" opacity=".12"/><circle cx="278" cy="70" r="36" fill="#ff7a4f" opacity=".35"/><circle cx="278" cy="70" r="26" fill="#ff8a5b"/>
         <circle cx="60" cy="40" r="3" fill="#fff6d6"/><circle cx="60" cy="40" r="8" fill="#fff6d6" opacity=".25"/>`;
@@ -496,6 +513,21 @@ function spaceSkyline(view, groundY, th) {
   return out;
 }
 
+function satellite(y, dur, delay, rev = false) {
+  return `<g class="car${rev ? ' rev' : ''}" style="animation-duration:${dur}s;animation-delay:${delay}s">
+    <rect x="10" y="${y - 3}" width="8" height="6" rx="1" fill="#e5e7eb"/><rect x="0" y="${y - 2}" width="9" height="4" fill="#3b82f6" stroke="#93c5fd" stroke-width=".5"/>
+    <rect x="19" y="${y - 2}" width="9" height="4" fill="#3b82f6" stroke="#93c5fd" stroke-width=".5"/><circle cx="14" cy="${y - 5}" r="1.2" fill="#f87171"/></g>`;
+}
+
+function rocket(x, y, s = 1, flame = false) {
+  return `<g transform="translate(${x} ${y}) scale(${s})">
+    ${flame ? '<path d="M-5 30 q5 22 10 0 z" fill="#ffb347" opacity=".9"/><path d="M-3 30 q3 12 6 0 z" fill="#fff3b0"/>' : ''}
+    <path d="M-6 30 L-12 34 L-6 18 Z M6 30 L12 34 L6 18 Z" fill="#ef4444"/>
+    <rect x="-6" y="-2" width="12" height="32" rx="2" fill="#f1f3ff"/>
+    <path d="M-6 -2 Q0 -22 6 -2 Z" fill="#e5e7eb"/><circle cx="0" cy="8" r="3" fill="#60a5fa" stroke="#94a3b8" stroke-width="1"/>
+    <rect x="-6" y="20" width="12" height="3" fill="#94a3b8"/></g>`;
+}
+
 function rover(y, dur, delay) {
   return `<g class="car" style="animation-duration:${dur}s;animation-delay:${delay}s">
     <rect x="2" y="${y - 10}" width="26" height="7" rx="2" fill="#e5e7eb"/><rect x="8" y="${y - 15}" width="10" height="5" rx="1" fill="#93c5fd"/>
@@ -522,18 +554,20 @@ export class Scene {
   // Zwraca podpis stanu — scena przerysowuje się tylko, gdy coś istotnego się zmieni.
   signature(game, phase) {
     const s = game.s;
-    const floors = DEPTS.filter((d) => s.deptUnlocked[d.id]).map((d) => {
+    const floors = game.D.DEPTS.filter((d) => s.deptUnlocked[d.id]).map((d) => {
       const n = s.depts[d.id] || 0;
       return d.id + SEATS.filter((t) => n >= t).length;
     }).join(',');
     const e = this.env || {};
-    return `${phase}|${floors}|${Math.min(s.prestigeCount, 8)}|${s.meta.companyName}|${(s.products.landing || 0) > 0 ? 1 : 0}|${e.season}|${e.weather}|${e.holiday}|${e.newYear}|${s.view}`;
+    return `${game.D.id}|${phase}|${floors}|${Math.min(s.prestigeCount, 8)}|${s.meta.companyName}|${(s.products[game.D.PRODUCTS[0].id] || 0) > 0 ? 1 : 0}|${e.season}|${e.weather}|${e.holiday}|${e.newYear}|${s.view}`;
   }
 
   render(game, force = false) {
     const phase = phaseFor();
-    const view = game.s.view || 'waw';
-    const th = SPACE_VIEWS[view] || null;
+    const space = game.D.id !== 'earth';
+    const view = game.s.view || game.D.HQ;
+    const th = space ? SPACE_VIEWS[view] || SPACE_VIEWS.leo : null;
+    const orbit = !!(th && th.orbit);
     this.env = envFor();
     // W kosmosie nie ma pór roku ani pogody, ale święta zostają.
     if (th) this.env = { season: 'space', weather: 'clear', holiday: this.env.holiday, newYear: false, snowCover: false };
@@ -548,10 +582,10 @@ export class Scene {
     const night = th ? th.dark : phase === 'night';
     const cityView = th ? null : CITY_VIEWS[view] || CITY_VIEWS.waw;
     const overcast = env.weather === 'rain' || env.weather === 'snow' || env.weather === 'cloudy' || env.weather === 'fog';
-    const unlocked = DEPTS.filter((d) => s.deptUnlocked[d.id]);
+    const unlocked = game.D.DEPTS.filter((d) => s.deptUnlocked[d.id]);
     const garage = unlocked.length <= 1;
     const nFloors = unlocked.length;
-    const buildingH = garage ? 150 : LOBBY_H + nFloors * FLOOR_H + 34;
+    const buildingH = garage ? 150 : space ? STATION_BASE + nFloors * (FLOOR_H + MOD_GAP) + 70 : LOBBY_H + nFloors * FLOOR_H + 34;
     const H = Math.max(330, GROUND + buildingH + 90);
     const groundY = H - GROUND;
     const rnd = seeded(42);
@@ -630,7 +664,7 @@ export class Scene {
     }
     // panorama miasta w tle
     if (cityView && cityView.back) parts.push(BACKDROPS[cityView.back](groundY, night));
-    if (th) parts.push(spaceSkyline(view, groundY, th));
+    if (th && !orbit) parts.push(spaceSkyline(view, groundY, th));
     const fr = seeded(5);
     let fx = th ? W + 700 : -700;
     while (fx < W + 700) {
@@ -656,12 +690,16 @@ export class Scene {
       parts.push(LANDMARKS[cityView.right](330, groundY, sil, night, sky.farWin));
     }
 
-    // --- ziemia ---
+    // --- ziemia (na orbicie jej nie ma: stacja wisi nad planetą) ---
     const grass = env.snowCover ? (night ? '#aab3cc' : '#eef3fb') : env.season === 'autumn' ? shade(sky.grass, 0.85) : sky.grass;
-    parts.push(`<rect x="-700" y="${groundY}" width="${W + 1400}" height="10" fill="${grass}"/>`);
-    parts.push(`<rect x="-700" y="${groundY + 10}" width="${W + 1400}" height="8" fill="${shade('#9aa3c7', sky.wall)}"/>`);
-    parts.push(`<rect x="-700" y="${groundY + 18}" width="${W + 1400}" height="${GROUND + 400}" fill="${sky.ground}"/>`);
-    if (th) {
+    if (!orbit) {
+      parts.push(`<rect x="-700" y="${groundY}" width="${W + 1400}" height="10" fill="${grass}"/>`);
+      parts.push(`<rect x="-700" y="${groundY + 10}" width="${W + 1400}" height="8" fill="${shade('#9aa3c7', sky.wall)}"/>`);
+      parts.push(`<rect x="-700" y="${groundY + 18}" width="${W + 1400}" height="${GROUND + 400}" fill="${sky.ground}"/>`);
+    }
+    if (orbit) {
+      ANIM.push(satellite(groundY - 30 - (nFloors * 7), 34, -6), satellite(60, 52, -31, true));
+    } else if (th) {
       const kr = seeded(13);
       for (let i = 0; i < 14; i++) parts.push(`<ellipse cx="${(-300 + kr() * 960).toFixed(0)}" cy="${(groundY + 22 + kr() * 40).toFixed(0)}" rx="${(4 + kr() * 10).toFixed(1)}" ry="${(1.5 + kr() * 2.5).toFixed(1)}" fill="#000" opacity=".18"/>`);
       ANIM.push(rover(groundY + 34, 40, -12));
@@ -678,8 +716,10 @@ export class Scene {
     if (!th) for (const tx of treeXs) parts.push(tree(tx, groundY + 4, 0.8 + tr() * 0.4, tr, env.season));
     if (env.holiday === 'xmas') parts.push(xmasTree(garage ? 96 : BX - 46, groundY + 2, garage ? 0.9 : 1));
 
-    // --- budynek ---
-    if (garage) {
+    // --- budynek (w kosmosie: stacja) ---
+    if (space) {
+      parts.push(this.station(game, unlocked, groundY, night, orbit));
+    } else if (garage) {
       const tf = `translate(${W / 2} ${groundY}) scale(1.3) translate(${-W / 2} ${-groundY})`;
       const before = ANIM.length;
       parts.push(`<g transform="${tf}">${this.garage(game, groundY, sky, night)}</g>`);
@@ -708,6 +748,98 @@ export class Scene {
     this.knownFloors = new Set(unlocked.map((d) => d.id));
   }
 
+  // Stacja: kapsuła (jeden dział) → moduły z załogą przy konsolach, panele słoneczne i statki.
+  station(game, unlocked, groundY, night, orbit) {
+    const s = game.s;
+    const n = unlocked.length;
+    const name = s.meta.companyName.length > 24 ? s.meta.companyName.slice(0, 23) + '…' : s.meta.companyName;
+    const hull = night ? '#c9cfe6' : '#e9edf7';
+    const base = orbit ? groundY - 18 : groundY;
+    let out = '';
+    if (n <= 1) {
+      // kapsuła na stanowisku startowym (albo w dryfie na orbicie)
+      // na orbicie kapsuła dryfuje wysoko nad planetą, na powierzchni stoi przy wieży startowej
+      const cx = W / 2;
+      if (orbit) {
+        const cy = base - 150;
+        out += rocket(cx, cy - 34, 2.2, false);
+        out += `<rect x="${cx - 52}" y="${cy + 46}" width="104" height="14" rx="4" fill="#1b1e3d"/>`;
+        out += `<text x="${cx}" y="${cy + 56.4}" text-anchor="middle" font-size="8.5" font-weight="800" fill="#ffe08a" font-family="system-ui, sans-serif">${esc(name.toUpperCase())}</text>`;
+        ANIM.push(`<circle class="blink" cx="${cx}" cy="${cy - 82}" r="2.4" fill="#ff4d4d" filter="url(#glowA)"/>`);
+        return out;
+      }
+      const by = base;
+      out += `<rect x="${cx - 70}" y="${by - 6}" width="140" height="6" rx="2" fill="#4b5563"/><rect x="${cx + 34}" y="${by - 96}" width="8" height="90" fill="#6b7280"/>${[0, 1, 2, 3].map((k) => `<line x1="${cx + 34}" y1="${by - 88 + k * 22}" x2="${cx + 42}" y2="${by - 76 + k * 22}" stroke="#9ca3af" stroke-width="1.5"/>`).join('')}`;
+      out += rocket(cx, by - 80, 2.2, false);
+      out += `<rect x="${cx - 52}" y="${by - 24}" width="104" height="14" rx="4" fill="#1b1e3d"/>`;
+      out += `<text x="${cx}" y="${by - 13.6}" text-anchor="middle" font-size="8.5" font-weight="800" fill="#ffe08a" font-family="system-ui, sans-serif">${esc(name.toUpperCase())}</text>`;
+      ANIM.push(`<circle class="blink" cx="${cx + 38}" cy="${by - 98}" r="2.6" fill="#ff4d4d" filter="url(#glowA)"/>`);
+      return out;
+    }
+    const top = base - STATION_BASE - n * (FLOOR_H + MOD_GAP);
+    // kratownica i panele słoneczne
+    out += `<rect x="${W / 2 - 5}" y="${top - 30}" width="10" height="${base - top + 22}" fill="#8b93ad"/>`;
+    const wings = Math.min(3, Math.ceil(n / 3));
+    for (let k = 0; k < wings; k++) {
+      const wy = base - STATION_BASE - ((k + 0.5) / wings) * n * (FLOOR_H + MOD_GAP);
+      const span = 74 + k * 6;
+      out += `<rect x="${MOD_X - span}" y="${wy - 1.5}" width="${MOD_W + span * 2}" height="3" fill="#8b93ad"/>`;
+      for (const side of [-1, 1]) {
+        const x0 = side < 0 ? MOD_X - span - 4 : MOD_X + MOD_W + 12;
+        for (let p = 0; p < 2; p++) {
+          const px = x0 + p * 34;
+          out += `<rect x="${px}" y="${wy - 22}" width="30" height="44" fill="#1e3a8a" stroke="#93c5fd" stroke-width=".8"/>`;
+          for (let gy = 1; gy < 4; gy++) out += `<line x1="${px}" y1="${wy - 22 + gy * 11}" x2="${px + 30}" y2="${wy - 22 + gy * 11}" stroke="#60a5fa" stroke-width=".5" opacity=".7"/>`;
+          out += `<line x1="${px + 15}" y1="${wy - 22}" x2="${px + 15}" y2="${wy + 22}" stroke="#60a5fa" stroke-width=".5" opacity=".7"/>`;
+        }
+      }
+    }
+    // podstawa: nogi lądownika na powierzchni albo węzeł dokujący na orbicie
+    if (orbit) {
+      out += `<rect x="${W / 2 - 26}" y="${base - STATION_BASE + 4}" width="52" height="16" rx="8" fill="${hull}"/><rect x="${W / 2 - 10}" y="${base - STATION_BASE + 20}" width="20" height="8" rx="2" fill="#8b93ad"/>`;
+    } else {
+      out += `<path d="M${MOD_X + 20} ${base - STATION_BASE + 4} L${MOD_X} ${base} M${MOD_X + MOD_W - 20} ${base - STATION_BASE + 4} L${MOD_X + MOD_W} ${base}" stroke="#8b93ad" stroke-width="5"/>`;
+      out += `<rect x="${MOD_X - 8}" y="${base - 4}" width="16" height="4" rx="1" fill="#6b7280"/><rect x="${MOD_X + MOD_W - 8}" y="${base - 4}" width="16" height="4" rx="1" fill="#6b7280"/>`;
+      out += `<rect x="${W / 2 - 30}" y="${base - STATION_BASE + 4}" width="60" height="${STATION_BASE - 4}" rx="6" fill="${hull}"/>`;
+    }
+    out += `<rect x="${W / 2 - 52}" y="${base - STATION_BASE - 14}" width="104" height="13" rx="4" fill="#1b1e3d"/>`;
+    out += `<text x="${W / 2}" y="${base - STATION_BASE - 4.6}" text-anchor="middle" font-size="8" font-weight="800" fill="#ffe08a" font-family="system-ui, sans-serif" letter-spacing=".5">◆ ${esc(name.toUpperCase())}</text>`;
+    // moduły
+    unlocked.forEach((d, i) => {
+      const fy = base - STATION_BASE - 16 - (i + 1) * (FLOOR_H + MOD_GAP);
+      const fb = fy + FLOOR_H;
+      const isNew = this.knownFloors && !this.knownFloors.has(d.id);
+      const rnd = seeded(300 + i * 13);
+      let g = '';
+      g += `<rect x="${W / 2 - 18}" y="${fb}" width="36" height="${MOD_GAP}" fill="#4b5563"/>`;
+      g += `<rect x="${MOD_X}" y="${fy}" width="${MOD_W}" height="${FLOOR_H}" rx="${FLOOR_H / 2}" fill="${shade(d.color, night ? 0.55 : 1.45)}"/>`;
+      g += `<rect x="${MOD_X}" y="${fy + FLOOR_H / 2 - 1}" width="${MOD_W}" height="2" fill="${shade(d.color, 0.8)}" opacity=".35"/>`;
+      const wx = MOD_X + 34; const ww = MOD_W - 50;
+      g += `<rect x="${wx}" y="${fy + 6}" width="${ww}" height="${FLOOR_H - 9}" rx="8" fill="url(#glassG)"/>`;
+      const heads = s.depts[d.id] || 0;
+      const cells = 4;
+      const cw = ww / cells;
+      for (let c = 0; c < cells; c++) {
+        const cx = wx + cw * c + cw / 2;
+        g += deskUnit(cx, fb - 2, shade(d.color, 1.35), rnd, heads >= SEATS[c], rnd() * 1.6);
+      }
+      g += `<circle cx="${MOD_X + 17}" cy="${fy + FLOOR_H / 2}" r="12" fill="${d.color}"/>`;
+      g += `<text x="${MOD_X + 17}" y="${fy + FLOOR_H / 2 + 4.6}" text-anchor="middle" font-size="13">${d.icon}</text>`;
+      g += `<circle cx="${MOD_X + MOD_W - 9}" cy="${fy + FLOOR_H / 2}" r="3" fill="${night ? '#fde68a' : '#fff'}" opacity=".9"/>`;
+      out += isNew ? `<g class="floor-new">${g}</g>` : g;
+    });
+    // węzeł na górze, antena i statki (więcej po kolejnych falach)
+    const rt = base - STATION_BASE - 16 - n * (FLOOR_H + MOD_GAP);
+    out += `<rect x="${W / 2 - 22}" y="${rt - 14}" width="44" height="16" rx="8" fill="${hull}"/>`;
+    out += `<line x1="${W / 2 + 34}" y1="${rt - 2}" x2="${W / 2 + 34}" y2="${rt - 30}" stroke="#8b93ad" stroke-width="2"/><path d="M${W / 2 + 22} ${rt - 34} q12 10 24 0" fill="none" stroke="#cbd5e1" stroke-width="3"/>`;
+    ANIM.push(`<circle class="blink" cx="${W / 2 + 34}" cy="${rt - 32}" r="2.6" fill="#ff4d4d" filter="url(#glowA)"/>`);
+    const pc = s.prestigeCount;
+    if (pc >= 1) out += rocket(W / 2, rt - 52, 1.1);
+    if (pc >= 3) out += rocket(MOD_X - 30, rt + 10, 0.8);
+    if (pc >= 5) out += rocket(MOD_X + MOD_W + 30, rt + 10, 0.8);
+    return out;
+  }
+
   garage(game, groundY, sky, night) {
     const s = game.s;
     const gx = W / 2 - 85;
@@ -715,7 +847,7 @@ export class Scene {
     const gy = groundY - 82;
     const wall = night ? '#7d7266' : '#efe1c8';
     const rnd = seeded(3);
-    const devs = s.depts.dev || 0;
+    const devs = s.depts[game.D.FIRST_DEPT] || 0;
     let out = '';
     out += `<rect x="${gx}" y="${gy}" width="${gw}" height="82" fill="${wall}"/>`;
     out += `<path d="M${gx - 10} ${gy + 2} L${W / 2} ${gy - 46} L${gx + gw + 10} ${gy + 2} Z" fill="${night ? '#7a3a2c' : '#c4573d'}"/>`;

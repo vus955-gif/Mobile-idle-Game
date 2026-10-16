@@ -385,6 +385,22 @@ export const EN = {
 
   stages: ['Garage', 'Small Office', 'Office Floor', 'Office Building', 'Skyscraper', 'Tech Campus'],
 
+  spaceNews: [
+    '{c} astronauts confirm: “Earth really is round”',
+    'New record: launch, landing and a coffee in 14 minutes',
+    'Orbital tourists complain about too many sunrises',
+    'Mission Control asks staff to stop sticking notes on the portholes',
+    '{c}’s Martian dome receives its first noise complaint',
+    'Scientists: lunar helium-3 smells like burnt gunpowder',
+    '{c} service robot requests a holiday on Venus',
+    'In zero gravity, no one can hear you drop a pen',
+    'Space pizza still lands cheese side up',
+    '{c} lawyers have patented geostationary orbit. Almost',
+    'Mars colony celebrates its hundredth sol without a dust storm',
+    'Analysts: “A Dyson swarm is just a matter of time and mirrors”',
+    'Asteroid Belt miners find a rock shaped like the {c} logo',
+    'First zero-g wedding: the cake floated through the whole reception',
+  ],
   spaceClients: ['New Warsaw Colony', 'Orion Space Agency', 'Lunar University', 'Hotel Saturn View', 'Ceres-7 Mine', 'Deep Field Telescope',
     'Hippocrates Orbital Hospital', 'Venusian Cloud Lines', 'Zero Gravity FC', 'Green Crater Farm', 'Apollo Museum', 'Odyssey Film Studio',
     'Interplanetary Courier', 'Helios Power Plant'],

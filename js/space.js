@@ -266,3 +266,21 @@ export const SPACE_RD_BUDGET = { shares: [0, 0.1, 0.25, 0.5], k: 0.2, p: 0.4, re
 export const SPACE_PRESTIGE = { div: 1e17, exp: 1 / 3, k: 10, bonus: 0.02 };
 // Podstawowa siła jednego startu (kliknięcia) — w kosmosie nikt nie liczy w dolarach.
 export const SPACE_CLICK_BASE = 1e13;
+
+// Wiadomości na pasku, gdy firma działa w kosmosie ({c} — nazwa firmy).
+export const SPACE_NEWS = [
+  'Astronauci {c} potwierdzają: „Ziemia naprawdę jest okrągła”',
+  'Nowy rekord: start, lądowanie i kawa w 14 minut',
+  'Turyści na orbicie skarżą się na zbyt wiele wschodów słońca',
+  'Kontrola misji prosi, żeby nie przyklejać karteczek do iluminatorów',
+  'Marsjańska kopuła {c} dostała pierwszą skargę na sąsiada',
+  'Naukowcy: hel-3 z Księżyca pachnie spalonym prochem',
+  'Robot serwisowy {c} poprosił o urlop na Wenus',
+  'W nieważkości nikt nie słyszy, jak upuszczasz długopis',
+  'Kosmiczna pizza wciąż ląduje serem do góry',
+  'Prawnicy {c} opatentowali orbitę geostacjonarną. Prawie',
+  'Kolonia na Marsie świętuje setny sol bez burzy piaskowej',
+  'Analitycy: „Rój Dysona to tylko kwestia czasu i luster”',
+  'Górnicy z Pasa Planetoid znaleźli kamień w kształcie logo {c}',
+  'Pierwszy ślub w nieważkości: tort unosił się przez całe wesele',
+];
