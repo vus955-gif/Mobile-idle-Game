@@ -1092,7 +1092,7 @@ export class UI {
 
     const done = this.g.D.TECHS.filter((t) => s.techs[t.id]).map((t) => t.id);
     const avail = this.g.D.TECHS.filter((t) => !s.techs[t.id] && g.techAvailable(t.id)).map((t) => t.id);
-    const maxEra = Math.max(1, ...TECHS.filter((t) => s.techs[t.id] || g.techAvailable(t.id)).map((t) => t.era));
+    const maxEra = Math.max(this.g.D.ERAS[0].id, ...this.g.D.TECHS.filter((t) => s.techs[t.id] || g.techAvailable(t.id)).map((t) => t.era));
     const repeats = this.g.D.REPEAT_TECHS.filter((r) => g.techAvailable(r.id));
     const sig = done.join(',') + '|' + avail.join(',') + '|' + repeats.map((r) => r.id + (s.techLevels[r.id] || 0)).join(',');
     const root = $('research-list');

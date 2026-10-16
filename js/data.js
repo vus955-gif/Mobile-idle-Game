@@ -9,8 +9,6 @@ export const CATEGORIES = {
   infra: { name: 'Infrastruktura', grad: ['#5ee7df', '#6a8fd8'] },
   ai: { name: 'AI', grad: ['#667eea', '#8e54e9'] },
   deep: { name: 'Deep tech', grad: ['#fa709a', '#fdb75e'] },
-  space: { name: 'Kosmos', grad: ['#30cfd0', '#4a3a9a'] },
-  cosmic: { name: 'Wszechświat', grad: ['#b06ab3', '#202a6b'] },
 };
 
 // ---------------------------------------------------------------------------
@@ -75,24 +73,6 @@ export const PRODUCTS = [
   { id: 'bci', name: 'Interfejs mózg-komputer', icon: '🧠', cat: 'deep', tech: 'bciTech',
     desc: 'Myślisz — dzieje się.',
     ups: ['Nieinwazyjny czepek', 'Pisanie myślami', 'Pamięć w chmurze', 'Wspólne sny', 'Nauka przez sen', 'Telepatia w abonamencie', 'Kolektywna świadomość'] },
-  { id: 'orbital', name: 'Sieć orbitalna', icon: '🛰️', cat: 'space', tech: 'satellites',
-    desc: 'Pełen zasięg. Nawet na Marsie.',
-    ups: ['Pierwszy satelita', 'Konstelacja 1000 satelitów', 'Łącza laserowe', 'Internet na Marsie', 'Przekaźnik na Księżycu', 'Sieć w Pasie Kuipera', 'Międzygwiezdny ping'] },
-  { id: 'asi', name: 'Superinteligencja', icon: '🌌', cat: 'space', tech: 'asiTech',
-    desc: 'Ostatni wynalazek, jakiego ludzkość potrzebowała.',
-    ups: ['Bezpieczne wyrównanie', 'Rekurencyjne samodoskonalenie', 'Rozwiązanie wszystkich równań', 'Lekarstwo na nudę', 'Projektowanie gwiazd', 'Symulacja wszechświata', 'Odpowiedź ostateczna: 42'] },
-  { id: 'probes', name: 'Flota sond von Neumanna', icon: '🛸', cat: 'space', tech: 'vonNeumann',
-    desc: 'Każda sonda buduje dwie kolejne i otwiera filię w nowym układzie gwiezdnym.',
-    ups: ['Pierwsza replikacja', 'Kopalnie na planetoidach', 'Tysiąc układów', 'Mapa ramienia Oriona', 'Filia przy czarnej dziurze', 'Milion gwiazd', 'Sonda, która wraca z prezentem'] },
-  { id: 'matrioshka', name: 'Mózg Matrioszki', icon: '🪆', cat: 'space', tech: 'matrioshkaTech',
-    desc: 'Komputer wielkości układu słonecznego. Wreszcie wystarczy RAM-u.',
-    ups: ['Pierwsza warstwa', 'Chłodzenie promieniowaniem', 'Siedem warstw', 'Myśli w skali lat świetlnych', 'Symulacja cywilizacji', 'Gwiazda, która śni', 'Odpowiedź na pytanie, którego nie zadano'] },
-  { id: 'wormnet', name: 'Sieć tuneli czasoprzestrzennych', icon: '🌀', cat: 'cosmic', tech: 'wormholes',
-    desc: 'Kurier z Andromedy w kwadrans. Zwroty w ciągu 14 dni świetlnych.',
-    ups: ['Stabilny tunel', 'Węzeł przesiadkowy', 'Linia do Andromedy', 'Tunele w Grupie Lokalnej', 'Pętla czasowa na zamówienie', 'Rozkład jazdy przez wszechświat', 'Wczorajsza dostawa'] },
-  { id: 'pocket', name: 'Kieszonkowe wszechświaty', icon: '🫧', cat: 'cosmic', tech: 'babyUniverse',
-    desc: 'Wszechświat w abonamencie. Prawa fizyki w pakiecie premium.',
-    ups: ['Wielki Wybuch w probówce', 'Własne stałe fizyczne', 'Wszechświat bez poniedziałków', 'Galaktyki na zamówienie', 'Abonament rodzinny', 'Multiwersum w chmurze', 'Wszechświat, w którym wygrywasz'] },
 ];
 
 // Koszty i przychody produktów liczone wzorem: każdy kolejny produkt jest ~13× droższy,
@@ -209,9 +189,6 @@ export const ERAS = [
   { id: 5, name: 'Sztuczna inteligencja', icon: '🤖' },
   { id: 6, name: 'Era kwantowa', icon: '⚛️' },
   { id: 7, name: 'Neurotechnologia', icon: '🧠' },
-  { id: 8, name: 'Podbój kosmosu', icon: '🚀' },
-  { id: 9, name: 'Ekspansja międzygwiezdna', icon: '🌠' },
-  { id: 10, name: 'Inżynieria wszechświata', icon: '🕳️' },
 ];
 
 export const TECHS = [
@@ -304,39 +281,6 @@ export const TECHS = [
     desc: 'Pomyśl o funkcji — i już jest napisana. Z testami!' },
   { id: 'agi', era: 7, name: 'Ogólna sztuczna inteligencja', icon: '🧬', cost: 4e9, req: ['neuromorphic'], fx: [{ t: 'all', x: 2 }, { t: 'rp', x: 2 }],
     desc: 'Potrafi wszystko, co człowiek. Tylko szybciej i bez przerw na kawę.' },
-  // Era 8
-  { id: 'rockets', era: 8, name: 'Rakiety wielokrotnego użytku', icon: '🚀', cost: 2e10, req: ['agi'], fx: [{ t: 'cat', cat: 'space', x: 2 }, { t: 'all', x: 1.2 }],
-    desc: 'Lądują same. Na barce. Na środku oceanu.' },
-  { id: 'satellites', era: 8, name: 'Konstelacje satelitów', icon: '🛰️', cost: 2.4e11, req: ['rockets'], fx: [{ t: 'unlockProduct', id: 'orbital' }],
-    desc: 'Tysiące satelitów i jeden astronom, który płacze.' },
-  { id: 'orbitalDC', era: 8, name: 'Orbitalne centra danych', icon: '🌍', cost: 3e12, req: ['satellites'], fx: [{ t: 'prod', id: 'cloud', x: 5 }, { t: 'prod', id: 'orbital', x: 2 }],
-    desc: 'Darmowe chłodzenie. Kosmos jest zimny.' },
-  { id: 'asiTech', era: 8, name: 'Superinteligencja', icon: '🌌', cost: 3.6e13, req: ['agi', 'satellites'], fx: [{ t: 'unlockProduct', id: 'asi' }],
-    desc: 'Ostatnia technologia, jaką wymyślili ludzie.' },
-  { id: 'dyson', era: 8, name: 'Rój Dysona', icon: '☀️', cost: 4.4e14, req: ['asiTech'], fx: [{ t: 'all', x: 3 }],
-    desc: 'Cała energia Słońca na potrzeby Twoich serwerów.' },
-  // Era 9
-  { id: 'antimatter', era: 9, name: 'Fabryki antymaterii', icon: '💫', cost: 1.2e16, req: ['dyson'], fx: [{ t: 'cat', cat: 'space', x: 3 }],
-    desc: 'Gram antymaterii to energia małej elektrowni. Produkujemy je na tony.' },
-  { id: 'lightsail', era: 9, name: 'Żagle świetlne', icon: '⛵', cost: 1.8e16, req: ['dyson'], fx: [{ t: 'all', x: 2 }],
-    desc: 'Lasery z orbity rozpędzają sondy do jednej piątej prędkości światła.' },
-  { id: 'vonNeumann', era: 9, name: 'Samoreplikujące się sondy', icon: '🛸', cost: 1.8e17, req: ['antimatter', 'lightsail'], fx: [{ t: 'unlockProduct', id: 'probes' }],
-    desc: 'Każda sonda buduje dwie kolejne. Galaktyka zapełni się w milion lat.' },
-  { id: 'matrioshkaTech', era: 9, name: 'Mózg Matrioszki', icon: '🪆', cost: 1.8e18, req: ['vonNeumann'], fx: [{ t: 'unlockProduct', id: 'matrioshka' }, { t: 'cat', cat: 'space', x: 2 }],
-    desc: 'Kilka warstw roju Dysona wokół jednej gwiazdy. Każda liczy na odpadach ciepła poprzedniej.' },
-  { id: 'galacticNet', era: 9, name: 'Sieć galaktyczna', icon: '🕸️', cost: 1.8e19, req: ['matrioshkaTech'], fx: [{ t: 'all', x: 3 }],
-    desc: 'Łączność między gwiazdami bez czekania tysiąca lat na odpowiedź.' },
-  // Era 10
-  { id: 'blackhole', era: 10, name: 'Energia czarnych dziur', icon: '🕳️', cost: 5e20, req: ['galacticNet'], fx: [{ t: 'all', x: 3 }],
-    desc: 'Proces Penrose’a: wrzucasz śmieci, odbierasz energię. Recykling doskonały.' },
-  { id: 'wormholes', era: 10, name: 'Tunele czasoprzestrzenne', icon: '🌀', cost: 1.5e22, req: ['blackhole'], fx: [{ t: 'unlockProduct', id: 'wormnet' }],
-    desc: 'Skrót do Andromedy. Uwaga na stopień przy wysiadaniu.' },
-  { id: 'darkEnergy', era: 10, name: 'Ujarzmiona ciemna energia', icon: '🌑', cost: 5e23, req: ['wormholes'], fx: [{ t: 'cat', cat: 'cosmic', x: 3 }, { t: 'all', x: 1.5 }],
-    desc: 'Siedemdziesiąt procent wszechświata wreszcie do czegoś się przydaje.' },
-  { id: 'simulation', era: 10, name: 'Symulacja wszechświata', icon: '🧮', cost: 5e23, req: ['blackhole'], fx: [{ t: 'rp', x: 1.5 }, { t: 'all', x: 1.5 }],
-    desc: 'Model tak dokładny, że ludzie w środku też grają w gry idle.' },
-  { id: 'babyUniverse', era: 10, name: 'Wszechświaty potomne', icon: '🫧', cost: 1.5e25, req: ['darkEnergy', 'simulation'], fx: [{ t: 'unlockProduct', id: 'pocket' }, { t: 'all', x: 3 }],
-    desc: 'Własny Wielki Wybuch w laboratorium. Prawa fizyki do wyboru.' },
 ];
 
 // Badania powtarzalne — nieskończony zlew na punkty badań.
@@ -371,14 +315,6 @@ export const CULTURE_UPGRADES = [
   { id: 'c_4day', name: 'Czterodniowy tydzień pracy', icon: '📅', cost: 6e13, x: 1.5, desc: 'Wypoczęci ludzie robią lepsze rzeczy.' },
   { id: 'c_bali', name: 'Wyjazd integracyjny na Bali', icon: '🏝️', cost: 1.2e14, x: 1.5, desc: 'Cała firma. Dwa tygodnie. Laptopy zostają w domu.' },
   { id: 'c_happy', name: 'Zespół szczęśliwych ludzi', icon: '💖', cost: 2.5e14, x: 2, desc: 'Najlepsza technologia ze wszystkich.' },
-  { id: 'c_moon', name: 'Filia na Księżycu', icon: '🌙', cost: 3e16, x: 1.75, desc: 'Najlepszy widok na Ziemię.' },
-  { id: 'c_teleport', name: 'Teleport do biura', icon: '🌀', cost: 1e22, x: 2, desc: 'Dojazd: 0 sekund.' },
-  { id: 'c_zerog', name: 'Joga w stanie nieważkości', icon: '🧘', cost: 1e25, x: 2, desc: 'Pozycja lotosu jeszcze nigdy nie była tak łatwa.' },
-  { id: 'c_olympus', name: 'Biuro z widokiem na Olympus Mons', icon: '🏔️', cost: 1e30, x: 2, desc: 'Najwyższa góra Układu Słonecznego za oknem sali konferencyjnej.' },
-  { id: 'c_rings', name: 'Ogród na pierścieniach Saturna', icon: '🪐', cost: 1e34, x: 2.5, desc: 'Pomidory rosną tu w kształcie elips.' },
-  { id: 'c_sundays', name: 'Tydzień z ośmioma niedzielami', icon: '🕰️', cost: 1e40, x: 2.5, desc: 'Fizycy z działu R&D znaleźli sposób.' },
-  { id: 'c_pleiades', name: 'Integracja w Plejadach', icon: '✨', cost: 1e46, x: 3, desc: 'Siedem gwiazd, jedna firma, zero roamingu.' },
-  { id: 'c_peace', name: 'Święty spokój', icon: '🕊️', cost: 1e56, x: 3, desc: 'Żadnych powiadomień. Nigdy.' },
 ];
 
 export const CLICK_UPGRADES = [
@@ -394,9 +330,6 @@ export const CLICK_UPGRADES = [
   { id: 'k_neuro', name: 'Neurołącze do IDE', icon: '🧠', cost: 1e13, x: 1, pct: 0.01, desc: 'Myśl szybciej niż piszesz.' },
   { id: 'k_flow', name: 'Stan flow', icon: '🌊', cost: 4e13, x: 10, desc: 'Czas przestaje istnieć. Kod płynie.' },
   { id: 'k_midas', name: 'Palec Midasa', icon: '👆', cost: 1.5e14, x: 1, pct: 0.02, desc: 'Czego dotkniesz, zamienia się w przychód.' },
-  { id: 'k_swarm', name: 'Rój mikrobotów piszących kod', icon: '🐝', cost: 1e20, x: 10, desc: 'Bzyczą w rytmie stand-upów.' },
-  { id: 'k_loop', name: 'Klawiatura z pętlą czasu', icon: '⏳', cost: 1e30, x: 1, pct: 0.02, desc: 'Każde kliknięcie odbywa się dwa razy. Wczoraj i dziś.' },
-  { id: 'k_enter', name: 'Kosmiczny klawisz Enter', icon: '🌠', cost: 1e40, x: 25, desc: 'Wciśnięty raz, zatwierdza całą galaktykę.' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -416,7 +349,6 @@ export const ACQUISITIONS = [
   { id: 'a_robotaxi', name: 'RoboTaxi', icon: '🚕', cost: 2e13, fx: [{ t: 'prod', id: 'cars', x: 3 }], desc: 'Taksówki bez taksówkarzy, za to z muzyką.' },
   { id: 'a_kubit', name: 'Kubit i Syn', icon: '🔮', cost: 4e13, fx: [{ t: 'prod', id: 'quantum', x: 3 }, { t: 'all', x: 1.25 }], desc: 'Rodzinna firma kwantowa od trzech pokoleń.' },
   { id: 'a_mindmeld', name: 'MindMeld Labs', icon: '🫧', cost: 1e14, fx: [{ t: 'prod', id: 'bci', x: 3 }, { t: 'click', x: 3 }], desc: 'Interfejsy neuronowe nowej generacji.' },
-  { id: 'a_orbitix', name: 'Orbitix', icon: '🌠', cost: 1e19, fx: [{ t: 'cat', cat: 'space', x: 3 }], desc: 'Właściciele połowy niskiej orbity.' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -542,41 +474,43 @@ export const TREND_TEMPLATES = [
 // ---------------------------------------------------------------------------
 // ZASIĘG RYNKU — ile świat jest w stanie zapłacić. Każda technologia poszerza rynek o krok
 // swojej ery; ponad zasięgiem przychód rośnie już tylko z potęgą `soft`. Na Ziemi (ery 1–7)
-// sufit kończy się na kilku PKB świata, kosmos (ery 8–10) otwiera skale nieludzkie.
-// ends[k] = log10 zasięgu ($/s) po odkryciu wszystkich technologii ery k+1.
+// sufit kończy się na kilku PKB świata; nieludzkie skale otwiera dopiero Kosmos (space.js).
+// ends[k] = log10 zasięgu ($/s) po odkryciu wszystkich technologii ery firstEra+k.
 // ---------------------------------------------------------------------------
 export const MARKET_REACH = {
   base: 2.5,
-  ends: [4.5, 6.8, 8, 9, 10, 10.5, 11, 23.5, 33.5, 53.5],
+  ends: [4.5, 6.8, 8, 9, 10, 10.5, 11],
+  firstEra: 1,
   soft: 0.3,
   maxOver: 100, // nawet przy nasyceniu przychód nie przekroczy 100× zasięgu
   // nazwa rynku według najwyższej ery z odkrytą technologią
-  stages: [{ era: 0, id: 'earth' }, { era: 8, id: 'solar' }, { era: 9, id: 'galaxy' }, { era: 10, id: 'universe' }, { tech: 'babyUniverse', id: 'multiverse' }],
+  stages: [{ era: 0, id: 'earth' }],
 };
 
 // Krok zasięgu każdej technologii (log10 $/s) i zasięg tuż przed jej odkryciem
 // (przy badaniach w kolejności listy) — od niego liczą się ceny nowych produktów.
-export const TECH_CAP_STEP = {};
-export const REACH_BEFORE = {};
-{
-  let acc = MARKET_REACH.base;
-  for (const t of TECHS) {
-    const n = TECHS.filter((x) => x.era === t.era).length;
-    const prev = t.era === 1 ? MARKET_REACH.base : MARKET_REACH.ends[t.era - 2];
-    TECH_CAP_STEP[t.id] = (MARKET_REACH.ends[t.era - 1] - prev) / n;
-    REACH_BEFORE[t.id] = acc;
-    acc += TECH_CAP_STEP[t.id];
+export function reachSteps(techs, reach) {
+  const step = {};
+  const before = {};
+  let acc = reach.base;
+  for (const t of techs) {
+    const k = t.era - reach.firstEra;
+    const n = techs.filter((x) => x.era === t.era).length;
+    const prev = k === 0 ? reach.base : reach.ends[k - 1];
+    step[t.id] = (reach.ends[k] - prev) / n;
+    before[t.id] = acc;
+    acc += step[t.id];
   }
+  return { step, before };
 }
+export const { step: TECH_CAP_STEP, before: REACH_BEFORE } = reachSteps(TECHS, MARKET_REACH);
 // Od serwisu streamingowego nowy produkt kosztuje ok. 10 minut przychodu z rynku, jaki firma ma,
-// gdy go odblokowuje. Na Ziemi każdy kolejny zarabia ×2,2 więcej od poprzedniego, a produkty
-// kosmiczne otwierają rynki większe o rzędy wielkości.
+// gdy go odblokowuje, a każdy kolejny zarabia ×2,2 więcej od poprzedniego.
 export const PRODUCT_REACH_SECONDS = 600;
-export const PRODUCT_SPACE_PAYBACK = 3e5;
 PRODUCTS.forEach((p, i) => {
   if (i < 9) return;
   p.cost = nice(Math.pow(10, REACH_BEFORE[p.tech]) * PRODUCT_REACH_SECONDS);
-  p.rps = nice(p.cat === 'space' || p.cat === 'cosmic' ? p.cost / PRODUCT_SPACE_PAYBACK : PRODUCTS[i - 1].rps * 2.2);
+  p.rps = nice(PRODUCTS[i - 1].rps * 2.2);
 });
 
 // ---------------------------------------------------------------------------
@@ -668,21 +602,6 @@ export const OFFICES = [
     name: 'Zurych', desc: 'Laboratoria kwantowe, banki i widok na Alpy.' },
   { id: 'tlv', icon: '🇮🇱', kind: 'earth', lat: 32.08, lon: 34.78, cost: 1.5e14, req: 'qcrypto', fx: [{ t: 'dept', id: 'security', x: 1.2 }, { t: 'rp', x: 1.05 }],
     name: 'Tel Awiw', desc: 'Startupy cyberbezpieczeństwa na każdym rogu.' },
-  // kosmos
-  { id: 'leo', icon: '🛰️', kind: 'space', cost: 1e17, req: 'rockets', fx: [{ t: 'cat', cat: 'space', x: 1.15 }],
-    name: 'Stacja orbitalna', desc: 'Biuro z widokiem na Ziemię. Szesnaście wschodów słońca dziennie.' },
-  { id: 'moon', icon: '🌙', kind: 'space', cost: 3e19, req: 'satellites', fx: [{ t: 'all', x: 1.1 }, { t: 'rp', x: 1.05 }],
-    name: 'Baza na Księżycu', desc: 'Kampus pod kopułą, ⅙ grawitacji i zero korków.' },
-  { id: 'mars', icon: '🔴', kind: 'space', cost: 1e22, req: 'orbitalDC', fx: [{ t: 'all', x: 1.15 }],
-    name: 'Kolonia na Marsie', desc: 'Pierwsze miasto na innej planecie. Ping do Ziemi: 20 minut.' },
-  { id: 'ceres', icon: '☄️', kind: 'space', cost: 3e24, req: 'asiTech', fx: [{ t: 'prodCost', x: 0.95 }],
-    name: 'Ceres', desc: 'Kopalnia surowców w Pasie Planetoid. Serwery tanieją.' },
-  { id: 'europa', icon: '🧊', kind: 'space', cost: 1e27, req: 'dyson', fx: [{ t: 'rp', x: 1.1 }],
-    name: 'Europa', desc: 'Laboratorium pod lodem księżyca Jowisza.' },
-  { id: 'titan', icon: '🪐', kind: 'space', cost: 3e27, req: 'dyson', fx: [{ t: 'all', x: 1.25 }],
-    name: 'Tytan', desc: 'Pomarańczowe niebo, metanowe jeziora i Saturn nad horyzontem.' },
-  { id: 'proxima', icon: '✨', kind: 'space', cost: 1e31, req: 'lightsail', fx: [{ t: 'all', x: 1.5 }, { t: 'prestige', x: 1.1 }],
-    name: 'Proxima b', desc: 'Pierwsze biuro poza Układem Słonecznym. 4,2 roku świetlnego od domu.' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -703,7 +622,7 @@ export const COMPETITORS = [
   { id: 'envydia', icon: '🟩', cat: 'deep', k: 0.9, vol: 0.05, name: 'Envydia', ticker: 'ENVD' },
   { id: 'facepage', icon: '👍', cat: 'social', k: 0.7, vol: 0.035, name: 'Twarzoksiążka', ticker: 'TWKS' },
   { id: 'closedai', icon: '🤖', cat: 'ai', k: 0.5, vol: 0.06, name: 'ZamknięteAI', ticker: 'ZAI' },
-  { id: 'spacey', icon: '🚀', cat: 'space', k: 0.4, vol: 0.06, name: 'SpaceY', ticker: 'SPCY' },
+  { id: 'spacey', icon: '🚀', cat: 'infra', k: 0.4, vol: 0.06, name: 'SpaceY', ticker: 'SPCY' },
   { id: 'notflix', icon: '🍿', cat: 'social', k: 0.3, vol: 0.04, name: 'Nietflix', ticker: 'NTFX' },
   { id: 'qleap', icon: '⚛️', cat: 'deep', k: 0.1, vol: 0.07, name: 'Skok Kwantowy', ticker: 'SKOK' },
 ];

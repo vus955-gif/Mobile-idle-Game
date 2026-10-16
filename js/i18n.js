@@ -300,6 +300,20 @@ const PL = {
   'rs.eta': 'za {t}',
 
   'time.d': 'd', 'time.h': 'h', 'time.m': 'min', 'time.s': 's', 'time.y': 'rok',
+  // Kosmos: osiągnięcia i rynek
+  'achNames.crew': ['Pierwsza załoga', 'Pełna stacja', 'Miasto na orbicie', 'Flota', 'Ludzkość w kosmosie', 'Nowa cywilizacja'],
+  'achNames.stech': ['Start!', 'Władca orbity', 'Księżyc i Mars', 'Cały Układ Słoneczny'],
+  'achNames.supg': ['Pierwsze części zamienne', 'Modernizacja stacji', 'Najnowsza technika', 'Kosmiczny kolekcjoner'],
+  'achNames.wave': ['Pierwsza fala', 'Nowe pokolenie', 'Exodus', 'Dziesięć fal', 'Rój kolonistów'],
+  'achNames.colon': ['Pionierzy', 'Osada', 'Naród kolonistów', 'Diaspora Układu'],
+  'achNames.sacq': ['Pierwsze przejęcie w kosmosie', 'Monopol orbitalny'],
+  'ach.crew': 'Miej w kosmosie {n} {noun}', 'ach.stech': 'Odkryj {n} {noun} kosmicznych',
+  'ach.supg': 'Kup {n} {noun} w kosmosie w jednej fali', 'ach.wave': 'Wyślij {n} {noun} kolonizacji',
+  'ach.colon': 'Zbierz {n} kolonistów', 'ach.sacq': 'Przejmij {n} {noun} w kosmosie',
+  'achFun.f_space': ['Mały krok', 'Otwórz firmę w kosmosie'],
+  'noun.waves': { one: 'falę', few: 'fale', many: 'fal' },
+  'noun.techsGen': { one: 'technologię', few: 'technologie', many: 'technologii' },
+  'reach.orbit': 'Orbita Ziemi', 'reach.planets': 'Księżyc i Mars',
 };
 
 const EN = {
@@ -583,6 +597,20 @@ const EN = {
   'rs.eta': 'in {t}',
 
   'time.d': 'd', 'time.h': 'h', 'time.m': 'm', 'time.s': 's', 'time.y': 'yr',
+  // Space: achievements and market
+  'achNames.crew': ['First Crew', 'A Full Station', 'A City in Orbit', 'A Fleet', 'Humanity in Space', 'A New Civilisation'],
+  'achNames.stech': ['Liftoff!', 'Master of Orbit', 'Moon and Mars', 'The Whole Solar System'],
+  'achNames.supg': ['First Spare Parts', 'Station Refit', 'State of the Art', 'Space Collector'],
+  'achNames.wave': ['The First Wave', 'A New Generation', 'Exodus', 'Ten Waves', 'A Swarm of Settlers'],
+  'achNames.colon': ['Pioneers', 'A Settlement', 'A Nation of Settlers', 'The Solar Diaspora'],
+  'achNames.sacq': ['First Space Acquisition', 'Orbital Monopoly'],
+  'ach.crew': 'Have {n} {noun} in space', 'ach.stech': 'Research {n} space {noun}',
+  'ach.supg': 'Buy {n} space {noun} in a single wave', 'ach.wave': 'Launch {n} colonisation {noun}',
+  'ach.colon': 'Gather {n} colonists', 'ach.sacq': 'Acquire {n} {noun} in space',
+  'achFun.f_space': ['One Small Step', 'Open your company in space'],
+  'noun.waves': { one: 'wave', other: 'waves' },
+  'noun.techsGen': { one: 'technology', other: 'technologies' },
+  'reach.orbit': 'Earth Orbit', 'reach.planets': 'Moon and Mars',
 };
 
 export const DICT = { pl: PL, en: EN };

@@ -1,12 +1,12 @@
 // Silnik gry — czysta logika bez DOM. Używany przez UI i przez symulator balansu.
 import {
   PRODUCT_GROWTH, MILESTONES, DEPT_MILESTONES, DEPT_MILESTONE_X, PERKS,
-  BUBBLES, CONTRACT_CLIENTS, CONTRACT_TASKS, CONTRACT_DURATIONS, TREND_TEMPLATES,
+  BUBBLES, CONTRACT_DURATIONS, TREND_TEMPLATES,
   AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, CHALLENGE_FACTORS, SCALE_LEVELS, ENERGY_W_PER_USD, DECISIONS,
   OFFICE_MAX_LEVEL, MARKET, COMPETITORS, BOARD, ROLES, QUIRKS, EXEC_NAMES, TECH_CAP_STEP,
 } from './data.js';
 import { fmt, money, num } from './format.js';
-import { EARTH, LAYERS } from './layers.js';
+import { EARTH, LAYERS, LAYER_ORDER } from './layers.js';
 import { t, noun, getLang } from './i18n.js';
 import * as TX from './text.js';
 
@@ -18,6 +18,9 @@ export const MAX_SLOTS = 5;
 export const BUBBLE_LIFETIME = 13000;
 // Wycena: godzina gry ≈ rok życia firmy; mnożnik rynkowy rośnie z technologiami i rundami.
 export const SECONDS_PER_GAME_YEAR = 3600;
+// Część przychodu warstwy przekazywana kolejnej (Ziemia → Kosmos) i grant na start nowej warstwy.
+export const FEED_SHARES = [0, 0.1, 0.25, 0.5];
+export const LAYER_GRANT_SECONDS = 600;
 export const VALUATION = { baseMultiple: 3, perTech: 0.12, perRound: 0.2, maxMultiple: 15 };
 
 // Dane Ziemi (domyślnej warstwy) — dla zgodności z UI, testami i symulatorem.
@@ -177,6 +180,7 @@ export function createState(now = Date.now(), meta = createMeta(now), D = EARTH)
     },
     view: D.HQ,
     rdBudget: 0,
+    feed: 0,
     lastTick: now,
   };
 }
@@ -241,6 +245,7 @@ export function sanitizeState(raw, now = Date.now(), D = EARTH, meta = null) {
   s.view = D.OFFICE_MAP[view] && s.offices[view] ? view : D.HQ;
   const rd = flat && isObj(raw.settings) ? raw.settings.rdBudget : raw.rdBudget;
   s.rdBudget = D.RD_BUDGET.shares.includes(rd) ? rd : 0;
+  s.feed = FEED_SHARES.includes(raw.feed) ? raw.feed : 0;
   const mk = isObj(raw.market) ? raw.market : {};
   s.market = { comps: {}, stakes: {}, lastTick: mk.lastTick > 0 ? mk.lastTick : 0 };
   for (const c of COMPETITORS) {
@@ -257,6 +262,15 @@ export function sanitizeState(raw, now = Date.now(), D = EARTH, meta = null) {
     short: series(h.short), long: series(h.long), rounds: Array.isArray(h.rounds) ? h.rounds.filter((x) => x > 0) : [],
     lastShort: h.lastShort > 0 ? h.lastShort : 0, lastLong: h.lastLong > 0 ? h.lastLong : 0,
   };
+  const keep = (obj, map) => { for (const id of Object.keys(obj)) if (!map[id]) delete obj[id]; };
+  keep(s.products, D.PRODUCT_MAP);
+  keep(s.depts, D.DEPT_MAP);
+  keep(s.deptUnlocked, D.DEPT_MAP);
+  keep(s.upgrades, D.UPGRADE_MAP);
+  keep(s.techs, D.TECH_MAP);
+  keep(s.techLevels, D.REPEAT_MAP);
+  keep(s.acquisitions, D.ACQ_MAP);
+  if (s.trend && !D.PRODUCT_MAP[s.trend.pid]) s.trend = null;
   s.deptUnlocked[D.FIRST_DEPT] = true;
   if (!(s.depts[D.FIRST_DEPT] >= 0)) s.depts[D.FIRST_DEPT] = 0;
   for (const k of ['cash', 'rp', 'runEarned', 'totalEarned', 'investors', 'claimedRaw', 'prestigeCount', 'lastTick', 'nextBubbleAt', 'nextTrendAt']) {
@@ -284,6 +298,8 @@ export class Game {
     this.s = state ? sanitizeState(state, this.now, this.D, opts.meta || null) : createState(this.now, opts.meta || createMeta(this.now), this.D);
     this.rng = opts.rng || Math.random;
     this.listeners = {};
+    this.feedIn = 0;
+    this.feedOut = 0;
     this.prodIncome = {};
     this.income = 0;
     this.netIncome = 0;
@@ -333,6 +349,8 @@ export class Game {
     this.recalc();
   }
 
+  // Przeliczenie po zmianie czegoś wspólnego (osiągnięcia, rada, zarząd) — we wszystkich warstwach.
+  refresh() { if (this.co) this.co.recalc(); else this.recalc(); }
   on(ev, fn) { (this.listeners[ev] ||= []).push(fn); return this; }
   emit(ev, data) {
     // Autopilot kupuje po cichu: bez dźwięków, toastów i przerysowań przy każdym zakupie.
@@ -501,15 +519,31 @@ export class Game {
     } else {
       // kodowanie też sprzedaje się na tym samym rynku: przy nasyceniu tanieje jak produkty,
       // a jedno kliknięcie nie przyniesie więcej niż sekunda całego rynku
-      const base = Math.min(cap, (1 + m.clickFlat) * m.click * (1 + m.clickMultAdd) * m.achMult * m.invMult * factor);
+      const base = Math.min(cap, (this.D.CLICK_BASE + m.clickFlat) * m.click * (1 + m.clickMultAdd) * m.achMult * m.invMult * factor);
       this.clickValue = (base + m.clickPct * this.income) * m.boostClick;
     }
     // budżet badawczy: część przychodu zamienia się w punkty badań
-    const share = s.deptUnlocked[this.D.RD_DEPT] && this.D.RD_BUDGET.shares.includes(s.rdBudget) ? s.rdBudget : 0;
+    const rd = this.D.RD_BUDGET;
+    const share = s.deptUnlocked[this.D.RD_DEPT] && rd.shares.includes(s.rdBudget) ? s.rdBudget : 0;
     m.rdShare = share;
-    this.netIncome = this.income * (1 - share);
-    this.rpBudget = share > 0 && this.income > 0 ? this.D.RD_BUDGET.k * Math.pow(this.income * share, this.D.RD_BUDGET.p) * m.rp : 0;
+    // zasilanie: część przychodu idzie do kolejnej warstwy (np. Ziemia finansuje program kosmiczny)
+    const feed = this.feedTarget() && FEED_SHARES.includes(s.feed) ? s.feed : 0;
+    m.feedShare = feed;
+    this.feedOut = this.income * feed;
+    this.netIncome = this.income * (1 - share - feed);
+    this.rpBudget = share > 0 && this.income > 0 ? rd.k * Math.pow((this.income * share) / (rd.ref || 1), rd.p) * m.rp : 0;
     this.rpRate = m.rpBase * m.rp + this.rpBudget;
+  }
+  // Warstwa, którą ta zasila (jeśli firma już ją otworzyła).
+  feedTarget() {
+    const n = this.D.NEXT;
+    return n && this.co && this.co.layers[n.layer] ? n.layer : null;
+  }
+  setFeed(share) {
+    if (!FEED_SHARES.includes(share) || !this.feedTarget()) return false;
+    this.s.feed = share;
+    this.recalc();
+    return true;
   }
   setRdBudget(share) {
     if (!this.D.RD_BUDGET.shares.includes(share)) return false;
@@ -528,10 +562,14 @@ export class Game {
     return v;
   }
   // Poziom skali cywilizacji (z wymaganymi technologiami) i stopień Kardaszowa, który się z nim zgadza.
-  scaleIdx() { return scaleIndex(this.annualRevenue(), (id) => !!this.s.techs[id]); }
-  scaleGate() { return SCALE_LEVELS.find((L) => L.tech && !this.s.techs[L.tech]) || null; }
+  // Skala liczy się dla całej firmy: przychód wszystkich warstw i technologie z każdej z nich.
+  hasTech(id) { return this.co ? this.co.hasTech(id) : !!this.s.techs[id]; }
+  allTechs() { return this.D.TECHS.every((x) => this.s.techs[x.id]); }
+  scaleRevenue() { return this.co ? this.co.annualRevenue() : this.annualRevenue(); }
+  scaleIdx() { return scaleIndex(this.scaleRevenue(), (id) => this.hasTech(id)); }
+  scaleGate() { return SCALE_LEVELS.find((L) => L.tech && !this.hasTech(L.tech)) || null; }
   kardashevShown() {
-    const k = kardashev(this.annualRevenue());
+    const k = kardashev(this.scaleRevenue());
     const gate = this.scaleGate();
     return k !== null && gate ? Math.min(k, gate.k - 0.01) : k;
   }
@@ -583,6 +621,7 @@ export class Game {
     if (dirty) this.recalc();
 
     this.earn(this.netIncome * dt);
+    if (this.feedIn > 0) this.earnRaw(this.feedIn * dt);
     const rp = this.rpRate * dt;
     s.rp += rp;
     s.stats.rpTotal += rp;
@@ -840,7 +879,7 @@ export class Game {
     if (s.meta.shares < cost) return false;
     s.meta.shares -= cost;
     s.meta.perks[id] = lvl + 1;
-    this.recalc();
+    this.refresh();
     this.emit('buy', { kind: 'perk', id });
     this.emit('structure');
     return true;
@@ -1034,14 +1073,17 @@ export class Game {
   contractsUnlocked() { return !!this.s.deptUnlocked[this.D.SALES_DEPT]; }
   makeOffer(now) {
     const c = this.s.contracts;
-    const ci = Math.floor(this.rng() * CONTRACT_CLIENTS.length);
-    const icon = CONTRACT_CLIENTS[ci][1];
-    const ti = Math.floor(this.rng() * CONTRACT_TASKS.length);
+    const clients = this.D.CONTRACT_CLIENTS;
+    const ci = Math.floor(this.rng() * clients.length);
+    const icon = clients[ci][1];
+    const ti = Math.floor(this.rng() * this.D.CONTRACT_TASKS.length);
     // krótsze kontrakty są częstsze
     const r = this.rng();
     const idx = Math.min(CONTRACT_DURATIONS.length - 1, Math.floor(r * r * CONTRACT_DURATIONS.length));
     const d = CONTRACT_DURATIONS[idx];
-    return { id: ++c.seq, ci, ti, icon, dur: d.s, f: d.f * (0.9 + this.rng() * 0.3), expires: now + 6 * 60000, rp: this.rng() < 0.4 };
+    const o = { id: ++c.seq, ci, ti, icon, dur: d.s, f: d.f * (0.9 + this.rng() * 0.3), expires: now + 6 * 60000, rp: this.rng() < 0.4 };
+    if (this.D.id !== 'earth') o.L = this.D.id;
+    return o;
   }
   contractReward(o) {
     return {
@@ -1109,7 +1151,7 @@ export class Game {
         this.emit('achievement', a);
       }
     }
-    if (got) this.recalc();
+    if (got) this.refresh();
     return got;
   }
 
@@ -1129,8 +1171,10 @@ export class Game {
     const counted = Math.min(elapsed, this.m.offlineCap);
     const eff = this.m.offlineEff;
     const cash = (this.netIncome + this.m.auto * this.clickValue) * counted * eff;
+    const feed = this.feedIn * counted * eff;
     const rp = this.rpRate * counted * eff;
     this.earn(cash);
+    this.earnRaw(feed);
     s.rp += rp;
     s.stats.rpTotal += rp;
     const contracts = this.updateContracts(now);
@@ -1147,7 +1191,7 @@ export class Game {
     this.recalc();
     this.checkAchievements();
     this.sampleHistory(now, true);
-    const res = { elapsed, counted, cash, rp, eff, cap: this.m.offlineCap, contracts, pending };
+    const res = { elapsed, counted, cash, feed, rp, eff, cap: this.m.offlineCap, contracts, pending, layer: this.D.id };
     this.emit('offline', res);
     this.autopilotStep(now);
     return res;
@@ -1218,7 +1262,10 @@ export class Game {
     for (const role in this.s.meta.board) { const e = this.s.meta.board[role]; sig += `${role}${this.execLevel(e)}${this.quirkActive(e) ? 1 : 0}`; }
     return sig;
   }
-  candidateCost(c) { return Math.ceil(BOARD.rarity[c.r].cost * (1 + this.s.investors * BOARD.costPerInvestor)); }
+  candidateCost(c) {
+    const inv = this.co ? this.co.layers.earth.s.investors : this.s.investors;
+    return Math.ceil(BOARD.rarity[c.r].cost * (1 + inv * BOARD.costPerInvestor));
+  }
   makeCandidate(now = this.now) {
     const s = this.s;
     const empty = ROLES.filter((r) => !s.meta.board[r.id] && !s.meta.candidates.some((c) => c.role === r.id));
@@ -1264,7 +1311,7 @@ export class Game {
     s.meta.candidates.splice(i, 1);
     s.meta.board[c.role] = { ...c, hiredAt: now };
     if (c.r === BOARD.rarity.length - 1) s.meta.flags.legendHired = true;
-    this.recalc();
+    this.refresh();
     this.emit('buy', { kind: 'exec', id: c.role });
     this.emit('structure');
     return true;
@@ -1272,7 +1319,7 @@ export class Game {
   fireExec(role) {
     if (!this.s.meta.board[role]) return false;
     delete this.s.meta.board[role];
-    this.recalc();
+    this.refresh();
     this.emit('structure');
     return true;
   }
@@ -1503,7 +1550,7 @@ export class Game {
     if (s.runEarned < goal) return false;
     s.meta.challenges[c.id] = Math.max(s.meta.challenges[c.id] || 0, c.tier + 1);
     s.challenge = null;
-    this.recalc();
+    this.refresh();
     const ch = CHALLENGE_MAP[c.id];
     this.toast(ch.icon, t('chal.done', { name: TX.challengeName(c.id), n: c.tier + 1 }), TX.describeFx(ch.fx), 'achievement');
     this.emit('challenge', { id: c.id, done: true, tier: c.tier + 1, at: now });
@@ -1614,5 +1661,117 @@ export class Game {
 
   serialize() {
     return JSON.stringify(this.s);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Firma: warstwy gry (Ziemia, Kosmos…) ze wspólnym stanem meta. Każda warstwa to osobna Game
+// z własną rundą, drzewkiem i ekspansją; warstwy w tle dalej zarabiają i zasilają kolejne.
+// ---------------------------------------------------------------------------
+export class Company {
+  constructor(raw = null, opts = {}) {
+    this.rng = opts.rng || Math.random;
+    this.listeners = {};
+    this.load(raw, opts.now ?? Date.now());
+  }
+
+  // Wczytuje zapis v3 ({ meta, layers }) albo starszy, płaski zapis jednej firmy na Ziemi.
+  load(raw, now = Date.now()) {
+    this.now = now;
+    let metaRaw = null;
+    let layersRaw = {};
+    if (isObj(raw) && isObj(raw.layers)) { metaRaw = isObj(raw.meta) ? raw.meta : {}; layersRaw = raw.layers; }
+    else if (isObj(raw)) { metaRaw = isObj(raw.meta) ? raw.meta : raw; layersRaw = { earth: raw }; }
+    this.meta = metaRaw ? sanitizeMeta(metaRaw, now) : createMeta(now);
+    this.layers = {};
+    for (const id of LAYER_ORDER) if (this.meta.unlocked[id] && LAYERS[id]) this.addLayer(id, layersRaw[id] || null);
+    this.migrated = !!this.layers.earth.migrated;
+    this.setLayer(this.meta.settings.layer);
+    this.feedLinks();
+    this.recalc();
+    return this;
+  }
+  addLayer(id, raw = null) {
+    const g = new Game(raw, { now: this.now, rng: this.rng, layer: id, meta: this.meta, co: this });
+    this.layers[id] = g;
+    for (const ev in this.listeners) for (const fn of this.listeners[ev]) g.on(ev, (d) => fn(d, g));
+    return g;
+  }
+
+  // Aktywna warstwa (ta na ekranie); pozostałe działają w tle.
+  get g() { return this.layers[this.meta.settings.layer] || this.layers.earth; }
+  setLayer(id) {
+    if (!this.layers[id]) return false;
+    this.meta.settings.layer = id;
+    for (const k in this.layers) this.layers[k].background = k !== id;
+    return true;
+  }
+  // Zdarzenie z dowolnej warstwy: fn(dane, warstwa).
+  on(ev, fn) {
+    (this.listeners[ev] ||= []).push(fn);
+    for (const g of Object.values(this.layers)) g.on(ev, (d) => fn(d, g));
+    return this;
+  }
+  emit(ev, data) { for (const fn of this.listeners[ev] || []) fn(data, this.g); }
+
+  recalc() { for (const k in this.layers) this.layers[k].recalc(); this.feedLinks(); }
+  feedLinks() {
+    for (const k in this.layers) this.layers[k].feedIn = 0;
+    for (const k in this.layers) {
+      const g = this.layers[k];
+      const to = g.feedTarget();
+      if (to) this.layers[to].feedIn += g.feedOut;
+    }
+  }
+  tick(now) {
+    this.now = now;
+    this.feedLinks();
+    for (const id of LAYER_ORDER) if (this.layers[id]) this.layers[id].tick(now);
+  }
+
+  // ---------- wartości dla całej firmy ----------
+  hasTech(id) { for (const k in this.layers) if (this.layers[k].s.techs[id]) return true; return false; }
+  annualRevenue() { let v = 0; for (const k in this.layers) v += this.layers[k].annualRevenue(); return v; }
+  totalEarned() { let v = 0; for (const k in this.layers) v += this.layers[k].s.totalEarned; return Math.min(Number.MAX_VALUE, v); }
+  maxIncome() { let v = 0; for (const k in this.layers) v += this.layers[k].s.stats.maxIncome; return Math.min(Number.MAX_VALUE, v); }
+  // Osiągnięcia wszystkich warstw (wspólna lista na ekranie osiągnięć).
+  achievements() { return LAYER_ORDER.flatMap((id) => LAYERS[id].ACHIEVEMENTS); }
+
+  // ---------- kolejna warstwa ----------
+  nextLayer() { return LAYER_ORDER.find((id) => !this.layers[id]) || null; }
+  // Warunki otwarcia warstwy: pełne drzewko poprzedniej i jej roczny przychód ponad progiem.
+  unlockProgress(id = this.nextLayer()) {
+    if (!id || this.layers[id] || !LAYERS[id]) return null;
+    const from = LAYER_ORDER.find((k) => LAYERS[k].NEXT && LAYERS[k].NEXT.layer === id);
+    const g = from && this.layers[from];
+    if (!g) return null;
+    const techs = g.D.TECHS.filter((x) => g.s.techs[x.id]).length;
+    const revenue = g.annualRevenue();
+    const need = g.D.NEXT.revenue;
+    return { id, from, techs, techsNeed: g.D.TECHS.length, revenue, need, ready: techs >= g.D.TECHS.length && revenue >= need };
+  }
+  unlockLayer(id = this.nextLayer(), now = this.now) {
+    const p = this.unlockProgress(id);
+    if (!p || !p.ready) return false;
+    const from = this.layers[p.from];
+    this.meta.unlocked[id] = true;
+    const g = this.addLayer(id, null);
+    g.s.lastTick = now;
+    // poprzednia warstwa finansuje start: grant od ręki i stałe zasilanie (domyślnie 25%)
+    g.earnRaw(from.income * LAYER_GRANT_SECONDS);
+    if (!from.s.feed) from.s.feed = 0.25;
+    this.setLayer(id);
+    this.recalc();
+    this.emit('layer', { id, unlocked: true });
+    return true;
+  }
+
+  serialize() {
+    const layers = {};
+    for (const k in this.layers) {
+      const { meta, ...rest } = this.layers[k].s;
+      layers[k] = rest;
+    }
+    return JSON.stringify({ v: SAVE_VERSION, meta: this.meta, layers });
   }
 }

@@ -3,6 +3,7 @@
 // osiągnięcia, zarząd, autopilot, udziały i rada nadzorcza (patrz Company w engine.js).
 // Plik nie dotyka DOM — korzystają z niego gra, testy i symulator.
 import * as E from './data.js';
+import * as S from './space.js';
 
 const byId = (arr) => Object.fromEntries(arr.map((x, i) => [x.id, { ...x, index: i }]));
 const plainById = (arr) => Object.fromEntries(arr.map((x) => [x.id, x]));
@@ -72,9 +73,7 @@ function earthAchievements(D) {
   [1, E.AUTOPILOT.length].forEach((v, i) => ach(`ap${i}`, '🤖', 'ap', v, i, (g) => g.apCount() >= v));
   E.SCALE_LEVELS.forEach((L, i) => ach(`scale${i}`, L.icon, 'scale', i, i, (g) => g.s.meta.scaleMax >= i));
   const earthOffices = D.OFFICES.filter((o) => o.kind === 'earth' && !o.hq).length;
-  const spaceOffices = D.OFFICES.filter((o) => o.kind === 'space').length;
   [1, 5, 10, earthOffices].forEach((v, i) => ach(`off${i}`, '🌍', 'off', v, i, (g) => g.officeCount('earth') >= v));
-  if (spaceOffices) [1, 3, spaceOffices].forEach((v, i) => ach(`spc${i}`, '🚀', 'spc', v, i, (g) => g.officeCount('space') >= v));
   [1, 3, E.COMPETITORS.length].forEach((v, i) => ach(`ctl${i}`, '🦁', 'ctl', v, i, (g) => g.controlCount() >= v));
   [1, E.ROLES.length].forEach((v, i) => ach(`exec${i}`, '👔', 'exec', v, i, (g) => Object.keys(g.s.meta.board).length >= v));
   ach('exec2', '🌟', 'exec', 0, 2, (g) => !!g.s.meta.flags.legendHired);
@@ -98,6 +97,26 @@ function earthAchievements(D) {
   fun('f_master', '🥋', (g) => Object.values(g.s.meta.challenges).some((v) => v >= E.CHALLENGE_GOALS.length));
   fun('f_hq', '🏰', (g) => (g.s.offices[D.HQ] || 0) >= E.OFFICE_MAX_LEVEL);
   fun('f_view', '🪟', (g) => !!flags(g).viewChanged);
+  return list;
+}
+
+// Osiągnięcia Kosmosu: produkty, załoga, drzewko, fale kolonizacji, kolonie, przejęcia.
+function spaceAchievements(D) {
+  const list = [];
+  const ach = (id, icon, type, v, i, check, extra = {}) => list.push({ id, icon, type, v, i, check, hidden: false, ...extra });
+  for (const p of D.PRODUCTS) {
+    [1, 50, 100, 200, 300, 500, 1000].forEach((v, i) =>
+      ach(`p_${p.id}_${i}`, p.icon, 'prod', v, i, (g) => (g.s.products[p.id] || 0) >= v, { pid: p.id }));
+  }
+  [10, 100, 500, 1000, 2500, 5000].forEach((v, i) => ach(`s_crew${i}`, '🧑‍🚀', 'crew', v, i, (g) => g.totalHeads() >= v));
+  [1, 7, 14, D.TECHS.length].forEach((v, i) => ach(`s_tech${i}`, '🔭', 'stech', v, i, (g) => g.techCount() >= v));
+  [10, 50, 100, 200].forEach((v, i) => ach(`s_upg${i}`, '🛠️', 'supg', v, i, (g) => g.upgradeCount() >= v));
+  [1, 3, 5, 10, 25].forEach((v, i) => ach(`s_wave${i}`, '🌊', 'wave', v, i, (g) => g.s.prestigeCount >= v));
+  [10, 1000, 1e5, 1e7].forEach((v, i) => ach(`s_col${i}`, '👩‍🚀', 'colon', v, i, (g) => g.s.investors >= v));
+  const colonies = D.OFFICES.filter((o) => !o.hq).length;
+  [1, 3, colonies].forEach((v, i) => ach(`spc${i}`, '🚀', 'spc', v, i, (g) => g.officeCount('space') >= v));
+  [1, D.ACQUISITIONS.length].forEach((v, i) => ach(`s_acq${i}`, '🦈', 'sacq', v, i, (g) => g.acqCount() >= v));
+  ach('f_space', '👣', 'fun', 0, 0, () => true, { hidden: true });
   return list;
 }
 
@@ -133,6 +152,12 @@ export function buildLayer(def) {
     SALES_DEPT: def.salesDept,
     LEGAL_DEPT: def.legalDept,
     FEATURES: def.features || {},
+    // kolejna warstwa i roczny przychód potrzebny, żeby ją otworzyć
+    NEXT: def.next || null,
+    CLICK_BASE: def.clickBase || 1,
+    CATEGORIES: def.categories,
+    CONTRACT_CLIENTS: def.clients,
+    CONTRACT_TASKS: def.tasks,
   };
   D.UPGRADES = buildUpgrades(def);
   D.UPGRADE_MAP = plainById(D.UPGRADES);
@@ -165,8 +190,52 @@ export const EARTH = buildLayer({
   salesDept: 'sales',
   legalDept: 'legal',
   features: { market: true, challenges: true },
+  next: { layer: 'space', revenue: E.SCALE_LEVELS.find((L) => L.icon === '🌍').v },
+  categories: E.CATEGORIES,
+  clients: E.CONTRACT_CLIENTS,
+  tasks: E.CONTRACT_TASKS,
   achievements: earthAchievements,
 });
 
-export const LAYERS = { earth: EARTH };
-export const LAYER_ORDER = ['earth'];
+export const SPACE = buildLayer({
+  id: 'space',
+  icon: '🛰️',
+  products: S.SPACE_PRODUCTS,
+  depts: S.SPACE_DEPTS,
+  techs: S.SPACE_TECHS,
+  eras: S.SPACE_ERAS,
+  repeat: S.SPACE_REPEAT,
+  culture: S.SPACE_CULTURE,
+  click: S.SPACE_CLICK,
+  acquisitions: S.SPACE_ACQUISITIONS,
+  offices: S.SPACE_OFFICES,
+  officeLevelCost: S.SPACE_OFFICE_LEVEL_COST,
+  hq: 'leo',
+  reach: S.SPACE_REACH,
+  techCapStep: S.SPACE_TECH_CAP_STEP,
+  rd: S.SPACE_RD_BUDGET,
+  prestige: S.SPACE_PRESTIGE,
+  firstDept: 'engineers',
+  rdDept: 'mission',
+  researchDepts: ['mission'],
+  salesDept: 'logistics',
+  legalDept: 'spacelaw',
+  features: {},
+  // galaktyka to kolejny etap — na razie „wkrótce”
+  next: { layer: 'galaxy', revenue: Math.pow(10, 26) / E.ENERGY_W_PER_USD },
+  clickBase: S.SPACE_CLICK_BASE,
+  categories: S.SPACE_CATEGORIES,
+  clients: S.SPACE_CLIENTS,
+  tasks: S.SPACE_TASKS,
+  achievements: spaceAchievements,
+});
+
+export const LAYERS = { earth: EARTH, space: SPACE };
+export const LAYER_ORDER = ['earth', 'space'];
+// Przełącznik warstw: kolejne etapy pokazujemy z góry jako „wkrótce”.
+export const LAYER_CHIPS = [
+  { id: 'earth', icon: '🌍' },
+  { id: 'space', icon: '🛰️' },
+  { id: 'galaxy', icon: '🌌', soon: true },
+  { id: 'universe', icon: '🕳️', soon: true },
+];
