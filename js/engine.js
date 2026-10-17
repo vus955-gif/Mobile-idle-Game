@@ -11,8 +11,10 @@ import { t, noun, getLang } from './i18n.js';
 import * as TX from './text.js';
 
 export const SAVE_VERSION = 3;
-export const BASE_OFFLINE_CAP = 6 * 3600;
-export const BASE_OFFLINE_EFF = 0.5;
+// Zarobki offline na start: limit czasu (s) i wydajność; premie z rady, biur i zarządu dokładają swoje.
+export const OFFLINE = { cap: 6 * 3600, eff: 0.5 };
+// Tryb deweloperski: dostępne mnożniki przychodu.
+export const DEV_MULTS = [1, 10, 100, 1000];
 export const ACH_BONUS = 0.01;
 export const MAX_SLOTS = 5;
 export const BUBBLE_LIFETIME = 13000;
@@ -143,7 +145,10 @@ export function createMeta(now = Date.now()) {
     // ile razy firma przeszła całą grę i zaczęła od zera (transcendencja)
     transcend: 0,
     stats: { zenTime: 0, musicTime: 0 },
-    settings: { sound: false, music: false, buyAmount: 1, lang: getLang(), layer: 'earth', cap: true },
+    settings: { sound: false, music: false, buyAmount: 1, lang: getLang(), layer: 'earth', cap: true, dev: false, devMult: 1 },
+    // przesunięcie zegara gry (ms) po „przewinięciu czasu” w trybie deweloperskim; zostaje w zapisie,
+    // bo znaczniki czasu w stanie są już przesunięte
+    clockOffset: 0,
   };
 }
 
@@ -188,6 +193,8 @@ export function createState(now = Date.now(), meta = createMeta(now), D = EARTH)
     },
     view: D.HQ,
     rdBudget: 0,
+    // budżet badawczy „Auto”: rośnie sam z kolejnymi erami (gracz nie musi o nim pamiętać)
+    rdAuto: true,
     feed: 0,
     // lobbing (poziomy w tej rundzie) i zdjęcie hamulca (raz na rundę)
     lobby: 0,
@@ -221,6 +228,9 @@ export function sanitizeMeta(raw, now = Date.now()) {
   delete m.settings.rdBudget;
   if (!LAYERS[m.settings.layer] || !m.unlocked[m.settings.layer]) m.settings.layer = 'earth';
   m.settings.cap = m.settings.cap !== false;
+  m.settings.dev = m.settings.dev === true;
+  if (!DEV_MULTS.includes(m.settings.devMult)) m.settings.devMult = 1;
+  m.clockOffset = Math.max(0, fix(raw.clockOffset, 0));
   const ap = isObj(raw.autopilot) ? raw.autopilot : {};
   m.autopilot = { owned: isObj(ap.owned) ? { ...ap.owned } : {}, off: isObj(ap.off) ? { ...ap.off } : {} };
   const validExec = (e) => isObj(e) && ROLE_MAP[e.role] && Array.isArray(e.traits) && BOARD.rarity[e.r] && e.n >= 0;
@@ -264,6 +274,8 @@ export function sanitizeState(raw, now = Date.now(), D = EARTH, meta = null) {
   s.view = D.OFFICE_MAP[view] && s.offices[view] ? view : D.HQ;
   const rd = flat && isObj(raw.settings) ? raw.settings.rdBudget : raw.rdBudget;
   s.rdBudget = D.RD_BUDGET.shares.includes(rd) ? rd : 0;
+  // starsze zapisy: kto ustawił budżet ręcznie, zostaje przy swoim; budżet 0% przechodzi na „Auto”
+  s.rdAuto = typeof raw.rdAuto === 'boolean' ? raw.rdAuto : !(s.rdBudget > 0);
   s.feed = FEED_SHARES.includes(raw.feed) ? raw.feed : 0;
   s.lobby = Math.max(0, Math.min((D.LOBBY || []).length, Math.floor(fix(raw.lobby, 0))));
   s.brakeUsed = !!raw.brakeUsed;
@@ -411,7 +423,7 @@ export class Game {
       rp: 1, rpBase: 0, incomePct: 0,
       hireCost: 1, prodCost: 1, acqCost: 1, officeCost: 1, feedMult: 1,
       autoMult: 1, msAdd: 0, firstDept: 1, startLobby: 0, feedX: 1, upgradeCost: 1, brakeSec: 0, startReach: 0,
-      offlineCap: BASE_OFFLINE_CAP, offlineEff: BASE_OFFLINE_EFF,
+      offlineCap: OFFLINE.cap, offlineEff: OFFLINE.eff,
       eventFreq: 1, eventPower: 1, contract: 1, slots: 1, auto: 0,
       prestige: 1, investorPct: 0, startCash: 0, startLevels: 0, valMult: 0,
       unlockProduct: {}, unlockDept: {},
@@ -564,7 +576,9 @@ export class Game {
     const brake = capOn && this.brakeActive();
     const ceil = cap * BRAKE.ceiling;
     const capped = capIncome(raw, cap, this.D.MARKET_REACH);
-    const eff = !capOn ? raw : brake ? Math.max(capped, Math.min(raw, ceil)) : capped;
+    // tryb deweloperski: mnożnik działa już po nasyceniu rynku („bez kagańca”)
+    const dev = this.devMult();
+    const eff = Math.min(Number.MAX_VALUE, (!capOn ? raw : brake ? Math.max(capped, Math.min(raw, ceil)) : capped) * dev);
     const factor = raw > 0 ? eff / raw : 1;
     if (factor !== 1) for (const id in this.prodIncome) this.prodIncome[id] *= factor;
     // przychód z auto-kliknięć (część przychodu); pojedyncze auto-kliknięcie jest warte tyle
@@ -575,21 +589,22 @@ export class Game {
     this.incFactor = factor;
     this.brakeGain = capped > 0 ? Math.max(capped, Math.min(raw, ceil)) / capped : 1;
     // przychód bez lobbingu i hamulca: od niego liczy się budżet badawczy, żeby tempo drzewka się nie zmieniało
-    const lobbyFree = capOn ? Math.min(eff, capIncome(raw, Math.pow(10, this.marketCapLog(false)), this.D.MARKET_REACH)) : raw;
+    const lobbyFree = Math.min(Number.MAX_VALUE, dev * (capOn ? Math.min(eff / dev, capIncome(raw, Math.pow(10, this.marketCapLog(false)), this.D.MARKET_REACH)) : raw));
     this.incElastic = !capOn || raw <= cap ? 1 : brake ? (raw < ceil ? 1 : 0)
-      : eff >= cap * this.D.MARKET_REACH.maxOver ? 0 : this.D.MARKET_REACH.soft;
+      : eff / dev >= cap * this.D.MARKET_REACH.maxOver ? 0 : this.D.MARKET_REACH.soft;
     this.income = eff;
     if (noClick) {
       this.clickValue = 0;
     } else {
       // ręczne kodowanie: przy nasyceniu tanieje jak produkty, a jedno kliknięcie nie przyniesie
       // więcej niż sekunda całego rynku; do tego procent przychodu za kliknięcie
-      const base = capOn ? Math.min(brake ? ceil : cap, clickRaw * factor) : Math.min(Number.MAX_VALUE, clickRaw);
+      const base = Math.min(Number.MAX_VALUE, capOn ? Math.min((brake ? ceil : cap) * dev, clickRaw * factor) : clickRaw * dev);
       this.clickValue = (base + m.clickPct * this.income) * m.boostClick;
     }
     // budżet badawczy: część przychodu zamienia się w punkty badań
     const rd = this.D.RD_BUDGET;
-    const share = s.deptUnlocked[this.D.RD_DEPT] && rd.shares.includes(s.rdBudget) && !(ch && ch.rule === 'noBudget') ? s.rdBudget : 0;
+    const chosen = s.rdAuto ? this.autoRdShare() : s.rdBudget;
+    const share = s.deptUnlocked[this.D.RD_DEPT] && rd.shares.includes(chosen) && !(ch && ch.rule === 'noBudget') ? chosen : 0;
     m.rdShare = share;
     // zasilanie: część przychodu idzie do kolejnej warstwy (np. Ziemia finansuje program kosmiczny)
     const feed = this.feedTarget() && FEED_SHARES.includes(s.feed) ? s.feed : 0;
@@ -616,11 +631,29 @@ export class Game {
     this.refresh();
     return true;
   }
+  // Tryb deweloperski (do testów): mnożnik przychodu ponad limitem rynku. Szczyty zarobków, od których liczą się
+  // ceny lobbingu i hamulca, mierzą grę bez mnożnika, więc po wyłączeniu trybu ceny wracają do normy.
+  devMult() {
+    const st = this.s.meta.settings;
+    return st.dev && DEV_MULTS.includes(st.devMult) ? st.devMult : 1;
+  }
   setRdBudget(share) {
     if (!this.D.RD_BUDGET.shares.includes(share)) return false;
     this.s.rdBudget = share;
+    this.s.rdAuto = false;
     this.recalc();
     return true;
+  }
+  setRdAuto(on = true) {
+    this.s.rdAuto = !!on;
+    this.recalc();
+    return true;
+  }
+  // Budżet „Auto”: im dalej w drzewku, tym więcej przychodu idzie na badania (10% → 25% → 50%),
+  // bo pod koniec etapu technologie drożeją szybciej niż produkty.
+  autoRdShare() {
+    const f = this.techCount() / this.D.TECHS.length;
+    return f < 0.4 ? 0.1 : f < 0.7 ? 0.25 : 0.5;
   }
 
   // Przychód z jednego poziomu produktu (bez kamieni milowych), z premiami i trendem.
@@ -1743,7 +1776,7 @@ export class Game {
   updatePeak() {
     const st = this.s.stats;
     if (this.s.challenge || !this.m) return;
-    const inc = this.researchBase / Math.max(1, this.m.boostIncome);
+    const inc = this.researchBase / Math.max(1, this.m.boostIncome) / this.devMult();
     if (inc > st.peakIncome) st.peakIncome = inc;
   }
   // Średnia krocząca (30 min) wszystkich wpływów etapu: produkty, kliknięcia, kontrakty, bąbelki.
@@ -1756,22 +1789,27 @@ export class Game {
     if (!(dt > 0) || this.s.challenge || this.brakeActive()) return;
     const st = this.s.stats;
     const k = 1 - Math.exp(-dt / EARN_TAU);
-    st.earnRate += (got / dt - st.earnRate) * k;
-    st.clickRate += (clk / dt - st.clickRate) * k;
+    const dev = this.devMult();
+    st.earnRate += (got / dt / dev - st.earnRate) * k;
+    st.clickRate += (clk / dt / dev - st.clickRate) * k;
     if (st.earnRate > st.peakEarn) st.peakEarn = st.earnRate;
     const rest = st.earnRate - st.clickRate;
     if (rest > st.peakNoClick) st.peakNoClick = rest;
   }
-  // Cel poziomu: tyle, ile etap zarabiał w szczycie przez s sekund (bez kliknięć, gdy wyzwanie je wyłącza),
-  // razy współczynnik trudności wyzwania. Tempo nie spada poniżej najmniejszego rynku etapu.
+  // Cel poziomu: tyle, ile nasycony rynek etapu (sufit: maxOver × zasięg bez lobbingu) zarabia przez s sekund,
+  // razy współczynnik trudności wyzwania. Zasięg zależy od technologii, a nie od kapitału z rund, więc to samo
+  // wyzwanie jest podobnie trudne tuż po otwarciu etapu i w etapie z ogromnym kapitałem (dawny cel liczony od
+  // szczytu zarobków wahał się od kilku minut do kilkunastu sesji). W „Kryzysie” liczy się węższy rynek.
   challengeGoal(id) {
     const tier = this.s.meta.challenges[id] || 0;
     const T = CHALLENGE_TIERS[tier];
     const ch = CHALLENGE_MAP[id];
     if (!T || !ch) return null;
-    const st = this.s.stats;
-    const rate = Math.max(ch.rule === 'noclick' ? st.peakNoClick : st.peakEarn, Math.pow(10, this.D.MARKET_REACH.base));
-    return rate * T.s * (ch.goal || 1);
+    let log = this.marketCapLog(false);
+    const cur = this.s.challenge && CHALLENGE_MAP[this.s.challenge.id];
+    if (cur && cur.rule === 'halfCap') log += 0.5;
+    if (ch.rule === 'halfCap') log -= 0.5;
+    return Math.pow(10, log) * this.D.MARKET_REACH.maxOver * T.s * (ch.goal || 1);
   }
 
   // Rozpoczęcie wyzwania zaczyna firmę od nowa (z kapitałem z rundy, jeśli jest).
@@ -2051,6 +2089,8 @@ export class Company {
     meta.stats = { ...old.stats };
     meta.challenges = { ...old.challenges };
     meta.execSeq = old.execSeq;
+    // zegar gry zostaje przesunięty (inaczej po przewinięciu czasu gra stanęłaby do chwili „dogonienia”)
+    meta.clockOffset = old.clockOffset || 0;
     meta.transcend = (old.transcend || 0) + 1;
     // flagi zabawnych osiągnięć i lobbingu zostają; komunikaty o kolejnych etapach i finał wracają
     meta.flags = Object.fromEntries(Object.entries(old.flags).filter(([k]) => !k.startsWith('ready_') && k !== 'finale'));

@@ -300,9 +300,9 @@ export const GALAXY_LOBBY = [
 // Wyzwania Galaktyki (po transcendencji).
 export const GALAXY_CHALLENGES = [
   { id: 'manual', icon: '🕹️', rule: 'noAutopilot', name: 'Ręczne sterowanie',
-    desc: 'Autopilot nie działa w galaktyce.', goal: 0.75, fx: [{ t: 'offlineEff', v: 0.15 }, { t: 'offlineCap', v: 4 * 3600 }] },
+    desc: 'Autopilot nie działa w galaktyce.', goal: 1, fx: [{ t: 'offlineEff', v: 0.15 }, { t: 'offlineCap', v: 4 * 3600 }] },
   { id: 'nobudget', icon: '🔬', rule: 'noBudget', name: 'Bez budżetu',
-    desc: 'Budżet badawczy jest wyłączony.', goal: 0.75, fx: [{ t: 'rp', x: 1.5 }] },
+    desc: 'Budżet badawczy jest wyłączony.', goal: 1, fx: [{ t: 'rp', x: 1.5 }] },
   { id: 'freemarket', icon: '🛑', rule: 'noLobby', name: 'Wolny rynek',
-    desc: 'Nie możesz lobbować.', goal: 0.6, fx: [{ t: 'brakeSec', v: 120 }] },
+    desc: 'Nie możesz lobbować.', goal: 1, fx: [{ t: 'brakeSec', v: 120 }] },
 ];

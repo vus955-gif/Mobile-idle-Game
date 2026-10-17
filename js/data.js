@@ -600,13 +600,13 @@ export const TRANSCEND = { income: 3, rp: 2 };
 // Wyzwania Ziemi (identyfikatory zostają ze starszych zapisów, nagrody są nowe).
 export const CHALLENGES = [
   { id: 'noclick', icon: '🙅', rule: 'noclick', name: 'Bez klawiatury',
-    desc: 'Kodowanie i automatyczne kliknięcia nic nie dają.', goal: 1.5, fx: [{ t: 'autoMult', x: 2 }] },
+    desc: 'Kodowanie i automatyczne kliknięcia nic nie dają.', goal: 1, fx: [{ t: 'autoMult', x: 2 }] },
   { id: 'focus', icon: '🎯', rule: 'maxProducts', v: 5, name: 'Pełne skupienie',
-    desc: 'Możesz wydać najwyżej 5 różnych produktów.', goal: 1.5, fx: [{ t: 'msAdd', v: 0.2 }] },
+    desc: 'Możesz wydać najwyżej 5 różnych produktów.', goal: 1, fx: [{ t: 'msAdd', v: 0.2 }] },
   { id: 'solo', icon: '🧑‍💻', rule: 'onlyDev', name: 'Jednoosobowa armia',
-    desc: 'Nie możesz otwierać działów poza pierwszym.', goal: 1.5, fx: [{ t: 'firstDept', x: 3 }] },
+    desc: 'Nie możesz otwierać działów poza pierwszym.', goal: 1, fx: [{ t: 'firstDept', x: 3 }] },
   { id: 'crisis', icon: '📉', rule: 'halfCap', name: 'Kryzys na rynkach',
-    desc: 'Zasięg rynku jest ok. 3× mniejszy.', goal: 1.5, fx: [{ t: 'startLobby', v: 1 }] },
+    desc: 'Zasięg rynku jest ok. 3× mniejszy.', goal: 1, fx: [{ t: 'startLobby', v: 1 }] },
 ];
 
 // ---------------------------------------------------------------------------

@@ -4,7 +4,9 @@ import { UI } from './ui.js';
 import { setLang, detectLang } from './i18n.js';
 import { startMusic, stopMusic } from './music.js';
 
-export const VERSION = '2.3.0';
+export const VERSION = '2.4.0';
+// Tryb deweloperski w ustawieniach (mnożnik przychodu, przewijanie czasu). Przed wydaniem w sklepach: false.
+export const DEV_TOOLS = true;
 const SAVE_KEY = 'krzemowe-imperium-save';
 const BACKUP_KEY = 'krzemowe-imperium-backup';
 
@@ -21,8 +23,12 @@ const saved = readSave();
 // Język: zapisany w grze (v3: w meta, starsze zapisy: na wierzchu), a przy pierwszym uruchomieniu — język telefonu.
 const savedLang = (s) => s?.meta?.settings?.lang || s?.settings?.lang;
 setLang(savedLang(saved) || detectLang());
+// Zegar gry: czas rzeczywisty plus przesunięcie po „przewinięciu czasu” w trybie deweloperskim
+// (przesunięcie jest w zapisie, bo znaczniki czasu w stanie gry już je uwzględniają).
+const offsetOf = (data) => Math.max(0, Number(data?.meta?.clockOffset) || 0);
 // Firma ze wszystkimi warstwami (Ziemia, Kosmos…); co.g to warstwa na ekranie.
-const co = new Company(saved, { now: Date.now() });
+const co = new Company(saved, { now: Date.now() + offsetOf(saved) });
+const clock = () => Date.now() + (co.meta.clockOffset || 0);
 let lastSaveJson = '';
 
 function save() {
@@ -61,7 +67,7 @@ const ui = new UI(co, {
       const ok = data && typeof data === 'object' && (typeof data.layers === 'object' || typeof data.cash === 'number');
       if (!ok) return false;
       if (savedLang(data)) setLang(savedLang(data));
-      const now = Date.now();
+      const now = Date.now() + offsetOf(data);
       co.load(data, now);
       for (const g of Object.values(co.layers)) g.s.lastTick = now;
       co.recalc();
@@ -73,14 +79,22 @@ const ui = new UI(co, {
   },
   reset: () => {
     try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(BACKUP_KEY); } catch { /* ignoruj */ }
-    // ustawienia (język, dźwięk, limit rynku) przechodzą do nowej gry
-    const { sound, music, lang, cap, buyAmount } = co.meta.settings;
+    // ustawienia (język, dźwięk, limit rynku, tryb deweloperski) przechodzą do nowej gry; zegar wraca do zwykłego
+    const { sound, music, lang, cap, buyAmount, dev, devMult } = co.meta.settings;
     co.load(null, Date.now());
-    Object.assign(co.meta.settings, { sound, music, lang, cap, buyAmount });
+    Object.assign(co.meta.settings, { sound, music, lang, cap, buyAmount, dev, devMult });
     co.recalc();
     lastSaveJson = '';
     ui.fullRender();
     ui.showWelcome();
+    save();
+  },
+  devTools: DEV_TOOLS,
+  // Przewinięcie czasu: zegar gry skacze do przodu, a najbliższy tick nalicza przerwę jak po powrocie do gry.
+  skipTime: (sec) => {
+    if (!DEV_TOOLS || !(sec > 0)) return;
+    co.meta.clockOffset = (co.meta.clockOffset || 0) + sec * 1000;
+    co.tick(clock());
     save();
   },
 });
@@ -89,7 +103,7 @@ ui.init();
 if (!saved) ui.showWelcome();
 
 // Pierwszy tick nalicza zarobki offline (UI pokaże podsumowanie).
-co.tick(Date.now());
+co.tick(clock());
 // Zapis sprzed nowej ekonomii albo sprzed warstw: krótko wyjaśniamy, co się zmieniło.
 if (co.migrated) ui.showMigration();
 else if (co.converted) setTimeout(() => ui.showLayersIntro(), 600);
@@ -99,7 +113,7 @@ let lastLoop = 0;
 function loop(ts) {
   if (ts - lastLoop >= 50) {
     lastLoop = ts;
-    co.tick(Date.now());
+    co.tick(clock());
     ui.frame(performance.now());
   }
   requestAnimationFrame(loop);
@@ -112,7 +126,7 @@ document.addEventListener('visibilitychange', () => {
     save();
     stopMusic(false);
   } else {
-    co.tick(Date.now());
+    co.tick(clock());
     if (co.meta.settings.music) startMusic();
   }
 });

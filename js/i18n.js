@@ -271,6 +271,11 @@ const PL = {
   'zen.enter': 'Tryb zen', 'zen.exit': 'Dotknij, żeby wrócić',
   'set.music': 'Muzyka', 'set.musicHint': 'Spokojne lo-fi, komponowane na bieżąco.',
   'set.cap': 'Piaskownica: bez limitu rynku', 'set.capHint': 'Tryb testowy. Przychód ponad zasięg rynku rośnie bez hamulca, a lobbing i zdjęcie hamulca stają się zbędne. Wybór zostaje po „Zacznij od nowa”.',
+  'set.devTitle': 'Tryb deweloperski', 'set.dev': 'Tryb deweloperski',
+  'set.devHint': 'Do testów balansu: mnożnik przychodu i przewijanie czasu. Zmienia bieżący zapis, więc przed testem zrób eksport.',
+  'set.devMult': 'Mnożnik przychodu', 'set.devMultHint': 'Działa już po nasyceniu rynku, więc ×100 to naprawdę 100× więcej pieniędzy (badania z budżetu też przyspieszą). Ceny lobbingu i cele wyzwań liczą się jak bez mnożnika.',
+  'set.devSkip': 'Przewiń czas', 'set.devSkipHint': 'Gra liczy to jak prawdziwą przerwę: limit i wydajność offline działają, kontrakty się kończą.',
+  'dev.badge': 'DEV ×{x}',
   'reach.off': 'Zasięg rynku: <b>bez limitu</b> (wyłączony w ustawieniach)',
   'st.decisions': 'Podjęte decyzje', 'st.autoBuys': 'Zakupy autopilota', 'st.challenges': 'Ukończone poziomy wyzwań', 'st.bestValuation': 'Najwyższa wycena',
 
@@ -320,7 +325,8 @@ const PL = {
 
   'rs.budget': 'Budżet badawczy', 'rs.budgetInfo': 'Z budżetu: <b>+{rp} PB/s</b> ({pct}% badań) · na badania idzie {v}/s',
   'rs.budgetOff': 'Budżet wyłączony: cały przychód trafia na konto.',
-  'rs.budgetHint': 'Badaczy przybywa powoli, a budżet rośnie razem z przychodem. Na starcie to grosze, ale gdy gotówka zaczyna się przelewać, przesuń ją na badania.',
+  'rs.budgetHint': 'Badaczy przybywa powoli, a budżet rośnie razem z przychodem. „Auto” sam podnosi udział z kolejnymi erami (10% → 25% → 50%), ale możesz go też ustawić ręcznie.',
+  'rs.auto': 'Auto',
   'rs.eta': 'za {t}',
 
   'time.d': 'd', 'time.h': 'h', 'time.m': 'min', 'time.s': 's', 'time.y': 'rok',
@@ -757,6 +763,11 @@ const EN = {
   'zen.enter': 'Zen mode', 'zen.exit': 'Tap to return',
   'set.music': 'Music', 'set.musicHint': 'Calm lo-fi, composed on the fly.',
   'set.cap': 'Sandbox: no market limit', 'set.capHint': 'Test mode. Revenue above market reach grows without brakes, so lobbying and releasing the brake become pointless. The choice survives “Start over”.',
+  'set.devTitle': 'Developer mode', 'set.dev': 'Developer mode',
+  'set.devHint': 'For balance testing: a revenue multiplier and time skipping. It changes your current save, so export it before testing.',
+  'set.devMult': 'Revenue multiplier', 'set.devMultHint': 'Applies after market saturation, so ×100 really means 100× the money (budget research speeds up too). Lobbying prices and challenge goals are computed as if there were no multiplier.',
+  'set.devSkip': 'Skip time', 'set.devSkipHint': 'The game treats it like a real break: offline limit and efficiency apply, contracts finish.',
+  'dev.badge': 'DEV ×{x}',
   'reach.off': 'Market reach: <b>no limit</b> (turned off in settings)',
   'st.decisions': 'Decisions made', 'st.autoBuys': 'Autopilot purchases', 'st.challenges': 'Challenge tiers cleared', 'st.bestValuation': 'Highest valuation',
 
@@ -801,7 +812,8 @@ const EN = {
 
   'rs.budget': 'Research budget', 'rs.budgetInfo': 'From the budget: <b>+{rp} RP/s</b> ({pct}% of research) · research gets {v}/s',
   'rs.budgetOff': 'Budget off: all revenue goes to your cash.',
-  'rs.budgetHint': 'Researchers come slowly, but the budget grows with your revenue. Early on it\'s pocket change; once cash starts piling up, move it into research.',
+  'rs.budgetHint': 'Researchers come slowly, but the budget grows with your revenue. “Auto” raises the share as you reach new eras (10% → 25% → 50%), or you can set it yourself.',
+  'rs.auto': 'Auto',
   'rs.eta': 'in {t}',
 
   'time.d': 'd', 'time.h': 'h', 'time.m': 'm', 'time.s': 's', 'time.y': 'yr',
