@@ -379,6 +379,20 @@ export const PERKS = [
     desc: 'Zaczynasz rundę z 10 poziomami pierwszych produktów (więcej z każdym poziomem).', fx: [{ t: 'startLevels', v: 10 }] },
   { id: 'p_hr', name: 'Opcje pracownicze', icon: '🧾', base: 4, g: 2.6, max: 8,
     desc: 'Zatrudnianie tańsze o 6% za poziom.', fx: [{ t: 'hireCost', x: 0.94 }] },
+  { id: 'p_keys', name: 'Mechaniczne klawiatury', icon: '⌨️', base: 3, g: 2.3, max: 10,
+    desc: 'Każde kodowanie daje dodatkowo 0,2% przychodu na sekundę za poziom.', fx: [{ t: 'clickPct', v: 0.002 }] },
+  { id: 'p_bulk', name: 'Zakupy hurtowe', icon: '📦', base: 5, g: 2.5, max: 10,
+    desc: 'Rozwój produktów tańszy o 3% za poziom.', fx: [{ t: 'prodCost', x: 0.97 }] },
+  { id: 'p_sales', name: 'Biuro handlowe', icon: '🤝', base: 6, g: 4, max: 3,
+    desc: '+1 miejsce na kontrakty za poziom.', fx: [{ t: 'slots', v: 1 }] },
+  { id: 'p_scout', name: 'Zwiadowcy rynków', icon: '🧭', base: 4, g: 2.4, max: 8,
+    desc: 'Biura i kolonie tańsze o 10% za poziom.', fx: [{ t: 'officeCost', x: 0.9 }] },
+  { id: 'p_ma', name: 'Kancelaria M&A', icon: '⚖️', base: 5, g: 2.5, max: 6,
+    desc: 'Przejęcia tańsze o 12% za poziom.', fx: [{ t: 'acqCost', x: 0.88 }] },
+  { id: 'p_banker', name: 'Bankowcy inwestycyjni', icon: '🏦', base: 8, g: 2.6, max: 10,
+    desc: 'Każda runda daje o 8% więcej kapitału za poziom.', fx: [{ t: 'prestige', x: 1.08 }] },
+  { id: 'p_bridge', name: 'Most między światami', icon: '🌉', base: 10, g: 2.5, max: 10,
+    desc: 'Zasilanie kolejnej warstwy dociera wzmocnione o 15% za poziom.', fx: [{ t: 'feedMult', v: 0.15 }] },
 ];
 
 // Nazwy kolejnych rund finansowania (prestiż)
@@ -536,6 +550,18 @@ export const AUTOPILOT = [
     desc: 'Odkrywa najtańszą dostępną technologię, gdy starczy punktów badań.' },
   { id: 'bubbles', icon: '🫧', cost: 5, name: 'Łowca okazji',
     desc: 'Łapie bąbelki wydarzeń, gdy gra jest otwarta. Przydaje się w trybie zen.' },
+  { id: 'offices', icon: '🌍', cost: 5, name: 'Dyrektor ekspansji',
+    desc: 'Otwiera i rozbudowuje biura (w kosmosie kolonie), gdy kosztują najwyżej czwartą część gotówki.' },
+  { id: 'acq', icon: '🧾', cost: 6, name: 'Bankier M&A',
+    desc: 'Kupuje dostępne przejęcia, gdy kosztują najwyżej połowę gotówki.' },
+  { id: 'decisions', icon: '🗳️', cost: 4, name: 'Rzecznik zarządu',
+    desc: 'Po kilkunastu sekundach sam rozstrzyga decyzje, wybierając wariant wart więcej.' },
+  { id: 'board', icon: '🕴️', cost: 8, name: 'Łowca głów',
+    desc: 'Zatrudnia kandydatów na puste miejsca w zarządzie i lepszych od obecnych, wydając najwyżej trzecią część udziałów.' },
+  { id: 'market', icon: '📈', cost: 7, name: 'Makler giełdowy',
+    desc: 'Na Ziemi dokupuje udziały w konkurentach, gdy ich kurs jest niski, aż do przejęcia kontroli.' },
+  { id: 'rounds', icon: '🔁', cost: 15, name: 'Autopilot rund',
+    desc: 'Zamyka rundę, gdy podwoi ona kapitał (najwcześniej po 10 minutach rundy, nie w trakcie wyzwania).' },
 ];
 
 // ---------------------------------------------------------------------------

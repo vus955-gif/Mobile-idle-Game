@@ -1,5 +1,5 @@
 // Symulator balansu: bot gra w Krzemowe Imperium (wszystkie warstwy) i raportuje tempo postępu.
-// Użycie: node tools/simulate.mjs [profil] [dni] [-v] [--no=budget,offices,...] [--chal] [--only=earth]
+// Użycie: node tools/simulate.mjs [profil] [dni] [-v] [--no=budget,offices,cap,...] [--chal] [--only=earth]
 //   profil: active (ciągła gra), casual (sesje 20 min co ~3 h), idle (bez klikania)
 import { Company, milestoneCount, kardashev } from '../js/engine.js';
 import { LAYERS } from '../js/layers.js';
@@ -37,6 +37,8 @@ const rng = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return se
 const T0 = 1_700_000_000_000;
 let now = T0;
 const co = new Company(null, { now, rng });
+// --no=cap: gra bez limitu rynku (przełącznik w ustawieniach)
+if (off.has('cap')) { co.meta.settings.cap = false; co.recalc(); }
 const t = () => fmtTime((now - T0) / 1000);
 const note = (msg) => { console.log(`[${t().padStart(12)}] ${msg}`); };
 const tag = (g) => (g.D.id === 'earth' ? '🌍' : '🛰️');
@@ -149,6 +151,10 @@ function decideCompany() {
   const m = co.meta;
   if (m.decision) { if (off.has('decisions')) m.decision = null; else g.chooseDecision('a', now); }
   if (g.apUnlocked()) for (const a of AUTOPILOT) if (!g.apOwned(a.id) && m.shares >= a.cost) g.buyAutopilot(a.id);
+  // rundy zamyka bot według własnej reguły (chyba że --aprounds)
+  if (!process.argv.includes('--aprounds')) m.autopilot.off.rounds = true;
+  // --no=ap-market,ap-offices… wyłącza wybrane moduły autopilota
+  for (const a of AUTOPILOT) if (off.has(`ap-${a.id}`)) m.autopilot.off[a.id] = true;
   if (off.has('board')) m.candidates = [];
   for (const c of [...m.candidates]) {
     const cur = m.board[c.role];
@@ -156,7 +162,8 @@ function decideCompany() {
     else if (cur && c.r <= cur.r) g.dismissCandidate(c.id);
   }
   if (m.shares > 0) {
-    const order = ['p_click', 'p_trust', 'p_mentors', 'p_academy', 'p_seed', 'p_head', 'p_night', 'p_dream', 'p_auto', 'p_hr', 'p_brand', 'p_network'];
+    const order = ['p_click', 'p_trust', 'p_mentors', 'p_academy', 'p_seed', 'p_head', 'p_night', 'p_dream', 'p_auto', 'p_hr', 'p_brand', 'p_network',
+      'p_keys', 'p_bulk', 'p_sales', 'p_scout', 'p_ma', 'p_banker', 'p_bridge'];
     let ok = true;
     while (ok) {
       ok = false;

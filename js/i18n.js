@@ -186,7 +186,7 @@ const PL = {
   'p.resets': '<b>Resetuje się:</b> gotówka, produkty, działy, ulepszenia, przejęcia.',
   'p.keeps': '<b>Zostaje:</b> technologie, punkty badań, osiągnięcia, kapitał i rada nadzorcza.',
   'p.confirm': 'Zbierz rundę', 'p.cancel': 'Jeszcze nie',
-  'r.title': 'Zacząć od nowa?', 'r.text': 'Cały postęp — łącznie z technologiami, kapitałem i osiągnięciami — zostanie usunięty. Tego nie da się cofnąć.',
+  'r.title': 'Zacząć od nowa?', 'r.text': 'Cały postęp — łącznie z technologiami, kapitałem i osiągnięciami — zostanie usunięty. Tego nie da się cofnąć. Ustawienia (język, dźwięk, limit rynku) zostają.',
   'r.confirm': 'Tak, usuń wszystko', cancel: 'Anuluj', close: 'Zamknij',
   'e.title': 'Eksport zapisu', 'e.text': 'Skopiuj ten tekst i zachowaj w bezpiecznym miejscu (np. w Notatkach).', 'e.copy': 'Kopiuj',
   'i.title': 'Import zapisu', 'i.text': 'Wklej tekst z eksportu. Obecny postęp zostanie zastąpiony.', 'i.placeholder': 'Wklej zapis tutaj…', 'i.load': 'Wczytaj',
@@ -213,7 +213,7 @@ const PL = {
   'ap.title': 'Autopilot',
   'ap.lead': 'Moduły kupujesz raz, za udziały — zostają na zawsze. Działają, gdy gra jest otwarta, a po powrocie od razu inwestują zarobki offline. Każdy możesz wyłączyć.',
   'ap.locked': '🤖 Autopilot odblokujesz po pierwszej rundzie finansowania. Przyda się, gdy firmę trzeba będzie odbudowywać po każdej rundzie.',
-  'ap.on': 'Włączony', 'ap.off': 'Wyłączony', 'ap.owned': 'Masz',
+  'ap.on': 'Włączony', 'ap.off': 'Wyłączony', 'ap.owned': 'Masz', 'ap.roundAuto': 'Autopilot rund',
 
   'chal.lead': 'Wyzwanie to runda z jednym ograniczeniem. Start zaczyna firmę od nowa — jak runda finansowania, więc zebrany kapitał trafia do inwestorów. Zarób cel w tej rundzie, a nagroda zostanie z Tobą na zawsze. Potem runda toczy się dalej bez ograniczeń. Cele rosną razem z Twoją najlepszą rundą, a ostatni poziom to pobicie jej rekordu.',
   'chal.locked': '🏅 Wyzwania odblokujesz po pierwszej rundzie finansowania.',
@@ -253,6 +253,8 @@ const PL = {
 
   'zen.enter': 'Tryb zen', 'zen.exit': 'Dotknij, żeby wrócić',
   'set.music': 'Muzyka', 'set.musicHint': 'Spokojne lo-fi, komponowane na bieżąco.',
+  'set.cap': 'Limit rynku', 'set.capHint': 'Ponad zasięg rynku przychód rośnie coraz wolniej. Wyłączony: liczby rosną bez hamulca. Wybór zostaje po „Zacznij od nowa”, więc łatwo porównać obie gry od zera.',
+  'reach.off': 'Zasięg rynku: <b>bez limitu</b> (wyłączony w ustawieniach)',
   'st.decisions': 'Podjęte decyzje', 'st.autoBuys': 'Zakupy autopilota', 'st.challenges': 'Ukończone poziomy wyzwań', 'st.bestValuation': 'Najwyższa wycena',
 
   'team.depts': 'Działy', 'team.world': 'Świat',
@@ -529,7 +531,7 @@ const EN = {
   'p.resets': '<b>Resets:</b> cash, products, departments, upgrades, acquisitions.',
   'p.keeps': '<b>Stays:</b> technologies, research points, achievements, capital and your board.',
   'p.confirm': 'Raise the round', 'p.cancel': 'Not yet',
-  'r.title': 'Start over?', 'r.text': 'All progress, including technologies, capital and achievements, will be deleted. This can’t be undone.',
+  'r.title': 'Start over?', 'r.text': 'All progress, including technologies, capital and achievements, will be deleted. This can’t be undone. Settings (language, sound, market limit) stay.',
   'r.confirm': 'Yes, delete everything', cancel: 'Cancel', close: 'Close',
   'e.title': 'Export save', 'e.text': 'Copy this text and keep it somewhere safe (Notes works great).', 'e.copy': 'Copy',
   'i.title': 'Import save', 'i.text': 'Paste the exported text. Your current progress will be replaced.', 'i.placeholder': 'Paste your save here…', 'i.load': 'Load',
@@ -556,7 +558,7 @@ const EN = {
   'ap.title': 'Autopilot',
   'ap.lead': 'Buy each module once with shares and keep it forever. Modules work while the game is open, and when you come back they invest your offline earnings right away. You can switch any of them off.',
   'ap.locked': '🤖 Autopilot unlocks after your first funding round, right when rebuilding the company after every round starts to feel like a chore.',
-  'ap.on': 'On', 'ap.off': 'Off', 'ap.owned': 'Owned',
+  'ap.on': 'On', 'ap.off': 'Off', 'ap.owned': 'Owned', 'ap.roundAuto': 'Round autopilot',
 
   'chal.lead': 'A challenge is a round with one restriction. Starting one restarts the company just like a funding round, so any capital you have earned goes to your investors. Hit the earnings goal within that round and the reward is yours forever. After that, the round carries on with no restriction. Goals grow with your best round, and the final tier means beating that record.',
   'chal.locked': '🏅 Challenges unlock after your first funding round.',
@@ -596,6 +598,8 @@ const EN = {
 
   'zen.enter': 'Zen mode', 'zen.exit': 'Tap to return',
   'set.music': 'Music', 'set.musicHint': 'Calm lo-fi, composed on the fly.',
+  'set.cap': 'Market limit', 'set.capHint': 'Above market reach, revenue grows more and more slowly. Off: numbers grow without brakes. The choice survives “Start over”, so it’s easy to compare both games from scratch.',
+  'reach.off': 'Market reach: <b>no limit</b> (turned off in settings)',
   'st.decisions': 'Decisions made', 'st.autoBuys': 'Autopilot purchases', 'st.challenges': 'Challenge tiers cleared', 'st.bestValuation': 'Highest valuation',
 
   'team.depts': 'Departments', 'team.world': 'World',

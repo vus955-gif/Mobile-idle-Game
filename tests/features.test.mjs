@@ -417,3 +417,76 @@ test('budżet badawczy: część przychodu zamienia się w punkty badań, wycena
   assert.ok(ratio > 1 && ratio < incRatio, `badania ×${ratio} przy przychodzie ×${incRatio}`);
   assert.equal(g.setRdBudget(0.33), false, 'tylko dozwolone progi');
 });
+
+test('nowe moduły autopilota: biura, przejęcia, decyzje, zarząd, giełda, rundy', async () => {
+  const { MARKET, COMPETITORS, OFFICES } = await import('../js/data.js');
+  const g = veteran();
+  g.s.meta.shares = 1000;
+  for (const id of ['offices', 'acq', 'decisions', 'board', 'market', 'rounds']) assert.ok(g.buyAutopilot(id), id);
+  // biura: najtańsze dostępne, gdy kosztują najwyżej 1/4 gotówki
+  const office = OFFICES.filter((o) => !o.hq).sort((a, b) => a.cost - b.cost)[0];
+  if (office.req) g.s.techs[office.req] = true;
+  g.recalc();
+  g.s.cash = g.officeCost(office.id) * 4.5;
+  g.autopilotStep(T0);
+  assert.ok(g.officeLevel(office.id) >= 1, 'otwarte biuro');
+  // przejęcia: z działem prawnym, gdy kosztują najwyżej połowę gotówki
+  g.s.deptUnlocked.legal = true;
+  const acq = g.D.ACQUISITIONS[0];
+  g.s.cash = g.acqCost(acq.id) * 2.1;
+  g.autopilotStep(T0);
+  assert.ok(g.s.acquisitions[acq.id], 'przejęcie');
+  // decyzje: po 15 s wybiera wariant wart więcej
+  g.s.meta.decision = { i: 0, at: T0 };
+  g.autopilotStep(T0 + 5000);
+  assert.ok(g.s.meta.decision, 'za wcześnie');
+  g.autopilotStep(T0 + 16000);
+  assert.equal(g.s.meta.decision, null, 'rozstrzygnięta');
+  // zarząd: pusty fotel, kandydat za najwyżej 1/3 udziałów
+  g.s.meta.candidates = [g.makeCandidate(T0)];
+  const cand = g.s.meta.candidates[0];
+  g.autopilotStep(T0 + 17000);
+  assert.equal(g.s.meta.board[cand.role]?.id, cand.id, 'zatrudniony');
+  // giełda: tanie spółki do kontroli, po 5%
+  g.s.prestigeCount = MARKET.unlockRounds;
+  g.sampleHistory(T0, true);
+  for (const c of COMPETITORS) g.comp(c.id).sent = 0.8;
+  g.s.cash = 1e40;
+  for (let i = 0; i < 12; i++) g.autopilotStep(T0 + 18000 + i * 1000);
+  assert.ok(COMPETITORS.every((c) => g.stake(c.id) >= MARKET.control - 1e-9), 'kontrola nad tanimi spółkami');
+  // rundy: dopiero gdy runda podwaja kapitał i trwa co najmniej 10 minut
+  g.s.stats.runStartedAt = T0;
+  g.s.totalEarned = 1e40;
+  const before = g.s.prestigeCount;
+  g.autopilotStep(T0 + 60000);
+  assert.equal(g.s.prestigeCount, before, 'za krótka runda');
+  let auto = null;
+  g.on('autopilot', (a) => { auto = a; });
+  g.autopilotStep(T0 + 11 * 60000);
+  assert.equal(g.s.prestigeCount, before + 1, 'runda zamknięta');
+  assert.ok(auto && auto.round > 0, 'zdarzenie z kapitałem z rundy');
+  // w tle decyzje i zarząd czekają na warstwę na ekranie
+  g.background = true;
+  g.s.meta.decision = { i: 1, at: T0 };
+  g.autopilotStep(T0 + 12 * 60000);
+  assert.ok(g.s.meta.decision);
+});
+
+test('nowe perki rady: koszt biur, przejęć, produktów, miejsca na kontrakty, kapitał z rundy', () => {
+  const g = veteran();
+  g.s.meta.shares = 1e6;
+  const office = g.D.OFFICES.find((o) => !o.hq).id;
+  const oc = g.officeCost(office);
+  const ac = g.acqCost(g.D.ACQUISITIONS[0].id);
+  const pc = g.productCost('landing', 1);
+  const slots = g.m.slots;
+  const pres = g.m.prestige;
+  for (const id of ['p_scout', 'p_ma', 'p_bulk', 'p_sales', 'p_banker', 'p_keys', 'p_bridge']) assert.ok(g.buyPerk(id), id);
+  assert.ok(Math.abs(g.officeCost(office) / oc - 0.9) < 1e-9);
+  assert.ok(Math.abs(g.acqCost(g.D.ACQUISITIONS[0].id) / ac - 0.88) < 1e-9);
+  assert.ok(g.productCost('landing', 1) < pc);
+  assert.equal(g.m.slots, slots + 1);
+  assert.ok(Math.abs(g.m.prestige / pres - 1.08) < 1e-9);
+  assert.ok(Math.abs(g.m.feedMult - 1.15) < 1e-9);
+  assert.ok(g.m.clickPct >= 0.002);
+});

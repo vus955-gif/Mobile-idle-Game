@@ -138,7 +138,7 @@ export function createMeta(now = Date.now()) {
     flags: {},
     unlocked: { earth: true },
     stats: { zenTime: 0, musicTime: 0 },
-    settings: { sound: false, music: false, buyAmount: 1, lang: getLang(), layer: 'earth' },
+    settings: { sound: false, music: false, buyAmount: 1, lang: getLang(), layer: 'earth', cap: true },
   };
 }
 
@@ -202,6 +202,7 @@ export function sanitizeMeta(raw, now = Date.now()) {
   delete m.settings.view;
   delete m.settings.rdBudget;
   if (!LAYERS[m.settings.layer] || !m.unlocked[m.settings.layer]) m.settings.layer = 'earth';
+  m.settings.cap = m.settings.cap !== false;
   const ap = isObj(raw.autopilot) ? raw.autopilot : {};
   m.autopilot = { owned: isObj(ap.owned) ? { ...ap.owned } : {}, off: isObj(ap.off) ? { ...ap.off } : {} };
   const validExec = (e) => isObj(e) && ROLE_MAP[e.role] && Array.isArray(e.traits) && BOARD.rarity[e.r] && e.n >= 0;
@@ -383,7 +384,7 @@ export class Game {
       prod: {}, cat: {}, catAdd: {}, dept: {}, all: 1, deptAll: 1,
       click: 1, clickPct: 0, clickFlat: 0, clickMultAdd: 0,
       rp: 1, rpBase: 0, incomePct: 0,
-      hireCost: 1, prodCost: 1, acqCost: 1,
+      hireCost: 1, prodCost: 1, acqCost: 1, officeCost: 1, feedMult: 1,
       offlineCap: BASE_OFFLINE_CAP, offlineEff: BASE_OFFLINE_EFF,
       eventFreq: 1, eventPower: 1, contract: 1, slots: 1, auto: 0,
       prestige: 1, investorPct: 0, startCash: 0, startLevels: 0, valMult: 0,
@@ -406,6 +407,8 @@ export class Game {
           case 'hireCost': m.hireCost *= pow; break;
           case 'prodCost': m.prodCost *= pow; break;
           case 'acqCost': m.acqCost *= pow; break;
+          case 'officeCost': m.officeCost *= pow; break;
+          case 'feedMult': m.feedMult += add; break;
           case 'offlineCap': m.offlineCap += add; break;
           case 'offlineEff': m.offlineEff += add; break;
           case 'eventFreq': m.eventFreq *= pow; break;
@@ -504,14 +507,16 @@ export class Game {
     }
     // zasięg rynku: ponad nim przychód rośnie wolniej (nasycenie)
     const raw = Number.isFinite(total) ? total : Number.MAX_VALUE;
+    // (w ustawieniach można go wyłączyć — wtedy przychód rośnie bez ograniczeń)
+    const capOn = this.capOn();
     const cap = Math.pow(10, this.marketCapLog());
-    const eff = capIncome(raw, cap, this.D.MARKET_REACH);
+    const eff = capOn ? capIncome(raw, cap, this.D.MARKET_REACH) : raw;
     const factor = raw > 0 ? eff / raw : 1;
     if (factor !== 1) for (const id in this.prodIncome) this.prodIncome[id] *= factor;
     this.rawIncome = raw;
     this.marketCap = cap;
     this.incFactor = factor;
-    this.incElastic = raw <= cap ? 1 : eff >= cap * this.D.MARKET_REACH.maxOver ? 0 : this.D.MARKET_REACH.soft;
+    this.incElastic = !capOn || raw <= cap ? 1 : eff >= cap * this.D.MARKET_REACH.maxOver ? 0 : this.D.MARKET_REACH.soft;
     this.income = eff;
     if (ch && ch.rule === 'noclick') {
       m.auto = 0;
@@ -519,7 +524,8 @@ export class Game {
     } else {
       // kodowanie też sprzedaje się na tym samym rynku: przy nasyceniu tanieje jak produkty,
       // a jedno kliknięcie nie przyniesie więcej niż sekunda całego rynku
-      const base = Math.min(cap, (this.D.CLICK_BASE + m.clickFlat) * m.click * (1 + m.clickMultAdd) * m.achMult * m.invMult * factor);
+      const click = (this.D.CLICK_BASE + m.clickFlat) * m.click * (1 + m.clickMultAdd) * m.achMult * m.invMult * factor;
+      const base = capOn ? Math.min(cap, click) : Math.min(Number.MAX_VALUE, click);
       this.clickValue = (base + m.clickPct * this.income) * m.boostClick;
     }
     // budżet badawczy: część przychodu zamienia się w punkty badań
@@ -543,6 +549,11 @@ export class Game {
     if (!FEED_SHARES.includes(share) || !this.feedTarget()) return false;
     this.s.feed = share;
     this.recalc();
+    return true;
+  }
+  setCap(on) {
+    this.s.meta.settings.cap = !!on;
+    this.refresh();
     return true;
   }
   setRdBudget(share) {
@@ -573,6 +584,8 @@ export class Game {
     const gate = this.scaleGate();
     return k !== null && gate ? Math.min(k, gate.k - 0.01) : k;
   }
+  // Czy działa zasięg rynku (nasycenie przychodu). Domyślnie tak; wyłączony to tryb do porównań.
+  capOn() { return this.s.meta.settings.cap !== false; }
   // log10 zasięgu rynku ($/s) przy obecnych technologiach
   marketCapLog() {
     let v = this.D.MARKET_REACH.base;
@@ -976,7 +989,8 @@ export class Game {
     s.nextTrendAt = now + 120000;
     this.recalc();
     // kapitał na start: ×1000 za poziom, ale najwyżej 10 minut pełnego rynku
-    s.cash = this.m.startCash > 0 ? Math.min(Math.pow(1000, this.m.startCash), this.marketCap * 600) : 0;
+    const seed = Math.pow(1000, this.m.startCash);
+    s.cash = this.m.startCash > 0 ? (this.capOn() ? Math.min(seed, this.marketCap * 600) : seed) : 0;
     if (this.m.startLevels > 0) {
       const lvls = this.m.startLevels;
       const count = 2 + Math.round(lvls / 10);
@@ -1205,7 +1219,7 @@ export class Game {
     const o = this.D.OFFICE_MAP[id];
     const l = this.officeLevel(id);
     if (l >= OFFICE_MAX_LEVEL) return Infinity;
-    return o.cost * Math.pow(this.D.OFFICE_LEVEL_COST, l - (o.hq ? 1 : 0));
+    return o.cost * Math.pow(this.D.OFFICE_LEVEL_COST, l - (o.hq ? 1 : 0)) * (this.m ? this.m.officeCost : 1);
   }
   openOffice(id) {
     const o = this.D.OFFICE_MAP[id];
@@ -1432,6 +1446,7 @@ export class Game {
     const s = this.s;
     if (!this.apCount()) return 0;
     let n = 0;
+    let round = 0;
     const researched = [];
     this.quiet = true;
     this.quietStructure = false;
@@ -1495,6 +1510,28 @@ export class Game {
           n++;
         }
       }
+      if (this.apOn('offices')) {
+        for (let guard = 0; guard < 5; guard++) {
+          const cheapest = this.D.OFFICES.filter((o) => this.officeAvailable(o.id))
+            .map((o) => ({ id: o.id, cost: this.officeCost(o.id) })).sort((a, b) => a.cost - b.cost)[0];
+          if (!cheapest || !(cheapest.cost <= s.cash * 0.25) || !this.openOffice(cheapest.id)) break;
+          n++;
+        }
+      }
+      if (this.apOn('acq') && this.acqUnlocked()) {
+        for (const a of this.D.ACQUISITIONS) if (!s.acquisitions[a.id] && this.acqCost(a.id) <= s.cash * 0.5 && this.buyAcq(a.id)) n++;
+      }
+      if (this.apOn('market') && this.marketUnlocked()) n += this.autoMarket();
+      // decyzje i zarząd są wspólne dla firmy — zajmuje się nimi tylko warstwa na ekranie
+      if (!this.background) {
+        const d = s.meta.decision;
+        if (this.apOn('decisions') && d && now - d.at >= 15000 && this.chooseDecision(this.autoDecision(), now)) n++;
+        if (this.apOn('board') && this.boardUnlocked()) n += this.autoBoard(now);
+      }
+      if (this.apOn('rounds') && !s.challenge && now - s.stats.runStartedAt >= 10 * 60000) {
+        const gain = this.prestigeGain();
+        if (gain >= Math.max(10, s.investors)) { round = this.doPrestige(now); if (round) n++; }
+      }
     } finally {
       this.quiet = false;
     }
@@ -1505,8 +1542,47 @@ export class Game {
     if (n) {
       this.recalc();
       s.stats.autoBuys += n;
-      this.emit('autopilot', { n, researched });
+      this.emit('autopilot', { n, researched, round });
       if (this.quietStructure) this.emit('structure');
+    }
+    return n;
+  }
+
+  // Wariant decyzji wart więcej, liczony w sekundach przychodu (premie czasowe ważone ostrożnie).
+  autoDecision() {
+    const d = DECISIONS[this.s.meta.decision.i];
+    const score = (fx) => {
+      const e = this.decisionEffect(fx);
+      switch (e.t) {
+        case 'cash': return e.min * 60;
+        case 'delayed': return e.min * 60 * 0.9;
+        case 'rp': return e.min * 60 * 0.8;
+        case 'boost': return (e.x - 1) * e.s;
+        case 'rpBoost': return (e.x - 1) * e.s * 0.6;
+        case 'click': return (e.x - 1) * e.s * 0.3;
+        default: return 0;
+      }
+    };
+    return score(d.b.fx) > score(d.a.fx) ? 'b' : 'a';
+  }
+  // Łowca głów: puste miejsca i lepsi kandydaci, najwyżej za trzecią część udziałów.
+  autoBoard(now) {
+    const m = this.s.meta;
+    let n = 0;
+    for (const c of [...m.candidates]) {
+      const cur = m.board[c.role];
+      if ((!cur || c.r > cur.r) && this.candidateCost(c) <= m.shares / 3 && this.hireExec(c.id, now)) n++;
+    }
+    return n;
+  }
+  // Makler: dokupuje po 5% udziałów w tanich (kurs poniżej średniej) spółkach, do przejęcia kontroli.
+  autoMarket() {
+    let n = 0;
+    const cheap = COMPETITORS.filter((c) => this.comp(c.id).sent <= 0.97 && this.stake(c.id) < MARKET.control)
+      .sort((a, b) => this.comp(a.id).sent - this.comp(b.id).sent);
+    for (const c of cheap) {
+      const pct = Math.min(0.05, MARKET.control - this.stake(c.id));
+      if (this.stakeCost(c.id, pct) <= this.s.cash * 0.15 && this.buyStake(c.id, pct)) n++;
     }
     return n;
   }
@@ -1722,7 +1798,7 @@ export class Company {
     for (const k in this.layers) {
       const g = this.layers[k];
       const to = g.feedTarget();
-      if (to) this.layers[to].feedIn += g.feedOut;
+      if (to) this.layers[to].feedIn += g.feedOut * (g.m.feedMult || 1);
     }
   }
   tick(now) {

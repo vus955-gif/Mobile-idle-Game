@@ -202,6 +202,7 @@ export class UI {
         const tech = this.g.D.TECH_MAP[id];
         if (tech) this.toast(tech.icon, t('toast.researched', { name: TX.techName(id) }), TX.describeFx(tech.fx), 'tech');
       }
+      if (a.round) this.toast('🔁', this.tl('toast.roundClosed', { n: fmt(a.round) }), `${t('ap.roundAuto')} · ${this.tl('toast.roundClosedText', { x: fmt(this.g.m.invMult) })}`, 'achievement');
       this.scene.render(this.g);
     });
     g.on('challenge', (c) => {
@@ -352,6 +353,12 @@ export class UI {
         break;
       }
       case 'zen': this.enterZen(); break;
+      case 'toggle-cap': {
+        g.setCap(!g.capOn());
+        this.sigs.company = '';
+        this.updateAll(true);
+        break;
+      }
       case 'toggle-music': {
         s.meta.settings.music = !s.meta.settings.music;
         if (s.meta.settings.music) startMusic(); else stopMusic();
@@ -911,7 +918,7 @@ export class UI {
       root.innerHTML = html;
     }
     const hint = $('products-reach');
-    const sat = g.rawIncome > g.marketCap * 1.05;
+    const sat = g.capOn() && g.rawIncome > g.marketCap * 1.05;
     if (hint.hidden === sat) hint.hidden = !sat;
     if (sat) this.patchHtml(hint, t('reach.sat', { stage: t(`reach.${g.marketStage()}`), v: money(g.marketCap) }));
     const amt = this.buyAmount();
@@ -1802,7 +1809,7 @@ export class UI {
       scnext: { html: !nextT ? '' : SCALE_LEVELS[cur + 1].tech && !g.hasTech(SCALE_LEVELS[cur + 1].tech)
         ? t('sc.nextTech', { icon: SCALE_LEVELS[cur + 1].icon, name: `<b>${esc(TX.scaleName(cur + 1))}</b>`, v: money(nextT), tech: esc(TX.techName(SCALE_LEVELS[cur + 1].tech)) })
         : t('sc.next', { icon: SCALE_LEVELS[cur + 1].icon, name: `<b>${esc(TX.scaleName(cur + 1))}</b>`, v: money(nextT) }) },
-      screach: { html: `${t('reach.row', { stage: t(`reach.${g.marketStage()}`), v: money(g.marketCap) })}${g.rawIncome > g.marketCap ? ` · ${t('reach.satShort')}` : ''}` },
+      screach: { html: !g.capOn() ? t('reach.off') : `${t('reach.row', { stage: t(`reach.${g.marketStage()}`), v: money(g.marketCap) })}${g.rawIncome > g.marketCap ? ` · ${t('reach.satShort')}` : ''}` },
       sctop: { html: top >= 0 ? t('sc.top', { icon: SCALE_LEVELS[top].icon, name: `<b>${esc(TX.scaleName(top))}</b>` }) : t('sc.none') },
       'st-income': `${money(g.income)}/s`,
       'st-maxIncome': `${money(st.maxIncome)}/s`,
@@ -1884,13 +1891,14 @@ export class UI {
       <div class="setting"><div>${t('set.lang')}<p>${t('set.langHint')}</p></div>${this.langSeg('set-lang')}</div>
       <div class="setting"><div>${t('set.sound')}<p>${t('set.soundHint')}</p></div><button class="switch ${s.meta.settings.sound ? 'on' : ''}" data-act="toggle-sound" aria-label="${t('set.sound')}"></button></div>
       <div class="setting"><div>${t('set.music')}<p>${t('set.musicHint')}</p></div><button class="switch ${s.meta.settings.music ? 'on' : ''}" data-act="toggle-music" aria-label="${t('set.music')}"></button></div>
+      <div class="setting"><div>${t('set.cap')}<p>${t('set.capHint')}</p></div><button class="switch ${this.g.capOn() ? 'on' : ''}" data-act="toggle-cap" aria-label="${t('set.cap')}"></button></div>
       <div class="setting"><div>${t('set.install')}<p>${t('set.installHint')}</p></div><button class="btn btn-small ghost" data-act="install-help">${t('set.show')}</button></div>
       <div class="section-title">${t('set.saveTitle')}</div>
       <div class="setting"><div>${t('set.export')}<p>${t('set.exportHint')}</p></div><button class="btn btn-small ghost" data-act="export">${t('set.exportBtn')}</button></div>
       <div class="setting"><div>${t('set.import')}<p>${t('set.importHint')}</p></div><button class="btn btn-small ghost" data-act="import">${t('set.importBtn')}</button></div>
       <div class="setting"><div>${t('set.reset')}<p>${t('set.resetHint')}</p></div><button class="btn btn-small danger" data-act="reset">${t('set.resetBtn')}</button></div>
       <p class="card-sub" style="text-align:center;margin-top:18px">${esc(t('appName'))} · ${t('set.footer', { v: esc(this.hooks.version || '1.0') })}</p>`;
-    this.setBody(`settings|${s.meta.settings.sound}|${s.meta.settings.music}|${getLang()}`, html);
+    this.setBody(`settings|${s.meta.settings.sound}|${s.meta.settings.music}|${this.g.capOn()}|${getLang()}`, html);
   }
 
   rename() {

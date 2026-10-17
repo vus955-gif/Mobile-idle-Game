@@ -257,6 +257,13 @@ export const EN = {
     p_auto: { name: 'Automation', desc: '+3 automatic taps per second per level.' },
     p_head: { name: 'Head Start', desc: 'Start every round with 10 levels of your first products (more with each level).' },
     p_hr: { name: 'Employee Stock Options', desc: 'Hiring 6% cheaper per level.' },
+    p_keys: { name: 'Mechanical Keyboards', desc: 'Every tap also earns 0.2% of your revenue per second, per level.' },
+    p_bulk: { name: 'Bulk Buying', desc: 'Growing products 3% cheaper per level.' },
+    p_sales: { name: 'Sales Office', desc: '+1 contract slot per level.' },
+    p_scout: { name: 'Market Scouts', desc: 'Offices and colonies 10% cheaper per level.' },
+    p_ma: { name: 'M&A Law Firm', desc: 'Acquisitions 12% cheaper per level.' },
+    p_banker: { name: 'Investment Bankers', desc: 'Every round brings 8% more capital per level.' },
+    p_bridge: { name: 'Bridge Between Worlds', desc: 'Funding sent to the next layer arrives 15% stronger per level.' },
   },
 
   autopilot: {
@@ -266,6 +273,12 @@ export const EN = {
     contracts: { name: 'Account Manager', desc: 'Accepts the best requests for proposal whenever a slot frees up.' },
     research: { name: 'Head of Research', desc: 'Researches the cheapest available technology once you have the points.' },
     bubbles: { name: 'Opportunity Hunter', desc: 'Catches event bubbles while the game is open. Handy in zen mode.' },
+    offices: { name: 'Head of Expansion', desc: 'Opens and upgrades offices (colonies in space) once they cost at most a quarter of your cash.' },
+    acq: { name: 'M&A Banker', desc: 'Buys available acquisitions once they cost at most half of your cash.' },
+    decisions: { name: 'Board Spokesperson', desc: 'After a few seconds, settles decisions on its own, picking the option worth more.' },
+    board: { name: 'Headhunter', desc: 'Hires candidates for empty board seats and better ones than you have, spending at most a third of your shares.' },
+    market: { name: 'Stockbroker', desc: 'On Earth, buys stakes in competitors while their price is low, all the way to a controlling stake.' },
+    rounds: { name: 'Round Autopilot', desc: 'Closes a round once it would double your capital (after at least 10 minutes, never during a challenge).' },
   },
 
   challenges: {

@@ -155,3 +155,29 @@ test('nowa gra nie przechodzi migracji, a mały kapitał zostaje nietknięty', (
   assert.ok(g.migrated);
   assert.equal(g.s.investors, 40);
 });
+
+test('limit rynku można wyłączyć w ustawieniach: przychód i kodowanie bez nasycenia', () => {
+  const g = newGame();
+  research(g, 2);
+  for (const p of PRODUCTS.slice(0, 8)) g.s.products[p.id] = 400;
+  g.recalc();
+  assert.ok(g.rawIncome > g.marketCap * 10, 'rynek nasycony');
+  const capped = g.income;
+  assert.ok(capped < g.rawIncome);
+  g.setCap(false);
+  assert.equal(g.s.meta.settings.cap, false);
+  assert.equal(g.income, g.rawIncome);
+  assert.equal(g.incFactor, 1);
+  assert.equal(g.marginal(5), 5);
+  assert.ok(g.income > capped * 5);
+  // zapis pamięta wybór, a włączenie przywraca nasycenie
+  const g2 = new Game(JSON.parse(JSON.stringify(g.s)), { now: T0 });
+  assert.equal(g2.capOn(), false);
+  assert.equal(g2.income, g2.rawIncome);
+  g.setCap(true);
+  assert.equal(g.income, capped);
+  // stary zapis bez ustawienia: limit włączony
+  const raw = JSON.parse(JSON.stringify(g.s));
+  delete raw.meta.settings.cap;
+  assert.equal(new Game(raw, { now: T0 }).capOn(), true);
+});

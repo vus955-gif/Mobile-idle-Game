@@ -73,7 +73,11 @@ const ui = new UI(co, {
   },
   reset: () => {
     try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(BACKUP_KEY); } catch { /* ignoruj */ }
+    // ustawienia (język, dźwięk, limit rynku) przechodzą do nowej gry
+    const { sound, music, lang, cap, buyAmount } = co.meta.settings;
     co.load(null, Date.now());
+    Object.assign(co.meta.settings, { sound, music, lang, cap, buyAmount });
+    co.recalc();
     lastSaveJson = '';
     ui.fullRender();
     ui.showWelcome();
