@@ -4,8 +4,9 @@ import assert from 'node:assert/strict';
 import {
   Game, AP_MAP, CHALLENGE_MAP, SCALE_THRESHOLDS, kardashev, scaleIndex, DECISION_FIRST, HISTORY,
 } from '../js/engine.js';
-import { AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, SCALE_LEVELS, DECISIONS } from '../js/data.js';
+import { AUTOPILOT, CHALLENGES, CHALLENGE_TIERS, CHALLENGE_REACH, SCALE_LEVELS, DECISIONS } from '../js/data.js';
 import { EN } from '../js/lang/en.js';
+import { ALL_CHALLENGES } from '../js/layers.js';
 import { setLang } from '../js/i18n.js';
 import * as TX from '../js/text.js';
 
@@ -25,7 +26,7 @@ function veteran() {
 
 test('angielska treść obejmuje nowe systemy', () => {
   for (const a of AUTOPILOT) assert.ok(EN.autopilot[a.id], a.id);
-  for (const c of CHALLENGES) assert.ok(EN.challenges[c.id], c.id);
+  for (const c of ALL_CHALLENGES) assert.ok(EN.challenges[c.id], c.id);
   assert.equal(EN.scale.length, SCALE_LEVELS.length);
   assert.equal(EN.decisions.length, DECISIONS.length);
   for (const lang of ['pl', 'en']) {
@@ -35,7 +36,7 @@ test('angielska treść obejmuje nowe systemy', () => {
         assert.ok(typeof k === 'string' && k.length > 1, `${lang} decyzja ${d.id}`);
       }
     });
-    for (const c of CHALLENGES) assert.ok(TX.describeFx(c.fx).length > 3, `${lang} nagroda ${c.id}`);
+    for (const c of ALL_CHALLENGES) assert.ok(TX.describeFx(c.fx).length > 3, `${lang} nagroda ${c.id}`);
   }
   setLang('pl');
 });
@@ -85,11 +86,23 @@ test('autopilot po powrocie inwestuje zarobki offline', () => {
   assert.ok(g.s.products.landing > before || (g.s.products.notes || 0) > 0);
 });
 
-test('wyzwania: start resetuje rundę i nakłada regułę', () => {
+// Weteran po transcendencji: wyzwania są odblokowane.
+function transcended() {
   const g = veteran();
+  g.s.meta.transcend = 1;
+  g.recalc();
+  return g;
+}
+
+test('wyzwania: dopiero po transcendencji, start resetuje rundę i nakłada regułę', () => {
+  const v = veteran();
+  assert.equal(v.challengesUnlocked(), false, 'przed transcendencją zablokowane');
+  assert.equal(v.startChallenge('noclick', T0), false);
+  const g = transcended();
   g.s.products.landing = 30;
   g.s.cash = 5e5;
   g.recalc();
+  assert.equal(g.startChallenge('nofeed', T0), false, 'wyzwanie Kosmosu nie startuje na Ziemi');
   assert.ok(g.startChallenge('noclick', T0));
   assert.deepEqual(g.s.products, {});
   assert.equal(g.s.challenge.id, 'noclick');
@@ -98,8 +111,8 @@ test('wyzwania: start resetuje rundę i nakłada regułę', () => {
   assert.ok(g.click(T0) > 0);
 });
 
-test('wyzwania: limit produktów, tylko programiści, bez ulepszeń, kryzys', () => {
-  const g = veteran();
+test('wyzwania: limit produktów, tylko pierwszy dział, kryzys rynku', () => {
+  const g = transcended();
   g.s.techs = { html: true, js: true, sql: true, smartphones: true, game2d: true, websockets: true, ajax: true, backend: true };
   g.startChallenge('focus', T0);
   g.s.cash = 1e15;
@@ -114,43 +127,158 @@ test('wyzwania: limit produktów, tylko programiści, bez ulepszeń, kryzys', ()
   assert.equal(g.unlockDept('rnd'), false);
   assert.ok(g.hire('dev', 1));
 
-  g.startChallenge('minimal', T0);
-  g.s.cash = 1e15;
-  g.buyProduct('landing', 10);
-  assert.deepEqual(g.availableUpgrades(), []);
-  assert.equal(g.buyUpgrade('u_landing_0'), false);
-
   g.abandonChallenge();
-  g.s.products = { landing: 25 };
-  g.recalc();
-  const normal = g.income;
-  g.s.challenge = { id: 'crisis', tier: 0, start: T0 };
-  g.recalc();
-  assert.ok(Math.abs(g.income / normal - 0.5) < 1e-9, 'kryzys: bez kamieni milowych');
+  const cap = g.marketCapLog();
+  g.startChallenge('crisis', T0);
+  assert.ok(Math.abs(g.marketCapLog() - (cap - 0.5)) < 1e-9, 'kryzys: rynek ok. 3× mniejszy');
+  // cel liczony od pełnego rynku – kryzys nie obniża poprzeczki
+  const goal = g.s.challenge.goal;
+  g.abandonChallenge();
+  assert.ok(Math.abs(goal / g.challengeGoal('crisis') - 1) < 1e-9);
 });
 
-test('wyzwania: cel daje trwałą nagrodę i kończy ograniczenie', () => {
-  const g = veteran();
-  g.s.products = { landing: 10 };
+test('wyzwania dalszych etapów: bez zasilania, bez autopilota, bez budżetu, bez lobbingu, bez ekspansji', async () => {
+  const { Company } = await import('../js/engine.js');
+  const co = new Company(null, { now: T0, rng: () => 0.5 });
+  co.meta.transcend = 1;
+  const e = co.layers.earth;
+  for (const tch of e.D.TECHS) e.s.techs[tch.id] = true;
+  for (const p of e.D.PRODUCTS) e.s.products[p.id] = 200;
+  e.s.investors = 1e6;
+  co.recalc();
+  assert.ok(co.unlockLayer('space', T0));
+  const sp = co.layers.space;
+  co.feedLinks();
+  assert.ok(sp.feedIn > 0);
+  assert.ok(sp.startChallenge('nofeed', T0));
+  co.feedLinks();
+  assert.equal(sp.feedIn, 0, 'bez zasilania z Ziemi');
+  sp.abandonChallenge();
+  co.feedLinks();
+  assert.ok(sp.feedIn > 0);
+  // galaktyka i wszechświat w osobnych grach (reguły nie zależą od firmy)
+  const gx = new Game(null, { now: T0, rng: () => 0.5, layer: 'galaxy' });
+  gx.s.meta.transcend = 1;
+  gx.s.meta.rounds = 1;
+  gx.s.meta.shares = 100;
+  gx.buyAutopilot('products');
+  gx.startChallenge('manual', T0);
+  gx.s.cash = 1e40;
+  assert.equal(gx.autopilotStep(T0), 0, 'bez autopilota');
+  gx.startChallenge('nobudget', T0);
+  gx.s.deptUnlocked.astro = true;
+  gx.setRdBudget(0.5);
+  assert.equal(gx.m.rdShare, 0, 'bez budżetu badawczego');
+  gx.startChallenge('freemarket', T0);
+  gx.s.cash = 1e60;
+  assert.equal(gx.buyLobby(), false);
+  assert.equal(gx.brakeAvailable(), false);
+  const u = new Game(null, { now: T0, rng: () => 0.5, layer: 'universe' });
+  u.s.meta.transcend = 1;
+  u.recalc();
+  const withHq = u.m.dept.cartographers;
+  u.startChallenge('noexpansion', T0);
+  assert.ok(u.m.dept.cartographers < withHq, 'placówki bez premii');
+});
+
+test('wyzwania: cel daje trwałą, odczuwalną nagrodę, poszerza rynek etapu i kończy ograniczenie', () => {
+  const g = transcended();
+  g.s.products.landing = 50;
+  g.s.products.notes = 25;
   g.recalc();
-  const base = g.income;
-  g.startChallenge('noclick', T0);
-  g.s.products = { landing: 10 };
-  g.s.runEarned = CHALLENGE_GOALS[0];
+  let now = T0;
+  for (let i = 0; i < 360; i++) { now += 5000; g.tick(now); g.click(now); }
+  const cap = g.marketCapLog();
+  const st = g.s.stats;
+  assert.ok(st.peakEarn > st.peakNoClick && st.peakNoClick > 0, 'szczyt wpływów z kliknięciami i bez');
+  g.startChallenge('noclick', now);
+  const goal = g.s.challenge.goal;
+  // bez kodowania cel nie liczy kliknięć
+  const floor = Math.pow(10, g.D.MARKET_REACH.base);
+  const rate = (r) => Math.max(r, floor);
+  const k = (id) => ALL_CHALLENGES.find((c) => c.id === id).goal || 1;
+  assert.ok(Math.abs(goal / (rate(st.peakNoClick) * CHALLENGE_TIERS[0].s * k('noclick')) - 1) < 1e-9, 'cel = szczytowe zarobki etapu × czas');
+  g.s.runEarned = goal;
   assert.ok(g.updateChallenge(T0));
   assert.equal(g.s.meta.challenges.noclick, 1);
   assert.equal(g.s.challenge, null);
   g.recalc();
-  assert.ok(Math.abs(g.income / base - 1.15) < 1e-6, 'nagroda: przychód ×1,15');
-  assert.equal(g.challengeGoal('noclick'), CHALLENGE_GOALS[1]);
-  // cele rosną razem z najlepszą rundą
-  g.s.stats.bestRun = 1e40;
-  assert.ok(Math.abs(Math.log10(g.challengeGoal('noclick')) - 40 * 0.65) < 1e-9);
-  // runda finansowania przerywa wyzwanie
+  assert.equal(g.m.autoMult, 2, 'nagroda: auto-kliknięcia ×2');
+  assert.ok(Math.abs(g.marketCapLog() - cap - CHALLENGE_REACH) < 1e-9, 'rynek etapu szerszy');
+  // kolejne poziomy: dłuższy czas, kliknięcia liczą się w innych wyzwaniach, lobbing nie podnosi poprzeczki, są tylko 3
+  assert.ok(Math.abs(g.challengeGoal('noclick') / (rate(st.peakNoClick) * CHALLENGE_TIERS[1].s * k('noclick')) - 1) < 1e-9);
+  const focus = g.challengeGoal('focus');
+  assert.ok(Math.abs(focus / (rate(st.peakEarn) * CHALLENGE_TIERS[0].s * k('focus')) - 1) < 1e-9);
+  g.s.cash = 1e300;
+  g.buyLobby();
+  g.recalc();
+  g.updatePeak();
+  assert.equal(g.challengeGoal('focus'), focus, 'lobbing nie podnosi poprzeczki');
+  g.s.meta.challenges.noclick = CHALLENGE_TIERS.length;
+  assert.equal(g.challengeGoal('noclick'), null, 'wszystkie poziomy');
+  // reset etapu przerywa wyzwanie
   g.startChallenge('solo', T0);
   g.s.totalEarned = 1e14;
   g.doPrestige(T0);
   assert.equal(g.s.challenge, null);
+  // nagrody: kamienie milowe, pierwszy dział, darmowy lobbing na start rundy
+  g.s.meta.challenges.focus = 3;
+  g.s.meta.challenges.crisis = 2;
+  g.s.meta.challenges.solo = 1;
+  g.recalc();
+  assert.ok(Math.abs(g.msMult(50) - Math.pow(2.6, 2)) < 1e-9);
+  assert.ok(g.m.dept.dev >= 3);
+  g.s.totalEarned = 1e16;
+  g.doPrestige(T0);
+  assert.equal(g.s.lobby, 2, 'darmowy lobbing na start');
+});
+
+test('tempo zarabiania: średnia krocząca bez offline, wyzwań i zdjętego hamulca; runda wyzwania bez kapitału', () => {
+  const g = transcended();
+  g.s.products.landing = 80;
+  g.s.investors = 1000;
+  g.recalc();
+  let now = T0;
+  for (let i = 0; i < 360; i++) { now += 5000; g.tick(now); }
+  const st = g.s.stats;
+  const r = st.earnRate;
+  assert.ok(r > 0);
+  g.applyOffline(now + 8 * 3600e3);
+  now += 8 * 3600e3 + 5000;
+  g.tick(now);
+  assert.ok(st.earnRate < r * 1.5, 'zarobki offline nie podbijają średniej');
+  const inv = g.m.invMult;
+  assert.ok(inv > 1);
+  g.startChallenge('focus', now);
+  assert.equal(g.m.invMult, 1, 'spółka-córka: kapitał etapu nie działa');
+  assert.equal(g.brakeAvailable(), false, 'w wyzwaniu bez hamulca');
+  const frozen = st.earnRate;
+  for (let i = 0; i < 60; i++) { now += 5000; g.tick(now); }
+  assert.equal(st.earnRate, frozen, 'średnia zamrożona w wyzwaniu');
+  g.abandonChallenge();
+  assert.ok(g.m.invMult > 1);
+});
+
+test('wyzwania: start nie łamie reguł (produkty na start, pusta kasa bez kodowania)', () => {
+  const g = transcended();
+  g.s.meta.perks.p_head = 5;
+  for (const tch of g.D.TECHS) g.s.techs[tch.id] = true;
+  g.recalc();
+  assert.ok(g.m.startLevels > 0);
+  g.startChallenge('focus', T0);
+  assert.ok(g.ownedProductCount() <= 5, 'najwyżej 5 produktów także z rady nadzorczej');
+  g.abandonChallenge();
+  g.s.meta.perks = {};
+  g.recalc();
+  g.startChallenge('noclick', T0);
+  assert.ok(g.s.cash >= g.productCost(g.D.PRODUCTS[0].id), 'jest za co kupić pierwszy produkt');
+});
+
+test('stare zapisy: poziomy wyzwań przycięte do 3, nieistniejące usunięte', async () => {
+  const { sanitizeMeta } = await import('../js/engine.js');
+  const m = sanitizeMeta({ challenges: { noclick: 5, minimal: 2, gone: 4 } }, T0);
+  assert.deepEqual(m.challenges, { noclick: 3, minimal: 2 });
+  assert.equal(m.transcend, 0);
 });
 
 test('skala cywilizacji: PKB Ziemi to ok. 0,73 w skali Kardaszowa', () => {
@@ -416,4 +544,77 @@ test('budżet badawczy: część przychodu zamienia się w punkty badań, wycena
   const ratio = g.rpBudget / b1;
   assert.ok(ratio > 1 && ratio < incRatio, `badania ×${ratio} przy przychodzie ×${incRatio}`);
   assert.equal(g.setRdBudget(0.33), false, 'tylko dozwolone progi');
+});
+
+test('nowe moduły autopilota: biura, przejęcia, decyzje, zarząd, giełda, rundy', async () => {
+  const { MARKET, COMPETITORS, OFFICES } = await import('../js/data.js');
+  const g = veteran();
+  g.s.meta.shares = 1000;
+  for (const id of ['offices', 'acq', 'decisions', 'board', 'market', 'rounds']) assert.ok(g.buyAutopilot(id), id);
+  // biura: najtańsze dostępne, gdy kosztują najwyżej 1/4 gotówki
+  const office = OFFICES.filter((o) => !o.hq).sort((a, b) => a.cost - b.cost)[0];
+  if (office.req) g.s.techs[office.req] = true;
+  g.recalc();
+  g.s.cash = g.officeCost(office.id) * 4.5;
+  g.autopilotStep(T0);
+  assert.ok(g.officeLevel(office.id) >= 1, 'otwarte biuro');
+  // przejęcia: z działem prawnym, gdy kosztują najwyżej połowę gotówki
+  g.s.deptUnlocked.legal = true;
+  const acq = g.D.ACQUISITIONS[0];
+  g.s.cash = g.acqCost(acq.id) * 2.1;
+  g.autopilotStep(T0);
+  assert.ok(g.s.acquisitions[acq.id], 'przejęcie');
+  // decyzje: po 15 s wybiera wariant wart więcej
+  g.s.meta.decision = { i: 0, at: T0 };
+  g.autopilotStep(T0 + 5000);
+  assert.ok(g.s.meta.decision, 'za wcześnie');
+  g.autopilotStep(T0 + 16000);
+  assert.equal(g.s.meta.decision, null, 'rozstrzygnięta');
+  // zarząd: pusty fotel, kandydat za najwyżej 1/3 udziałów
+  g.s.meta.candidates = [g.makeCandidate(T0)];
+  const cand = g.s.meta.candidates[0];
+  g.autopilotStep(T0 + 17000);
+  assert.equal(g.s.meta.board[cand.role]?.id, cand.id, 'zatrudniony');
+  // giełda: tanie spółki do kontroli, po 5%
+  g.s.prestigeCount = MARKET.unlockRounds;
+  g.sampleHistory(T0, true);
+  for (const c of COMPETITORS) g.comp(c.id).sent = 0.8;
+  g.s.cash = 1e40;
+  for (let i = 0; i < 12; i++) g.autopilotStep(T0 + 18000 + i * 1000);
+  assert.ok(COMPETITORS.every((c) => g.stake(c.id) >= MARKET.control - 1e-9), 'kontrola nad tanimi spółkami');
+  // rundy: dopiero gdy runda podwaja kapitał i trwa co najmniej 10 minut
+  g.s.stats.runStartedAt = T0;
+  g.s.totalEarned = 1e40;
+  const before = g.s.prestigeCount;
+  g.autopilotStep(T0 + 60000);
+  assert.equal(g.s.prestigeCount, before, 'za krótka runda');
+  let auto = null;
+  g.on('autopilot', (a) => { auto = a; });
+  g.autopilotStep(T0 + 11 * 60000);
+  assert.equal(g.s.prestigeCount, before + 1, 'runda zamknięta');
+  assert.ok(auto && auto.round > 0, 'zdarzenie z kapitałem z rundy');
+  // w tle decyzje i zarząd czekają na warstwę na ekranie
+  g.background = true;
+  g.s.meta.decision = { i: 1, at: T0 };
+  g.autopilotStep(T0 + 12 * 60000);
+  assert.ok(g.s.meta.decision);
+});
+
+test('nowe perki rady: koszt biur, przejęć, produktów, miejsca na kontrakty, kapitał z rundy', () => {
+  const g = veteran();
+  g.s.meta.shares = 1e6;
+  const office = g.D.OFFICES.find((o) => !o.hq).id;
+  const oc = g.officeCost(office);
+  const ac = g.acqCost(g.D.ACQUISITIONS[0].id);
+  const pc = g.productCost('landing', 1);
+  const slots = g.m.slots;
+  const pres = g.m.prestige;
+  for (const id of ['p_scout', 'p_ma', 'p_bulk', 'p_sales', 'p_banker', 'p_keys', 'p_bridge']) assert.ok(g.buyPerk(id), id);
+  assert.ok(Math.abs(g.officeCost(office) / oc - 0.9) < 1e-9);
+  assert.ok(Math.abs(g.acqCost(g.D.ACQUISITIONS[0].id) / ac - 0.88) < 1e-9);
+  assert.ok(g.productCost('landing', 1) < pc);
+  assert.equal(g.m.slots, slots + 1);
+  assert.ok(Math.abs(g.m.prestige / pres - 1.08) < 1e-9);
+  assert.ok(Math.abs(g.m.feedMult - 1.15) < 1e-9);
+  assert.ok(g.m.clickPct >= 0.002);
 });

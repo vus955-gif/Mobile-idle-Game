@@ -71,7 +71,7 @@ export const SPACE_DEPTS = [
     ups: ['Ramię robotyczne', 'Roboty-pająki na kratownicy', 'Rój serwisowy'], upIcons: ['🦿', '🕷️', '🐝'] },
   { id: 'logistics', name: 'Logistyka orbitalna', icon: '📦', color: '#4dd0a1', unlock: 6e16, base: 2e16, g: 1.2,
     desc: 'Otwiera zlecenia od kolonii i agencji kosmicznych. Co 25 osób — kolejne miejsce na zlecenie.',
-    per: [{ t: 'income', v: 0.003 }, { t: 'contract', v: 0.01, cap: 2 }, { t: 'slotEvery', v: 25 }],
+    per: [{ t: 'income', v: 0.003 }, { t: 'contract', v: 0.01, cap: 0.5 }, { t: 'slotEvery', v: 25 }],
     ups: ['Holowniki orbitalne', 'Magazyn w punkcie Lagrange’a', 'Lot co minutę'], upIcons: ['🚚', '🏗️', '🗓️'] },
   { id: 'medics', name: 'Medycyna kosmiczna', icon: '🩺', color: '#4fc3f7', unlock: 8e17, base: 3e17, g: 1.2,
     desc: 'Zdrowa załoga pracuje, także gdy Ciebie nie ma. Więcej zarobku offline.',
@@ -283,4 +283,26 @@ export const SPACE_NEWS = [
   'Analitycy: „Rój Dysona to tylko kwestia czasu i luster”',
   'Górnicy z Pasa Planetoid znaleźli kamień w kształcie logo {c}',
   'Pierwszy ślub w nieważkości: tort unosił się przez całe wesele',
+];
+
+// Lobbing w kosmosie: prawa do orbit, traktaty i licencje (patrz LOBBY_RULES w data.js).
+export const SPACE_LOBBY = [
+  { id: 'ls_permit', icon: '📝', name: 'Pozwolenia na starty', desc: 'Okna startowe zawsze wtedy, kiedy chcesz. Kontrolerzy lotów mają Twój numer.' },
+  { id: 'ls_orbits', icon: '🛰️', name: 'Prawa do orbit', desc: 'Najlepsze orbity są zarezerwowane. Dla Ciebie.' },
+  { id: 'ls_treaty', icon: '📜', name: 'Traktat orbitalny', desc: 'Nowy traktat o przestrzeni kosmicznej. Jeden z sygnatariuszy to Twoja firma.' },
+  { id: 'ls_moon', icon: '🌙', name: 'Ustawa o Księżycu', desc: 'Kto pierwszy, ten lepszy. Ustawa precyzuje, że pierwszy byłeś Ty.' },
+  { id: 'ls_mars', icon: '🔴', name: 'Konstytucja Marsa', desc: 'Pierwszy artykuł: „Wszyscy Marsjanie mają prawo do Twoich usług”.' },
+  { id: 'ls_belt', icon: '☄️', name: 'Koncesja na Pas Planetoid', desc: 'Milion kamieni, jeden koncesjonariusz.' },
+  { id: 'ls_council', icon: '☀️', name: 'Rada Układu Słonecznego', desc: 'Przewodniczy jej Twój dyrektor ds. relacji zewnętrznych.' },
+  { id: 'ls_sun', icon: '🌞', name: 'Licencja na Słońce', desc: 'Kto chce świecić w tym układzie, płaci tantiemy.' },
+];
+
+// Wyzwania Kosmosu (po transcendencji).
+export const SPACE_CHALLENGES = [
+  { id: 'nofeed', icon: '🔌', rule: 'noFeed', name: 'Bez wsparcia z Ziemi',
+    desc: 'Ziemia nie zasila programu kosmicznego.', goal: 1.5, fx: [{ t: 'feedX', x: 2 }] },
+  { id: 'minimal', icon: '🪶', rule: 'noUpgrades', name: 'Minimalizm',
+    desc: 'Nie możesz kupować ulepszeń.', goal: 1.5, fx: [{ t: 'upgradeCost', x: 0.75 }] },
+  { id: 'organic', icon: '🌱', rule: 'noAcq', name: 'Wzrost organiczny',
+    desc: 'Nie możesz przejmować innych firm.', goal: 1.5, fx: [{ t: 'prestige', x: 1.25 }] },
 ];

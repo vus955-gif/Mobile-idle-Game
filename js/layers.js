@@ -4,7 +4,11 @@
 // Plik nie dotyka DOM — korzystają z niego gra, testy i symulator.
 import * as E from './data.js';
 import * as S from './space.js';
+import * as G from './galaxy.js';
+import * as U from './universe.js';
 
+// Liczba wyzwań we wszystkich etapach (do osiągnięć Ziemi, budowanych przed resztą warstw).
+const CHALLENGE_COUNT = E.CHALLENGES.length + S.SPACE_CHALLENGES.length + G.GALAXY_CHALLENGES.length + U.UNIVERSE_CHALLENGES.length;
 const byId = (arr) => Object.fromEntries(arr.map((x, i) => [x.id, { ...x, index: i }]));
 const plainById = (arr) => Object.fromEntries(arr.map((x) => [x.id, x]));
 
@@ -67,8 +71,9 @@ function earthAchievements(D) {
   [1, 10, 50, 200, 1000].forEach((v, i) => ach(`bub${i}`, '🔥', 'bub', v, i, (g) => g.s.stats.bubbles >= v));
   [1, 10, 50, 200, 1000].forEach((v, i) => ach(`con${i}`, '🤝', 'con', v, i, (g) => g.s.stats.contracts >= v));
   [1, 5, D.ACQUISITIONS.length].forEach((v, i) => ach(`acq${i}`, '🦈', 'acq', v, i, (g) => g.acqCount() >= v));
-  [1, 5, 10, 20, E.CHALLENGES.length * E.CHALLENGE_GOALS.length]
+  [1, 5, 10, 20, CHALLENGE_COUNT * E.CHALLENGE_TIERS.length]
     .forEach((v, i) => ach(`chal${i}`, '🏅', 'chal', v, i, (g) => g.challengeTiers() >= v));
+  [1, 2, 5].forEach((v, i) => ach(`trans${i}`, '♾️', 'trans', v, i, (g) => (g.s.meta.transcend || 0) >= v));
   [1, 10, 50, 150].forEach((v, i) => ach(`dec${i}`, '📨', 'dec', v, i, (g) => g.s.stats.decisions >= v));
   [1, E.AUTOPILOT.length].forEach((v, i) => ach(`ap${i}`, '🤖', 'ap', v, i, (g) => g.apCount() >= v));
   E.SCALE_LEVELS.forEach((L, i) => ach(`scale${i}`, L.icon, 'scale', i, i, (g) => g.s.meta.scaleMax >= i));
@@ -80,6 +85,11 @@ function earthAchievements(D) {
   ach('exec3', '🎖️', 'exec', 0, 3, (g) => Object.values(g.s.meta.board).some((e) => g.execLevel(e) >= E.BOARD.maxLevel));
   ach('mkt0', '📈', 'mkt', 0, 0, (g) => g.marketUnlocked() && Object.keys(g.s.market.stakes).length > 0);
   ach('mkt1', '🥇', 'mkt', 1, 1, (g) => g.marketUnlocked() && g.marketRank() === 1);
+  // lobbing i zdjęcie hamulca (w dowolnym etapie)
+  ach('lob0', '🏛️', 'lob', 0, 0, (g) => !!g.s.meta.flags.lobbied);
+  ach('lob1', '👑', 'lob', 0, 1, (g) => !!g.s.meta.flags.lobbyMax);
+  ach('lob2', '🔓', 'lob', 0, 2, (g) => !!g.s.meta.flags.brake);
+  ach('lob3', '🚀', 'lob', 0, 3, (g) => !!g.s.meta.flags.brakeBig);
 
   const fun = (id, icon, check) => ach(id, icon, 'fun', 0, 0, check, { hidden: true });
   const flags = (g) => g.s.meta.flags;
@@ -94,7 +104,7 @@ function earthAchievements(D) {
   fun('f_snow', '☃️', (g) => !!flags(g).snow);
   fun('f_halloween', '🎃', (g) => !!flags(g).halloween);
   fun('f_xmas', '🎄', (g) => !!flags(g).xmas);
-  fun('f_master', '🥋', (g) => Object.values(g.s.meta.challenges).some((v) => v >= E.CHALLENGE_GOALS.length));
+  fun('f_master', '🥋', (g) => Object.values(g.s.meta.challenges).some((v) => v >= E.CHALLENGE_TIERS.length));
   fun('f_hq', '🏰', (g) => (g.s.offices[D.HQ] || 0) >= E.OFFICE_MAX_LEVEL);
   fun('f_view', '🪟', (g) => !!flags(g).viewChanged);
   return list;
@@ -120,11 +130,95 @@ function spaceAchievements(D) {
   return list;
 }
 
+// Osiągnięcia Galaktyki: produkty, załoga statku-matki, drzewko, wyprawy, sondy, układy, przejęcia.
+function galaxyAchievements(D) {
+  const list = [];
+  const ach = (id, icon, type, v, i, check, extra = {}) => list.push({ id, icon, type, v, i, check, hidden: false, ...extra });
+  for (const p of D.PRODUCTS) {
+    [1, 50, 100, 200, 300, 500, 1000].forEach((v, i) =>
+      ach(`p_${p.id}_${i}`, p.icon, 'prod', v, i, (g) => (g.s.products[p.id] || 0) >= v, { pid: p.id }));
+  }
+  [10, 100, 500, 1000, 2500, 5000].forEach((v, i) => ach(`g_crew${i}`, '🧑‍✈️', 'gcrew', v, i, (g) => g.totalHeads() >= v));
+  [1, 7, 14, D.TECHS.length].forEach((v, i) => ach(`g_tech${i}`, '🌠', 'gtech', v, i, (g) => g.techCount() >= v));
+  [10, 50, 100, 200].forEach((v, i) => ach(`g_upg${i}`, '🔧', 'gupg', v, i, (g) => g.upgradeCount() >= v));
+  [1, 3, 5, 10, 25].forEach((v, i) => ach(`g_exp${i}`, '🚀', 'gexp', v, i, (g) => g.s.prestigeCount >= v));
+  [10, 1000, 1e5, 1e7].forEach((v, i) => ach(`g_probe${i}`, '🛸', 'gprobe', v, i, (g) => g.s.investors >= v));
+  const systems = D.OFFICES.filter((o) => !o.hq).length;
+  [1, 4, systems].forEach((v, i) => ach(`g_sys${i}`, '✨', 'gsys', v, i, (g) => g.officeCount('galaxy') >= v));
+  [1, D.ACQUISITIONS.length].forEach((v, i) => ach(`g_acq${i}`, '🦈', 'gacq', v, i, (g) => g.acqCount() >= v));
+  ach('f_galaxy', '🌌', 'fun', 0, 0, () => true, { hidden: true });
+  return list;
+}
+
+// Osiągnięcia Wszechświata: produkty, załoga cytadeli, drzewko, eony, osobliwości, galaktyki, przejęcia.
+function universeAchievements(D) {
+  const list = [];
+  const ach = (id, icon, type, v, i, check, extra = {}) => list.push({ id, icon, type, v, i, check, hidden: false, ...extra });
+  for (const p of D.PRODUCTS) {
+    [1, 50, 100, 200, 300, 500, 1000].forEach((v, i) =>
+      ach(`p_${p.id}_${i}`, p.icon, 'prod', v, i, (g) => (g.s.products[p.id] || 0) >= v, { pid: p.id }));
+  }
+  [10, 100, 500, 1000, 2500, 5000].forEach((v, i) => ach(`u_crew${i}`, '🧑‍🔬', 'ucrew', v, i, (g) => g.totalHeads() >= v));
+  [1, 7, 14, D.TECHS.length].forEach((v, i) => ach(`u_tech${i}`, '🧮', 'utech', v, i, (g) => g.techCount() >= v));
+  [10, 50, 100, 200].forEach((v, i) => ach(`u_upg${i}`, '🪛', 'uupg', v, i, (g) => g.upgradeCount() >= v));
+  [1, 3, 5, 10, 25].forEach((v, i) => ach(`u_eon${i}`, '💥', 'ueon', v, i, (g) => g.s.prestigeCount >= v));
+  [10, 1000, 1e5, 1e7].forEach((v, i) => ach(`u_sing${i}`, '💫', 'using', v, i, (g) => g.s.investors >= v));
+  const places = D.OFFICES.filter((o) => !o.hq).length;
+  [1, 4, places].forEach((v, i) => ach(`u_gal${i}`, '🌌', 'ugal', v, i, (g) => g.officeCount('universe') >= v));
+  [1, D.ACQUISITIONS.length].forEach((v, i) => ach(`u_acq${i}`, '🦈', 'uacq', v, i, (g) => g.acqCount() >= v));
+  ach('f_universe', '🕳️', 'fun', 0, 0, () => true, { hidden: true });
+  ach('f_light', '🌅', 'fun', 0, 0, (g) => !!g.s.techs.lastQuestion, { hidden: true });
+  return list;
+}
+
 // Składa definicję warstwy w gotowy zestaw danych dla silnika (mapy, ulepszenia, osiągnięcia).
+// ---------------------------------------------------------------------------
+// DRABINKA PRODUKTÓW. Premie dla produktów i kategorii (technologie, biura i kolonie na 3. poziomie,
+// przejęcia, działy, kontrola nad konkurentami) rozkładają się nierówno — jedna kategoria potrafiła
+// zebrać ×1600, inna ×20, przez co „najlepszy” produkt zarabiał mniej od starszych. Dlatego produkt,
+// który w w pełni rozwiniętym etapie zarabiałby na poziom mniej niż LADDER_MIN × poprzedni, dostaje
+// wyższy bazowy przychód. Silniejszych produktów to nie dotyka, więc tempo gry się nie zmienia.
+// ---------------------------------------------------------------------------
+export const LADDER_MIN = 1.6;
+// Mnożnik produktu w pełni rozwiniętego etapu (bez ulepszeń produktu, wspólnych dla wszystkich).
+export function endMultiplier(def, p) {
+  let prod = 1;
+  let cat = 1;
+  let catAdd = 0;
+  const take = (fx, pow = 1) => {
+    for (const e of fx || []) {
+      if (e.t === 'prod' && e.id === p.id) prod *= Math.pow(e.x, pow);
+      else if (e.t === 'cat' && e.cat === p.cat) {
+        if (e.x) cat *= Math.pow(e.x, pow);
+        else catAdd += e.cap ?? e.v;
+      }
+    }
+  };
+  for (const t of def.techs) take(t.fx);
+  for (const o of def.offices) take(o.fx, E.OFFICE_MAX_LEVEL);
+  for (const a of def.acquisitions) take(a.fx);
+  for (const d of def.depts) take(d.per);
+  if (def.features && def.features.market) {
+    for (const c of E.COMPETITORS) if (c.cat === p.cat) cat *= (1 + E.MARKET.stakeBonus * E.MARKET.stakeCap) * E.MARKET.controlCat;
+  }
+  return prod * cat * (1 + catAdd);
+}
+function levelLadder(def) {
+  const ps = def.products;
+  const mult = ps.map((p) => endMultiplier(def, p));
+  for (let i = 1; i < ps.length; i++) {
+    const min = (ps[i - 1].rps * mult[i - 1] * LADDER_MIN) / mult[i];
+    if (ps[i].rps < min) ps[i].rps = min;
+  }
+}
+
 export function buildLayer(def) {
+  levelLadder(def);
   const D = {
     id: def.id,
     icon: def.icon,
+    // przedrostek tekstów interfejsu z innymi nazwami tych samych rzeczy (np. „sp.tab.office”: Stacja)
+    TEXT: def.textPrefix || '',
     PRODUCTS: def.products,
     PRODUCT_MAP: byId(def.products),
     DEPTS: def.depts,
@@ -158,6 +252,10 @@ export function buildLayer(def) {
     CATEGORIES: def.categories,
     CONTRACT_CLIENTS: def.clients,
     CONTRACT_TASKS: def.tasks,
+    // lobbing: poziomy poszerzające zasięg rynku w obrębie rundy
+    LOBBY: def.lobby,
+    // wyzwania etapu (po transcendencji)
+    CHALLENGES: (def.challenges || []).map((c) => ({ ...c, layer: def.id })),
   };
   D.UPGRADES = buildUpgrades(def);
   D.UPGRADE_MAP = plainById(D.UPGRADES);
@@ -192,6 +290,8 @@ export const EARTH = buildLayer({
   features: { market: true, challenges: true },
   next: { layer: 'space', revenue: E.SCALE_LEVELS.find((L) => L.icon === '🌍').v },
   categories: E.CATEGORIES,
+  lobby: E.LOBBY,
+  challenges: E.CHALLENGES,
   clients: E.CONTRACT_CLIENTS,
   tasks: E.CONTRACT_TASKS,
   achievements: earthAchievements,
@@ -200,6 +300,7 @@ export const EARTH = buildLayer({
 export const SPACE = buildLayer({
   id: 'space',
   icon: '🛰️',
+  textPrefix: 'sp.',
   products: S.SPACE_PRODUCTS,
   depts: S.SPACE_DEPTS,
   techs: S.SPACE_TECHS,
@@ -221,21 +322,97 @@ export const SPACE = buildLayer({
   salesDept: 'logistics',
   legalDept: 'spacelaw',
   features: {},
-  // galaktyka to kolejny etap — na razie „wkrótce”
+  // galaktyka otwiera się przy cywilizacji typu II (cała energia Słońca)
   next: { layer: 'galaxy', revenue: Math.pow(10, 26) / E.ENERGY_W_PER_USD },
   clickBase: S.SPACE_CLICK_BASE,
   categories: S.SPACE_CATEGORIES,
+  lobby: S.SPACE_LOBBY,
+  challenges: S.SPACE_CHALLENGES,
   clients: S.SPACE_CLIENTS,
   tasks: S.SPACE_TASKS,
   achievements: spaceAchievements,
 });
 
-export const LAYERS = { earth: EARTH, space: SPACE };
-export const LAYER_ORDER = ['earth', 'space'];
-// Przełącznik warstw: kolejne etapy pokazujemy z góry jako „wkrótce”.
+export const GALAXY = buildLayer({
+  id: 'galaxy',
+  icon: '🌌',
+  textPrefix: 'gx.',
+  products: G.GALAXY_PRODUCTS,
+  depts: G.GALAXY_DEPTS,
+  techs: G.GALAXY_TECHS,
+  eras: G.GALAXY_ERAS,
+  repeat: G.GALAXY_REPEAT,
+  culture: G.GALAXY_CULTURE,
+  click: G.GALAXY_CLICK,
+  acquisitions: G.GALAXY_ACQUISITIONS,
+  offices: G.GALAXY_OFFICES,
+  officeLevelCost: G.GALAXY_OFFICE_LEVEL_COST,
+  hq: 'sol',
+  reach: G.GALAXY_REACH,
+  techCapStep: G.GALAXY_TECH_CAP_STEP,
+  rd: G.GALAXY_RD_BUDGET,
+  prestige: G.GALAXY_PRESTIGE,
+  firstDept: 'navigators',
+  rdDept: 'astro',
+  researchDepts: ['astro'],
+  salesDept: 'traders',
+  legalDept: 'senate',
+  features: {},
+  // wszechświat otwiera się przy cywilizacji typu III (energia całej galaktyki)
+  next: { layer: 'universe', revenue: Math.pow(10, 36) / E.ENERGY_W_PER_USD },
+  clickBase: G.GALAXY_CLICK_BASE,
+  categories: G.GALAXY_CATEGORIES,
+  lobby: G.GALAXY_LOBBY,
+  challenges: G.GALAXY_CHALLENGES,
+  clients: G.GALAXY_CLIENTS,
+  tasks: G.GALAXY_TASKS,
+  achievements: galaxyAchievements,
+});
+
+export const UNIVERSE = buildLayer({
+  id: 'universe',
+  icon: '🕳️',
+  textPrefix: 'un.',
+  products: U.UNIVERSE_PRODUCTS,
+  depts: U.UNIVERSE_DEPTS,
+  techs: U.UNIVERSE_TECHS,
+  eras: U.UNIVERSE_ERAS,
+  repeat: U.UNIVERSE_REPEAT,
+  culture: U.UNIVERSE_CULTURE,
+  click: U.UNIVERSE_CLICK,
+  acquisitions: U.UNIVERSE_ACQUISITIONS,
+  offices: U.UNIVERSE_OFFICES,
+  officeLevelCost: U.UNIVERSE_OFFICE_LEVEL_COST,
+  hq: 'milkyway',
+  reach: U.UNIVERSE_REACH,
+  techCapStep: U.UNIVERSE_TECH_CAP_STEP,
+  rd: U.UNIVERSE_RD_BUDGET,
+  prestige: U.UNIVERSE_PRESTIGE,
+  firstDept: 'cartographers',
+  rdDept: 'cosmologists',
+  researchDepts: ['cosmologists'],
+  salesDept: 'brokers',
+  legalDept: 'tribunal',
+  features: {},
+  // ostatni etap: dalej nie ma już nic do otwarcia
+  next: null,
+  clickBase: U.UNIVERSE_CLICK_BASE,
+  categories: U.UNIVERSE_CATEGORIES,
+  lobby: U.UNIVERSE_LOBBY,
+  challenges: U.UNIVERSE_CHALLENGES,
+  clients: U.UNIVERSE_CLIENTS,
+  tasks: U.UNIVERSE_TASKS,
+  achievements: universeAchievements,
+});
+
+export const LAYERS = { earth: EARTH, space: SPACE, galaxy: GALAXY, universe: UNIVERSE };
+export const LAYER_ORDER = ['earth', 'space', 'galaxy', 'universe'];
+// Wyzwania wszystkich etapów (nagrody są wspólne dla całego imperium).
+export const ALL_CHALLENGES = LAYER_ORDER.flatMap((id) => LAYERS[id].CHALLENGES);
+// Przełącznik warstw: wszystkie etapy widać z góry, zablokowane czekają na odblokowanie.
 export const LAYER_CHIPS = [
   { id: 'earth', icon: '🌍' },
   { id: 'space', icon: '🛰️' },
-  { id: 'galaxy', icon: '🌌', soon: true },
-  { id: 'universe', icon: '🕳️', soon: true },
+  { id: 'galaxy', icon: '🌌' },
+  { id: 'universe', icon: '🕳️' },
 ];

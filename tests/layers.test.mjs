@@ -1,10 +1,10 @@
-// Testy warstw: Ziemia → Kosmos, wspólny stan firmy, zasilanie, zapis v3, fale kolonizacji.
+// Testy warstw: Ziemia → Kosmos → Galaktyka → Wszechświat, wspólny stan firmy, zasilanie, zapis v3, fale kolonizacji.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   Company, Game, createState, SAVE_VERSION, FEED_SHARES, LAYER_GRANT_SECONDS, SECONDS_PER_GAME_YEAR, SCALE_THRESHOLDS,
 } from '../js/engine.js';
-import { EARTH, SPACE, LAYERS, LAYER_ORDER } from '../js/layers.js';
+import { EARTH, SPACE, GALAXY, UNIVERSE, LAYERS, LAYER_ORDER } from '../js/layers.js';
 import { SCALE_LEVELS } from '../js/data.js';
 import { setLang } from '../js/i18n.js';
 import * as TX from '../js/text.js';
@@ -245,8 +245,9 @@ test('skala cywilizacji liczy przychód całej firmy, a typ II wymaga roju Dyson
   assert.ok(co.layers.earth.scaleIdx() < k2, 'bez roju Dysona nie ma typu II');
   for (const t of SPACE.TECHS) s.s.techs[t.id] = true;
   assert.equal(co.layers.earth.scaleIdx(), k2, 'skala liczona dla całej firmy');
-  assert.equal(co.unlockProgress('galaxy'), null, 'galaktyka: wkrótce');
-  assert.equal(co.nextLayer(), null);
+  // pełne drzewko Kosmosu i przychód typu II otwierają Galaktykę
+  assert.equal(co.nextLayer(), 'galaxy');
+  assert.ok(co.unlockProgress('galaxy').ready);
 });
 
 test('Game bez firmy działa jak dawniej (testy i symulator)', () => {
@@ -263,4 +264,117 @@ test('Game bez firmy działa jak dawniej (testy i symulator)', () => {
 test('teksty skali i warstw nie wywracają się na technologiach przyszłych etapów', () => {
   for (const L of SCALE_LEVELS) if (L.tech) assert.ok(TX.techName(L.tech).length > 3, L.tech);
   for (const id of LAYER_ORDER) assert.ok(TX.newsList(id).length >= 10, id);
+});
+
+// Kosmos z pełnym drzewkiem i przychodem cywilizacji typu II
+function galaxyCo() {
+  const co = spaceCo();
+  const sp = co.layers.space;
+  for (const t of SPACE.TECHS) sp.s.techs[t.id] = true;
+  sp.s.investors = 1e7;
+  for (const p of SPACE.PRODUCTS) sp.s.products[p.id] = 300;
+  co.recalc();
+  return co;
+}
+
+test('Galaktyka: otwiera się po Kosmosie, Kosmos ją zasila, a zapis trzyma trzy warstwy', () => {
+  const co = galaxyCo();
+  const sp = co.layers.space;
+  const p = co.unlockProgress();
+  assert.equal(p.id, 'galaxy');
+  assert.equal(p.from, 'space');
+  assert.ok(p.ready, 'pełne drzewko i typ II');
+  const grant = sp.income * LAYER_GRANT_SECONDS;
+  assert.ok(co.unlockLayer('galaxy', T0));
+  const gx = co.layers.galaxy;
+  assert.equal(co.g, gx, 'galaktyka na ekranie');
+  assert.ok(Math.abs(gx.s.cash - grant) / grant < 1e-9, 'grant z Kosmosu');
+  assert.equal(sp.s.feed, 0.25);
+  assert.equal(gx.feedIn, sp.feedOut, 'Kosmos zasila Galaktykę');
+  assert.ok(gx.s.offices.sol, 'siedziba w Układzie Słonecznym');
+  assert.equal(co.nextLayer(), 'universe', 'kolejny etap: Wszechświat');
+  // pierwszy produkt kosztuje kilka sekund przychodu Kosmosu, a grant wystarcza na start
+  assert.ok(GALAXY.PRODUCTS[0].cost < sp.income * 60);
+  assert.ok(gx.buyProduct('probes', 1));
+  // perk „Most między światami” wzmacnia zasilanie
+  co.meta.shares = 1e6;
+  assert.ok(gx.buyPerk('p_bridge'));
+  assert.ok(Math.abs(gx.feedIn / sp.feedOut - 1.15) < 1e-9);
+  // zapis i odczyt
+  const co2 = new Company(JSON.parse(co.serialize()), { now: T0, rng });
+  assert.deepEqual(Object.keys(co2.layers), ['earth', 'space', 'galaxy']);
+  assert.equal(co2.g.D, GALAXY);
+  assert.equal(co2.layers.galaxy.s.products.probes, 1);
+  // zlecenia i wiadomości z galaktyki mają własne teksty
+  gx.s.deptUnlocked.traders = true;
+  const o = gx.makeOffer(T0);
+  assert.equal(o.L, 'galaxy');
+  assert.ok(TX.clientName(o).length > 3 && TX.taskName(o).length > 3);
+  assert.ok(TX.newsList('galaxy').length >= 10);
+});
+
+test('Galaktyka: zasięg rynku od roju Dysona do typu III, sondy von Neumanna i sieć galaktyczna jako bramy', () => {
+  const g = new Game(null, { now: T0, rng, layer: 'galaxy' });
+  assert.equal(g.marketCapLog(), GALAXY.MARKET_REACH.base);
+  assert.ok(GALAXY.MARKET_REACH.base >= SPACE.MARKET_REACH.ends.at(-1), 'zaczyna się ponad Kosmosem');
+  for (const t of GALAXY.TECHS) g.s.techs[t.id] = true;
+  g.recalc();
+  assert.ok(Math.abs(g.marketCapLog() - GALAXY.MARKET_REACH.ends.at(-1)) < 1e-9);
+  const ids = GALAXY.TECHS.map((t) => t.id);
+  for (const L of SCALE_LEVELS) if (L.k === 2.5 || L.k === 3) assert.ok(ids.includes(L.tech), L.tech);
+  // przy pełnym rynku galaktyki roczny przychód przekracza próg typu III
+  const k3 = SCALE_LEVELS.findIndex((L) => L.k === 3);
+  assert.ok(Math.pow(10, g.marketCapLog()) * SECONDS_PER_GAME_YEAR > SCALE_THRESHOLDS[k3]);
+  // wyprawa: reset galaktyki daje sondy i udziały
+  g.s.totalEarned = 1e33;
+  const gain = g.doPrestige(T0);
+  assert.ok(gain > 0 && g.s.investors === gain && g.s.prestigeCount === 1);
+  assert.ok(g.s.techs.galacticNet, 'technologie zostają');
+});
+
+test('Wszechświat: ostatni etap po Galaktyce, cztery warstwy w zapisie, dalej już nic', () => {
+  const co = galaxyCo();
+  assert.ok(co.unlockLayer('galaxy', T0));
+  const gx = co.layers.galaxy;
+  for (const t of GALAXY.TECHS) gx.s.techs[t.id] = true;
+  gx.s.investors = 1e7;
+  for (const p of GALAXY.PRODUCTS) gx.s.products[p.id] = 300;
+  co.recalc();
+  const p = co.unlockProgress();
+  assert.equal(p.id, 'universe');
+  assert.equal(p.from, 'galaxy');
+  assert.ok(p.ready, 'pełne drzewko Galaktyki i typ III');
+  assert.ok(co.unlockLayer('universe', T0));
+  const u = co.layers.universe;
+  assert.equal(co.g, u);
+  assert.equal(u.feedIn, gx.feedOut * (gx.m.feedMult || 1), 'Galaktyka zasila Wszechświat');
+  assert.equal(u.feedTarget(), null, 'ostatni etap nikogo nie zasila');
+  assert.equal(co.nextLayer(), null);
+  assert.ok(UNIVERSE.PRODUCTS[0].cost < gx.income * 60, 'pierwszy produkt za kilka sekund Galaktyki');
+  assert.ok(u.buyProduct('quasars', 1));
+  const co2 = new Company(JSON.parse(co.serialize()), { now: T0, rng });
+  assert.deepEqual(Object.keys(co2.layers), LAYER_ORDER);
+  assert.equal(co2.g.D, UNIVERSE);
+  u.s.deptUnlocked.brokers = true;
+  const o = u.makeOffer(T0);
+  assert.equal(o.L, 'universe');
+  assert.ok(TX.clientName(o).length > 3 && TX.taskName(o).length > 3);
+});
+
+test('Wszechświat: rynek od typu III do multiwersum, bramy K 3,5 / IV / V w drzewku, eon', () => {
+  const g = new Game(null, { now: T0, rng, layer: 'universe' });
+  assert.ok(UNIVERSE.MARKET_REACH.base >= GALAXY.MARKET_REACH.ends.at(-1), 'zaczyna się ponad Galaktyką');
+  const ids = UNIVERSE.TECHS.map((t) => t.id);
+  for (const L of SCALE_LEVELS) if (L.k >= 3.5) assert.ok(ids.includes(L.tech), L.tech);
+  for (const t of UNIVERSE.TECHS) g.s.techs[t.id] = true;
+  g.recalc();
+  assert.ok(Math.abs(g.marketCapLog() - UNIVERSE.MARKET_REACH.ends.at(-1)) < 1e-9);
+  // przy pełnym rynku (z nadwyżką) firma dochodzi do multiwersum
+  const top = SCALE_LEVELS.length - 1;
+  assert.ok(Math.pow(10, g.marketCapLog() + 2) * SECONDS_PER_GAME_YEAR > SCALE_THRESHOLDS[top], 'multiwersum osiągalne');
+  assert.ok(Number.isFinite(Math.pow(10, g.marketCapLog() + 2) * SECONDS_PER_GAME_YEAR * 100), 'liczby mieszczą się w zakresie');
+  g.s.totalEarned = 1e46;
+  const gain = g.doPrestige(T0);
+  assert.ok(gain > 0 && g.s.prestigeCount === 1 && g.s.techs.lastQuestion);
+  assert.ok(TX.newsList('universe').length >= 10);
 });

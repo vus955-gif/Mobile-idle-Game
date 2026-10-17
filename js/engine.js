@@ -2,11 +2,11 @@
 import {
   PRODUCT_GROWTH, MILESTONES, DEPT_MILESTONES, DEPT_MILESTONE_X, PERKS,
   BUBBLES, CONTRACT_DURATIONS, TREND_TEMPLATES,
-  AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, CHALLENGE_FACTORS, SCALE_LEVELS, ENERGY_W_PER_USD, DECISIONS,
-  OFFICE_MAX_LEVEL, MARKET, COMPETITORS, BOARD, ROLES, QUIRKS, EXEC_NAMES, TECH_CAP_STEP,
+  AUTOPILOT, CHALLENGE_TIERS, CHALLENGE_REACH, TRANSCEND, SCALE_LEVELS, ENERGY_W_PER_USD, DECISIONS,
+  OFFICE_MAX_LEVEL, MARKET, COMPETITORS, BOARD, ROLES, QUIRKS, EXEC_NAMES, TECH_CAP_STEP, LOBBY_RULES, BRAKE,
 } from './data.js';
 import { fmt, money, num } from './format.js';
-import { EARTH, LAYERS, LAYER_ORDER } from './layers.js';
+import { EARTH, LAYERS, LAYER_ORDER, ALL_CHALLENGES } from './layers.js';
 import { t, noun, getLang } from './i18n.js';
 import * as TX from './text.js';
 
@@ -16,8 +16,11 @@ export const BASE_OFFLINE_EFF = 0.5;
 export const ACH_BONUS = 0.01;
 export const MAX_SLOTS = 5;
 export const BUBBLE_LIFETIME = 13000;
+export const BUBBLE_MIN_GAP = 45000;
 // Wycena: godzina gry ≈ rok życia firmy; mnożnik rynkowy rośnie z technologiami i rundami.
 export const SECONDS_PER_GAME_YEAR = 3600;
+// Średnia krocząca tempa zarabiania (cele wyzwań, ceny lobbingu i hamulca) liczy się z ostatnich ~30 minut.
+export const EARN_TAU = 1800;
 // Część przychodu warstwy przekazywana kolejnej (Ziemia → Kosmos) i grant na start nowej warstwy.
 export const FEED_SHARES = [0, 0.1, 0.25, 0.5];
 export const LAYER_GRANT_SECONDS = 600;
@@ -38,7 +41,7 @@ export const PRESTIGE = EARTH.PRESTIGE;
 export const INVESTOR_BONUS = EARTH.PRESTIGE.bonus;
 export const PERK_MAP = Object.fromEntries(PERKS.map((p) => [p.id, p]));
 export const AP_MAP = Object.fromEntries(AUTOPILOT.map((a) => [a.id, a]));
-export const CHALLENGE_MAP = Object.fromEntries(CHALLENGES.map((c) => [c.id, c]));
+export const CHALLENGE_MAP = Object.fromEntries(ALL_CHALLENGES.map((c) => [c.id, c]));
 export const COMP_MAP = Object.fromEntries(COMPETITORS.map((c) => [c.id, c]));
 export const ROLE_MAP = Object.fromEntries(ROLES.map((r) => [r.id, r]));
 export const QUIRK_MAP = Object.fromEntries(QUIRKS.map((q) => [q.id, q]));
@@ -137,8 +140,10 @@ export function createMeta(now = Date.now()) {
     scaleMax: -1,
     flags: {},
     unlocked: { earth: true },
+    // ile razy firma przeszła całą grę i zaczęła od zera (transcendencja)
+    transcend: 0,
     stats: { zenTime: 0, musicTime: 0 },
-    settings: { sound: false, music: false, buyAmount: 1, lang: getLang(), layer: 'earth' },
+    settings: { sound: false, music: false, buyAmount: 1, lang: getLang(), layer: 'earth', cap: true },
   };
 }
 
@@ -177,10 +182,17 @@ export function createState(now = Date.now(), meta = createMeta(now), D = EARTH)
       clicks: 0, runClicks: 0, autoClicks: 0, bubbles: 0, contracts: 0, playTime: 0, maxIncome: 0,
       hired: 0, upgradesBought: 0, rpTotal: 0, bestRun: 0, startedAt: now, runStartedAt: now,
       decisions: 0, autoBuys: 0, bestValuation: 0, bestCore: 0,
+      // tempo zarabiania etapu: średnia krocząca wpływów (bez zasilania, offline, hamulca i wyzwań),
+      // część z kliknięć i szczyty; z nich cele wyzwań oraz ceny lobbingu i hamulca
+      earnRate: 0, clickRate: 0, peakEarn: 0, peakNoClick: 0, peakIncome: 0,
     },
     view: D.HQ,
     rdBudget: 0,
     feed: 0,
+    // lobbing (poziomy w tej rundzie) i zdjęcie hamulca (raz na rundę)
+    lobby: 0,
+    brakeUsed: false,
+    brakeUntil: 0,
     lastTick: now,
   };
 }
@@ -195,6 +207,12 @@ export function sanitizeMeta(raw, now = Date.now()) {
   const m = { ...base };
   for (const k of ['achievements', 'perks', 'flags', 'challenges']) m[k] = isObj(raw[k]) ? { ...raw[k] } : base[k];
   m.unlocked = { ...(isObj(raw.unlocked) ? raw.unlocked : {}), earth: true };
+  m.transcend = Math.max(0, Math.floor(fix(raw.transcend, 0)));
+  // wyzwania: tylko istniejące, najwyżej tyle poziomów, ile jest teraz (starsze zapisy miały 5)
+  for (const id of Object.keys(m.challenges)) {
+    if (!CHALLENGE_MAP[id] || !(m.challenges[id] > 0)) delete m.challenges[id];
+    else m.challenges[id] = Math.min(CHALLENGE_TIERS.length, Math.floor(m.challenges[id]));
+  }
   const st = isObj(raw.stats) ? raw.stats : {};
   m.stats = {};
   for (const k of Object.keys(base.stats)) m.stats[k] = fix(st[k], 0);
@@ -202,6 +220,7 @@ export function sanitizeMeta(raw, now = Date.now()) {
   delete m.settings.view;
   delete m.settings.rdBudget;
   if (!LAYERS[m.settings.layer] || !m.unlocked[m.settings.layer]) m.settings.layer = 'earth';
+  m.settings.cap = m.settings.cap !== false;
   const ap = isObj(raw.autopilot) ? raw.autopilot : {};
   m.autopilot = { owned: isObj(ap.owned) ? { ...ap.owned } : {}, off: isObj(ap.off) ? { ...ap.off } : {} };
   const validExec = (e) => isObj(e) && ROLE_MAP[e.role] && Array.isArray(e.traits) && BOARD.rarity[e.r] && e.n >= 0;
@@ -246,6 +265,9 @@ export function sanitizeState(raw, now = Date.now(), D = EARTH, meta = null) {
   const rd = flat && isObj(raw.settings) ? raw.settings.rdBudget : raw.rdBudget;
   s.rdBudget = D.RD_BUDGET.shares.includes(rd) ? rd : 0;
   s.feed = FEED_SHARES.includes(raw.feed) ? raw.feed : 0;
+  s.lobby = Math.max(0, Math.min((D.LOBBY || []).length, Math.floor(fix(raw.lobby, 0))));
+  s.brakeUsed = !!raw.brakeUsed;
+  s.brakeUntil = fix(raw.brakeUntil, 0);
   const mk = isObj(raw.market) ? raw.market : {};
   s.market = { comps: {}, stakes: {}, lastTick: mk.lastTick > 0 ? mk.lastTick : 0 };
   for (const c of COMPETITORS) {
@@ -307,8 +329,12 @@ export class Game {
     this.rpRate = 0;
     this.clickValue = 1;
     this.autoAcc = 0;
+    this.earnAcc = 0;
+    this.clickAcc = 0;
     this.achTimer = 0;
     this.clickTimes = [];
+    this.autoIncome = 0;
+    this.autoClickValue = 0;
     this.m = null;
     this.recalc();
     this.afterLoad(this.now);
@@ -383,7 +409,8 @@ export class Game {
       prod: {}, cat: {}, catAdd: {}, dept: {}, all: 1, deptAll: 1,
       click: 1, clickPct: 0, clickFlat: 0, clickMultAdd: 0,
       rp: 1, rpBase: 0, incomePct: 0,
-      hireCost: 1, prodCost: 1, acqCost: 1,
+      hireCost: 1, prodCost: 1, acqCost: 1, officeCost: 1, feedMult: 1,
+      autoMult: 1, msAdd: 0, firstDept: 1, startLobby: 0, feedX: 1, upgradeCost: 1, brakeSec: 0, startReach: 0,
       offlineCap: BASE_OFFLINE_CAP, offlineEff: BASE_OFFLINE_EFF,
       eventFreq: 1, eventPower: 1, contract: 1, slots: 1, auto: 0,
       prestige: 1, investorPct: 0, startCash: 0, startLevels: 0, valMult: 0,
@@ -406,6 +433,16 @@ export class Game {
           case 'hireCost': m.hireCost *= pow; break;
           case 'prodCost': m.prodCost *= pow; break;
           case 'acqCost': m.acqCost *= pow; break;
+          case 'officeCost': m.officeCost *= pow; break;
+          case 'feedMult': m.feedMult += add; break;
+          case 'autoMult': m.autoMult *= pow; break;
+          case 'msAdd': m.msAdd += add; break;
+          case 'firstDept': m.firstDept *= pow; break;
+          case 'startLobby': m.startLobby += add; break;
+          case 'feedX': m.feedX *= pow; break;
+          case 'upgradeCost': m.upgradeCost *= pow; break;
+          case 'brakeSec': m.brakeSec += add; break;
+          case 'startReach': m.startReach += add; break;
           case 'offlineCap': m.offlineCap += add; break;
           case 'offlineEff': m.offlineEff += add; break;
           case 'eventFreq': m.eventFreq *= pow; break;
@@ -430,7 +467,14 @@ export class Game {
     for (const id in s.acquisitions) if (s.acquisitions[id] && this.D.ACQ_MAP[id]) apply(this.D.ACQ_MAP[id].fx);
     for (const id in s.meta.perks) { const l = s.meta.perks[id] || 0; if (l > 0 && PERK_MAP[id]) apply(PERK_MAP[id].fx, l); }
     for (const id in s.meta.challenges) { const l = s.meta.challenges[id] || 0; if (l > 0 && CHALLENGE_MAP[id]) apply(CHALLENGE_MAP[id].fx, l); }
-    for (const id in s.offices) { const l = s.offices[id] || 0; if (l > 0 && this.D.OFFICE_MAP[id]) apply(this.D.OFFICE_MAP[id].fx, l); }
+    const ruleNow = this.rule();
+    const noOffices = !!ruleNow && ruleNow.rule === 'noOffices';
+    for (const id in s.offices) { const l = s.offices[id] || 0; if (l > 0 && !noOffices && this.D.OFFICE_MAP[id]) apply(this.D.OFFICE_MAP[id].fx, l); }
+    // transcendencja: każda daje stały mnożnik przychodu i badań w każdym etapie
+    const tr = s.meta.transcend || 0;
+    if (tr > 0) { m.all *= Math.pow(TRANSCEND.income, tr); m.rp *= Math.pow(TRANSCEND.rp, tr); }
+    m.dept[this.D.FIRST_DEPT] = (m.dept[this.D.FIRST_DEPT] || 1) * m.firstDept;
+    m.feedMult *= m.feedX;
     // zarząd: cechy wzmocnione doświadczeniem i dziwactwem
     for (const role in s.meta.board) {
       const e = s.meta.board[role];
@@ -485,7 +529,8 @@ export class Game {
     m.slots = Math.min(MAX_SLOTS, m.slots);
 
     m.achMult = 1 + ACH_BONUS * this.achCount();
-    m.invMult = ch && ch.rule === 'noInvestors' ? 1 : 1 + s.investors * (this.D.PRESTIGE.bonus + m.investorPct);
+    // runda wyzwania to „spółka-córka”: technologie i premie imperium działają, kapitał etapu nie
+    m.invMult = ch ? 1 : 1 + s.investors * (this.D.PRESTIGE.bonus + m.investorPct);
     const bx = (k) => { const b = this.boostActive(k); return b ? b.x : 1; };
     // income/click — bąbelki (viral, hackathon); dIncome/dClick/dRp — wybrane decyzje
     m.boostIncome = bx('income') * bx('dIncome');
@@ -493,6 +538,7 @@ export class Game {
     m.rp *= bx('dRp');
     m.global = m.all * (1 + m.incomePct) * m.achMult * m.invMult * m.boostIncome;
     m.noMilestones = !!ch && ch.rule === 'noMilestones';
+    m.auto *= m.autoMult;
     this.m = m;
 
     let total = 0;
@@ -502,36 +548,56 @@ export class Game {
       this.prodIncome[p.id] = v;
       total += v;
     }
+    // Automatyczne kodowanie sprzedaje się na tym samym rynku co produkty: liczy się do surowego
+    // przychodu przed nasyceniem, więc w późnej grze nie dokłada setek „rynków” ponad zasięg.
+    const noClick = !!ch && ch.rule === 'noclick';
+    if (noClick) m.auto = 0;
+    const prodRaw = Number.isFinite(total) ? total : Number.MAX_VALUE;
+    const clickRaw = (this.D.CLICK_BASE + m.clickFlat) * m.click * (1 + m.clickMultAdd) * m.achMult * m.invMult;
+    const autoRaw = Math.min(Number.MAX_VALUE, m.auto * (clickRaw + m.clickPct * prodRaw));
     // zasięg rynku: ponad nim przychód rośnie wolniej (nasycenie)
-    const raw = Number.isFinite(total) ? total : Number.MAX_VALUE;
+    const raw = Math.min(Number.MAX_VALUE, prodRaw + autoRaw);
+    // (w ustawieniach można go wyłączyć — wtedy przychód rośnie bez ograniczeń)
+    const capOn = this.capOn();
     const cap = Math.pow(10, this.marketCapLog());
-    const eff = capIncome(raw, cap, this.D.MARKET_REACH);
+    // zdjęty hamulec: przez chwilę przychód rośnie liniowo, ale nie wyżej niż sufit
+    const brake = capOn && this.brakeActive();
+    const ceil = cap * BRAKE.ceiling;
+    const capped = capIncome(raw, cap, this.D.MARKET_REACH);
+    const eff = !capOn ? raw : brake ? Math.max(capped, Math.min(raw, ceil)) : capped;
     const factor = raw > 0 ? eff / raw : 1;
     if (factor !== 1) for (const id in this.prodIncome) this.prodIncome[id] *= factor;
+    // przychód z auto-kliknięć (część przychodu); pojedyncze auto-kliknięcie jest warte tyle
+    this.autoIncome = autoRaw * factor;
+    this.autoClickValue = m.auto > 0 ? this.autoIncome / m.auto : 0;
     this.rawIncome = raw;
     this.marketCap = cap;
     this.incFactor = factor;
-    this.incElastic = raw <= cap ? 1 : eff >= cap * this.D.MARKET_REACH.maxOver ? 0 : this.D.MARKET_REACH.soft;
+    this.brakeGain = capped > 0 ? Math.max(capped, Math.min(raw, ceil)) / capped : 1;
+    // przychód bez lobbingu i hamulca: od niego liczy się budżet badawczy, żeby tempo drzewka się nie zmieniało
+    const lobbyFree = capOn ? Math.min(eff, capIncome(raw, Math.pow(10, this.marketCapLog(false)), this.D.MARKET_REACH)) : raw;
+    this.incElastic = !capOn || raw <= cap ? 1 : brake ? (raw < ceil ? 1 : 0)
+      : eff >= cap * this.D.MARKET_REACH.maxOver ? 0 : this.D.MARKET_REACH.soft;
     this.income = eff;
-    if (ch && ch.rule === 'noclick') {
-      m.auto = 0;
+    if (noClick) {
       this.clickValue = 0;
     } else {
-      // kodowanie też sprzedaje się na tym samym rynku: przy nasyceniu tanieje jak produkty,
-      // a jedno kliknięcie nie przyniesie więcej niż sekunda całego rynku
-      const base = Math.min(cap, (this.D.CLICK_BASE + m.clickFlat) * m.click * (1 + m.clickMultAdd) * m.achMult * m.invMult * factor);
+      // ręczne kodowanie: przy nasyceniu tanieje jak produkty, a jedno kliknięcie nie przyniesie
+      // więcej niż sekunda całego rynku; do tego procent przychodu za kliknięcie
+      const base = capOn ? Math.min(brake ? ceil : cap, clickRaw * factor) : Math.min(Number.MAX_VALUE, clickRaw);
       this.clickValue = (base + m.clickPct * this.income) * m.boostClick;
     }
     // budżet badawczy: część przychodu zamienia się w punkty badań
     const rd = this.D.RD_BUDGET;
-    const share = s.deptUnlocked[this.D.RD_DEPT] && rd.shares.includes(s.rdBudget) ? s.rdBudget : 0;
+    const share = s.deptUnlocked[this.D.RD_DEPT] && rd.shares.includes(s.rdBudget) && !(ch && ch.rule === 'noBudget') ? s.rdBudget : 0;
     m.rdShare = share;
     // zasilanie: część przychodu idzie do kolejnej warstwy (np. Ziemia finansuje program kosmiczny)
     const feed = this.feedTarget() && FEED_SHARES.includes(s.feed) ? s.feed : 0;
     m.feedShare = feed;
     this.feedOut = this.income * feed;
     this.netIncome = this.income * (1 - share - feed);
-    this.rpBudget = share > 0 && this.income > 0 ? rd.k * Math.pow((this.income * share) / (rd.ref || 1), rd.p) * m.rp : 0;
+    this.researchBase = lobbyFree;
+    this.rpBudget = share > 0 && this.income > 0 ? rd.k * Math.pow((this.researchBase * share) / (rd.ref || 1), rd.p) * m.rp : 0;
     this.rpRate = m.rpBase * m.rp + this.rpBudget;
   }
   // Warstwa, którą ta zasila (jeśli firma już ją otworzyła).
@@ -543,6 +609,11 @@ export class Game {
     if (!FEED_SHARES.includes(share) || !this.feedTarget()) return false;
     this.s.feed = share;
     this.recalc();
+    return true;
+  }
+  setCap(on) {
+    this.s.meta.settings.cap = !!on;
+    this.refresh();
     return true;
   }
   setRdBudget(share) {
@@ -573,11 +644,68 @@ export class Game {
     const gate = this.scaleGate();
     return k !== null && gate ? Math.min(k, gate.k - 0.01) : k;
   }
-  // log10 zasięgu rynku ($/s) przy obecnych technologiach
-  marketCapLog() {
+  // Czy działa zasięg rynku (nasycenie przychodu). Domyślnie tak; wyłączony to tryb do porównań.
+  capOn() { return this.s.meta.settings.cap !== false; }
+  // log10 zasięgu rynku ($/s) przy obecnych technologiach (i lobbingu w tej rundzie)
+  marketCapLog(withLobby = true) {
     let v = this.D.MARKET_REACH.base;
     for (const id in this.s.techs) if (this.s.techs[id] && this.D.TECH_CAP_STEP[id]) v += this.D.TECH_CAP_STEP[id];
+    if (withLobby) v += (this.s.lobby || 0) * LOBBY_RULES.step;
+    // każdy poziom wyzwań tego etapu trwale poszerza rynek; wyzwanie „Kryzys” zawęża go ok. 3×
+    for (const c of this.D.CHALLENGES) v += (this.s.meta.challenges[c.id] || 0) * CHALLENGE_REACH;
+    const ch = this.s.challenge && CHALLENGE_MAP[this.s.challenge.id];
+    if (ch && ch.rule === 'halfCap') v -= 0.5;
     return v;
+  }
+
+  // ---------- lobbing i zdjęcie hamulca ----------
+  // Lobbing jest dostępny, gdy rynek ma limit; kolejny poziom kosztuje 10 min zasięgu × 2,5^poziom.
+  lobbyMax() { return (this.D.LOBBY || []).length; }
+  // Ceny lobbingu i hamulca liczą się od szczytowego tempa zarabiania etapu (produkty + auto-kliknięcia),
+  // a nie od bieżącego: tanie poziomy na początku rundy nie dałyby się „zarezerwować” na później.
+  peakEarn() {
+    const st = this.s.stats;
+    this.updatePeak();
+    return Math.max(st.peakEarn, st.peakIncome, Math.pow(10, this.D.MARKET_REACH.base));
+  }
+  lobbyCost(level = this.s.lobby || 0) {
+    if (level >= this.lobbyMax()) return Infinity;
+    return this.peakEarn() * LOBBY_RULES.costSeconds * Math.pow(LOBBY_RULES.growth, level);
+  }
+  lobbyBlocked() { const ch = this.rule(); return !this.capOn() || (!!ch && ch.rule === 'noLobby'); }
+  buyLobby() {
+    const s = this.s;
+    const cost = this.lobbyCost();
+    if (this.lobbyBlocked() || !(cost <= s.cash)) return false;
+    s.cash -= cost;
+    s.lobby = (s.lobby || 0) + 1;
+    s.meta.flags.lobbied = true;
+    if (s.lobby >= this.lobbyMax()) s.meta.flags.lobbyMax = true;
+    this.recalc();
+    const L = this.D.LOBBY[s.lobby - 1];
+    this.toast(L.icon, t('lob.toast', { name: TX.lobbyName(L.id) }), t('lob.toastText', { x: num(Math.pow(10, LOBBY_RULES.step)) }), 'unlock');
+    this.emit('buy', { kind: 'lobby', id: L.id });
+    this.checkAchievements();
+    return true;
+  }
+  brakeActive() { return !this.offline && this.s.brakeUntil > this.now; }
+  brakeCost() { return this.peakEarn() * BRAKE.costSeconds; }
+  // w wyzwaniach hamulca nie da się zdjąć (5 minut ×1000 rozstrzygałoby każdy cel)
+  brakeAvailable() { return !this.lobbyBlocked() && !this.s.challenge && !this.s.brakeUsed && !this.brakeActive(); }
+  brakeSeconds() { return BRAKE.seconds + (this.m ? this.m.brakeSec : 0); }
+  releaseBrake(now = this.now) {
+    const s = this.s;
+    const cost = this.brakeCost();
+    if (!this.brakeAvailable() || !(cost <= s.cash)) return false;
+    s.cash -= cost;
+    s.brakeUsed = true;
+    s.brakeUntil = now + this.brakeSeconds() * 1000;
+    s.meta.flags.brake = true;
+    this.recalc();
+    if (this.brakeGain >= 100) s.meta.flags.brakeBig = true;
+    this.emit('brake', { on: true, gain: this.brakeGain, s: this.brakeSeconds() });
+    this.checkAchievements();
+    return true;
   }
   // Nazwa rynku: Ziemia, Układ Słoneczny, galaktyka, wszechświat, multiwersum
   marketStage() {
@@ -590,7 +718,7 @@ export class Game {
   // Rzeczywisty przyrost przychodu z przyrostu liczonego liniowo (przy nasyconym rynku mniejszy).
   marginal(d) { return d * (this.incFactor ?? 1) * (this.incElastic ?? 1); }
   // Mnożnik z kamieni milowych (w wyzwaniu „Kryzys” nie działa).
-  msMult(lvl) { return this.m.noMilestones ? 1 : Math.pow(2, milestoneCount(lvl)); }
+  msMult(lvl) { return this.m.noMilestones ? 1 : Math.pow(2 + (this.m.msAdd || 0), milestoneCount(lvl)); }
   // O ile wzrośnie przychód po dokupieniu n poziomów (z kamieniami milowymi).
   productDelta(id, n = 1) {
     const l = this.s.products[id] || 0;
@@ -601,6 +729,7 @@ export class Game {
   earn(x) {
     if (!(x > 0)) return;
     const s = this.s;
+    this.earnAcc += x;
     s.cash = Math.min(Number.MAX_VALUE, s.cash + x);
     s.runEarned = Math.min(Number.MAX_VALUE, s.runEarned + x);
     s.totalEarned = Math.min(Number.MAX_VALUE, s.totalEarned + x);
@@ -617,6 +746,7 @@ export class Game {
 
     let dirty = false;
     for (const k of Object.keys(s.boosts)) if (s.boosts[k].until <= now) { delete s.boosts[k]; dirty = true; }
+    if (s.brakeUntil && s.brakeUntil <= now) { s.brakeUntil = 0; dirty = true; this.emit('brake', { on: false }); }
     if (s.trend && s.trend.until <= now) { s.trend = null; dirty = true; this.emit('trend', null); }
     if (dirty) this.recalc();
 
@@ -626,18 +756,20 @@ export class Game {
     s.rp += rp;
     s.stats.rpTotal += rp;
 
+    // auto-kliknięcia zarabiają w ramach przychodu (wyżej); tu tylko licznik i animacja
+    if (this.income > 0) this.clickAcc += this.netIncome * dt * (this.autoIncome / this.income);
     if (this.m.auto > 0) {
       this.autoAcc += this.m.auto * dt;
       const n = Math.floor(this.autoAcc);
       if (n > 0) {
         this.autoAcc -= n;
-        this.earn(this.clickValue * n);
         s.stats.autoClicks += n;
-        this.emit('autoclick', { n, value: this.clickValue * n });
+        this.emit('autoclick', { n, value: this.autoClickValue * n });
       }
     }
     s.stats.playTime += dt;
     if (this.income > s.stats.maxIncome) s.stats.maxIncome = this.income;
+    this.updatePeak();
 
     const fg = !this.background;
     if (fg) this.updateBubble(now);
@@ -648,6 +780,7 @@ export class Game {
     this.updateMarket(now);
     if (fg) this.updateCandidates(now);
 
+    this.trackEarn(dt);
     this.apTimer = (this.apTimer || 0) + dt;
     if (this.apTimer >= 1) { this.apTimer = 0; this.autopilotStep(now); }
 
@@ -669,6 +802,7 @@ export class Game {
     const v = this.clickValue;
     if (!(v > 0)) return 0;
     this.earn(v);
+    this.clickAcc += v;
     s.stats.clicks++;
     s.stats.runClicks++;
     this.clickTimes.push(now);
@@ -735,7 +869,7 @@ export class Game {
     s.deptUnlocked[id] = true;
     s.depts[id] = 0;
     this.recalc();
-    this.toast(d.icon, t('toast.newDept', { name: TX.deptName(id) }), t(this.D.id === 'space' ? 'sp.toast.newDeptText' : 'toast.newDeptText'), 'unlock');
+    this.toast(d.icon, t('toast.newDept', { name: TX.deptName(id) }), t(this.D.TEXT ? `${this.D.TEXT}toast.newDeptText` : 'toast.newDeptText'), 'unlock');
     this.emit('structure');
     return true;
   }
@@ -782,11 +916,16 @@ export class Game {
     if (this.upgradesBlocked()) return [];
     return this.D.UPGRADES.filter((u) => !this.s.upgrades[u.id] && this.upgradeVisible(u)).sort((a, b) => a.cost - b.cost);
   }
+  // Cena ulepszenia (z nagrodą za wyzwanie „Minimalizm”).
+  upgradeCost(u) {
+    return u.cost * (this.m ? this.m.upgradeCost : 1);
+  }
   buyUpgrade(id) {
     const u = this.D.UPGRADE_MAP[id];
     const s = this.s;
-    if (!u || s.upgrades[id] || this.upgradesBlocked() || !this.upgradeVisible(u) || s.cash < u.cost) return false;
-    s.cash -= u.cost;
+    const cost = u ? this.upgradeCost(u) : Infinity;
+    if (!u || s.upgrades[id] || this.upgradesBlocked() || !this.upgradeVisible(u) || s.cash < cost) return false;
+    s.cash -= cost;
     s.upgrades[id] = true;
     s.stats.upgradesBought++;
     this.recalc();
@@ -797,7 +936,7 @@ export class Game {
   buyAllUpgrades() {
     let n = 0;
     for (const u of this.availableUpgrades()) {
-      if (u.cost > this.s.cash) break;
+      if (this.upgradeCost(u) > this.s.cash) break;
       if (this.buyUpgradeSilent(u)) n++;
     }
     if (n) { this.recalc(); this.emit('buy', { kind: 'upgrade', n }); this.emit('structure'); }
@@ -805,8 +944,9 @@ export class Game {
   }
   buyUpgradeSilent(u) {
     const s = this.s;
-    if (s.upgrades[u.id] || s.cash < u.cost) return false;
-    s.cash -= u.cost;
+    const cost = this.upgradeCost(u);
+    if (s.upgrades[u.id] || s.cash < cost) return false;
+    s.cash -= cost;
     s.upgrades[u.id] = true;
     s.stats.upgradesBought++;
     return true;
@@ -850,10 +990,11 @@ export class Game {
   // ---------- przejęcia ----------
   acqUnlocked() { return !!this.s.deptUnlocked[this.D.LEGAL_DEPT]; }
   acqCost(id) { return this.D.ACQ_MAP[id].cost * this.m.acqCost; }
+  acqBlocked() { const ch = this.rule(); return !!ch && ch.rule === 'noAcq'; }
   buyAcq(id) {
     const a = this.D.ACQ_MAP[id];
     const s = this.s;
-    if (!a || !this.acqUnlocked() || s.acquisitions[id]) return false;
+    if (!a || !this.acqUnlocked() || this.acqBlocked() || s.acquisitions[id]) return false;
     const cost = this.acqCost(id);
     if (s.cash < cost) return false;
     s.cash -= cost;
@@ -969,6 +1110,9 @@ export class Game {
     s.contracts = { offers: [], active: [], nextOfferAt: 0, seq: s.contracts.seq || 0 };
     s.challenge = null;
     s.market.stakes = {};
+    s.lobby = 0;
+    s.brakeUsed = false;
+    s.brakeUntil = 0;
     s.runEarned = 0;
     s.stats.runClicks = 0;
     s.stats.runStartedAt = now;
@@ -976,17 +1120,26 @@ export class Game {
     s.nextTrendAt = now + 120000;
     this.recalc();
     // kapitał na start: ×1000 za poziom, ale najwyżej 10 minut pełnego rynku
-    s.cash = this.m.startCash > 0 ? Math.min(Math.pow(1000, this.m.startCash), this.marketCap * 600) : 0;
+    const seed = Math.pow(1000, this.m.startCash);
+    s.cash = this.m.startCash > 0 ? (this.capOn() ? Math.min(seed, this.marketCap * 600) : seed) : 0;
     if (this.m.startLevels > 0) {
       const lvls = this.m.startLevels;
       const count = 2 + Math.round(lvls / 10);
       this.D.PRODUCTS.filter((p) => this.productUnlocked(p.id)).slice(0, count).forEach((p) => { s.products[p.id] = lvls; });
     }
+    this.runStartBonuses();
     this.recalc();
+  }
+  // Nagrody z wyzwań na start rundy (i nowego etapu): darmowy lobbing i gotówka z zasięgu rynku.
+  runStartBonuses() {
+    const s = this.s;
+    if (!this.lobbyBlocked() && this.m.startLobby > 0) s.lobby = Math.max(s.lobby || 0, Math.min(this.lobbyMax(), Math.round(this.m.startLobby)));
+    if (this.m.startReach > 0) s.cash += Math.pow(10, this.marketCapLog()) * this.m.startReach;
   }
 
   // ---------- bąbelki (wydarzenia do kliknięcia) ----------
-  bubbleDelay() { return (110 + this.rng() * 170) * 1000 / this.m.eventFreq; }
+  // częstsze wydarzenia skracają czekanie, ale bąbelek pojawia się najwyżej co 45 s
+  bubbleDelay() { return Math.max(BUBBLE_MIN_GAP, (110 + this.rng() * 170) * 1000 / this.m.eventFreq); }
   updateBubble(now) {
     const s = this.s;
     if (s.bubble) {
@@ -1133,7 +1286,7 @@ export class Game {
         changed = true;
         this.emit('contractOffer');
       }
-      c.nextOfferAt = now + (45 + this.rng() * 75) * 1000;
+      c.nextOfferAt = now + (60 + this.rng() * 90) * 1000;
     }
     if (changed) this.emit('contracts');
     return done;
@@ -1167,10 +1320,14 @@ export class Game {
     s.boosts = {};
     s.bubble = null;
     if (s.trend && s.trend.until <= now) s.trend = null;
+    // zdjęty hamulec też nie działa offline (czas mija normalnie)
+    this.offline = true;
     this.recalc();
+    this.offline = false;
+    if (s.brakeUntil && s.brakeUntil <= now) s.brakeUntil = 0;
     const counted = Math.min(elapsed, this.m.offlineCap);
     const eff = this.m.offlineEff;
-    const cash = (this.netIncome + this.m.auto * this.clickValue) * counted * eff;
+    const cash = this.netIncome * counted * eff;
     const feed = this.feedIn * counted * eff;
     const rp = this.rpRate * counted * eff;
     this.earn(cash);
@@ -1191,6 +1348,9 @@ export class Game {
     this.recalc();
     this.checkAchievements();
     this.sampleHistory(now, true);
+    // zarobki offline nie wchodzą do średniej tempa zarabiania
+    this.earnAcc = 0;
+    this.clickAcc = 0;
     const res = { elapsed, counted, cash, feed, rp, eff, cap: this.m.offlineCap, contracts, pending, layer: this.D.id };
     this.emit('offline', res);
     this.autopilotStep(now);
@@ -1205,7 +1365,7 @@ export class Game {
     const o = this.D.OFFICE_MAP[id];
     const l = this.officeLevel(id);
     if (l >= OFFICE_MAX_LEVEL) return Infinity;
-    return o.cost * Math.pow(this.D.OFFICE_LEVEL_COST, l - (o.hq ? 1 : 0));
+    return o.cost * Math.pow(this.D.OFFICE_LEVEL_COST, l - (o.hq ? 1 : 0)) * (this.m ? this.m.officeCost : 1);
   }
   openOffice(id) {
     const o = this.D.OFFICE_MAP[id];
@@ -1431,7 +1591,10 @@ export class Game {
   autopilotStep(now = this.now) {
     const s = this.s;
     if (!this.apCount()) return 0;
+    const chr = this.rule();
+    if (chr && chr.rule === 'noAutopilot') return 0;
     let n = 0;
+    let round = 0;
     const researched = [];
     this.quiet = true;
     this.quietStructure = false;
@@ -1451,7 +1614,7 @@ export class Game {
       if (this.apOn('upgrades')) {
         let k = 0;
         for (const u of this.availableUpgrades()) {
-          if (u.cost > s.cash) break;
+          if (this.upgradeCost(u) > s.cash) break;
           if (this.buyUpgradeSilent(u)) k++;
         }
         if (k) { n += k; this.recalc(); this.quietStructure = true; }
@@ -1495,6 +1658,29 @@ export class Game {
           n++;
         }
       }
+      if (this.apOn('offices')) {
+        for (let guard = 0; guard < 5; guard++) {
+          const cheapest = this.D.OFFICES.filter((o) => this.officeAvailable(o.id))
+            .map((o) => ({ id: o.id, cost: this.officeCost(o.id) })).sort((a, b) => a.cost - b.cost)[0];
+          if (!cheapest || !(cheapest.cost <= s.cash * 0.25) || !this.openOffice(cheapest.id)) break;
+          n++;
+        }
+      }
+      if (this.apOn('acq') && this.acqUnlocked()) {
+        for (const a of this.D.ACQUISITIONS) if (!s.acquisitions[a.id] && this.acqCost(a.id) <= s.cash * 0.5 && this.buyAcq(a.id)) n++;
+      }
+      if (this.apOn('acq')) while (this.lobbyCost() <= s.cash * 0.5 && this.buyLobby()) n++;
+      if (this.apOn('market') && this.marketUnlocked()) n += this.autoMarket();
+      // decyzje i zarząd są wspólne dla firmy — zajmuje się nimi tylko warstwa na ekranie
+      if (!this.background) {
+        const d = s.meta.decision;
+        if (this.apOn('decisions') && d && now - d.at >= 15000 && this.chooseDecision(this.autoDecision(), now)) n++;
+        if (this.apOn('board') && this.boardUnlocked()) n += this.autoBoard(now);
+      }
+      if (this.apOn('rounds') && !s.challenge && now - s.stats.runStartedAt >= 10 * 60000) {
+        const gain = this.prestigeGain();
+        if (gain >= Math.max(10, s.investors)) { round = this.doPrestige(now); if (round) n++; }
+      }
     } finally {
       this.quiet = false;
     }
@@ -1505,29 +1691,108 @@ export class Game {
     if (n) {
       this.recalc();
       s.stats.autoBuys += n;
-      this.emit('autopilot', { n, researched });
+      this.emit('autopilot', { n, researched, round });
       if (this.quietStructure) this.emit('structure');
     }
     return n;
   }
 
+  // Wariant decyzji wart więcej, liczony w sekundach przychodu (premie czasowe ważone ostrożnie).
+  autoDecision() {
+    const d = DECISIONS[this.s.meta.decision.i];
+    const score = (fx) => {
+      const e = this.decisionEffect(fx);
+      switch (e.t) {
+        case 'cash': return e.min * 60;
+        case 'delayed': return e.min * 60 * 0.9;
+        case 'rp': return e.min * 60 * 0.8;
+        case 'boost': return (e.x - 1) * e.s;
+        case 'rpBoost': return (e.x - 1) * e.s * 0.6;
+        case 'click': return (e.x - 1) * e.s * 0.3;
+        default: return 0;
+      }
+    };
+    return score(d.b.fx) > score(d.a.fx) ? 'b' : 'a';
+  }
+  // Łowca głów: puste miejsca i lepsi kandydaci, najwyżej za trzecią część udziałów.
+  autoBoard(now) {
+    const m = this.s.meta;
+    let n = 0;
+    for (const c of [...m.candidates]) {
+      const cur = m.board[c.role];
+      if ((!cur || c.r > cur.r) && this.candidateCost(c) <= m.shares / 3 && this.hireExec(c.id, now)) n++;
+    }
+    return n;
+  }
+  // Makler: dokupuje po 5% udziałów w tanich (kurs poniżej średniej) spółkach, do przejęcia kontroli.
+  autoMarket() {
+    let n = 0;
+    const cheap = COMPETITORS.filter((c) => this.comp(c.id).sent <= 0.97 && this.stake(c.id) < MARKET.control)
+      .sort((a, b) => this.comp(a.id).sent - this.comp(b.id).sent);
+    for (const c of cheap) {
+      const pct = Math.min(0.05, MARKET.control - this.stake(c.id));
+      if (this.stakeCost(c.id, pct) <= this.s.cash * 0.15 && this.buyStake(c.id, pct)) n++;
+    }
+    return n;
+  }
+
   // ---------- wyzwania inwestorów ----------
-  challengesUnlocked() { return !!this.D.FEATURES.challenges && this.s.prestigeCount > 0; }
-  // Cel rośnie razem z Tobą: liczy się od rzędu wielkości Twojej najlepszej rundy.
+  // Wyzwania odblokowuje transcendencja (pierwsze przejście całej gry); każdy etap ma własne.
+  challengesUnlocked() { return (this.s.meta.transcend || 0) > 0 && this.D.CHALLENGES.length > 0; }
+  // Szczytowe tempo zarabiania etapu: przychód bez lobbingu, hamulca i bąbelków oraz auto-kliknięcia.
+  updatePeak() {
+    const st = this.s.stats;
+    if (this.s.challenge || !this.m) return;
+    const inc = this.researchBase / Math.max(1, this.m.boostIncome);
+    if (inc > st.peakIncome) st.peakIncome = inc;
+  }
+  // Średnia krocząca (30 min) wszystkich wpływów etapu: produkty, kliknięcia, kontrakty, bąbelki.
+  // Zamrożona w wyzwaniach i przy zdjętym hamulcu, więc szczyt mierzy zwykłą grę.
+  trackEarn(dt) {
+    const got = this.earnAcc;
+    const clk = this.clickAcc;
+    this.earnAcc = 0;
+    this.clickAcc = 0;
+    if (!(dt > 0) || this.s.challenge || this.brakeActive()) return;
+    const st = this.s.stats;
+    const k = 1 - Math.exp(-dt / EARN_TAU);
+    st.earnRate += (got / dt - st.earnRate) * k;
+    st.clickRate += (clk / dt - st.clickRate) * k;
+    if (st.earnRate > st.peakEarn) st.peakEarn = st.earnRate;
+    const rest = st.earnRate - st.clickRate;
+    if (rest > st.peakNoClick) st.peakNoClick = rest;
+  }
+  // Cel poziomu: tyle, ile etap zarabiał w szczycie przez s sekund (bez kliknięć, gdy wyzwanie je wyłącza),
+  // razy współczynnik trudności wyzwania. Tempo nie spada poniżej najmniejszego rynku etapu.
   challengeGoal(id) {
     const tier = this.s.meta.challenges[id] || 0;
-    if (tier >= CHALLENGE_GOALS.length) return null;
-    const L = Math.log10(Math.max(1e10, this.s.stats.bestRun, this.s.runEarned));
-    return Math.max(CHALLENGE_GOALS[tier], Math.pow(10, L * CHALLENGE_FACTORS[tier]));
+    const T = CHALLENGE_TIERS[tier];
+    const ch = CHALLENGE_MAP[id];
+    if (!T || !ch) return null;
+    const st = this.s.stats;
+    const rate = Math.max(ch.rule === 'noclick' ? st.peakNoClick : st.peakEarn, Math.pow(10, this.D.MARKET_REACH.base));
+    return rate * T.s * (ch.goal || 1);
   }
+
   // Rozpoczęcie wyzwania zaczyna firmę od nowa (z kapitałem z rundy, jeśli jest).
   startChallenge(id, now = this.now) {
     const s = this.s;
-    if (!CHALLENGE_MAP[id] || !this.challengesUnlocked() || this.challengeGoal(id) === null) return false;
+    if (!CHALLENGE_MAP[id] || CHALLENGE_MAP[id].layer !== this.D.id || !this.challengesUnlocked() || this.challengeGoal(id) === null) return false;
+    this.updatePeak();
     const goal = this.challengeGoal(id);
     if (this.prestigeGain() >= 1) this.doPrestige(now);
     else this.resetRun(now);
     s.challenge = { id, tier: s.meta.challenges[id] || 0, start: now, goal };
+    // nagrody na start rundy nie obchodzą reguł wyzwania (np. lobbing w „Wolnym rynku”)
+    if (this.lobbyBlocked()) s.lobby = 0;
+    const ch = CHALLENGE_MAP[id];
+    // produkty na start nie łamią limitu: zostają najmocniejsze
+    if (ch.rule === 'maxProducts') {
+      const owned = this.D.PRODUCTS.filter((p) => s.products[p.id] > 0);
+      for (const p of owned.slice(0, Math.max(0, owned.length - ch.v))) delete s.products[p.id];
+    }
+    // bez kodowania runda nie ruszyłaby z pustą kasą: gotówka na pierwszy produkt
+    if (ch.rule === 'noclick') s.cash = Math.max(s.cash, this.productCost(this.D.PRODUCTS[0].id) * 2);
     this.recalc();
     this.emit('challenge', { id, started: true });
     this.emit('structure');
@@ -1545,8 +1810,8 @@ export class Game {
     const s = this.s;
     const c = s.challenge;
     if (!c) return false;
-    const goal = c.goal || CHALLENGE_GOALS[c.tier];
-    if (goal === undefined) { s.challenge = null; this.recalc(); return false; }
+    const goal = c.goal;
+    if (!(goal > 0) || !CHALLENGE_MAP[c.id]) { s.challenge = null; this.recalc(); return false; }
     if (s.runEarned < goal) return false;
     s.meta.challenges[c.id] = Math.max(s.meta.challenges[c.id] || 0, c.tier + 1);
     s.challenge = null;
@@ -1722,7 +1987,8 @@ export class Company {
     for (const k in this.layers) {
       const g = this.layers[k];
       const to = g.feedTarget();
-      if (to) this.layers[to].feedIn += g.feedOut;
+      const ch = to && this.layers[to].rule();
+      if (to && !(ch && ch.rule === 'noFeed')) this.layers[to].feedIn += g.feedOut * (g.m.feedMult || 1);
     }
   }
   tick(now) {
@@ -1761,10 +2027,44 @@ export class Company {
     g.s.lastTick = now;
     // poprzednia warstwa finansuje start: grant od ręki i stałe zasilanie (domyślnie 25%)
     g.earnRaw(from.income * LAYER_GRANT_SECONDS);
+    g.runStartBonuses();
     if (!from.s.feed) from.s.feed = 0.25;
     this.setLayer(id);
     this.recalc();
     this.emit('layer', { id, unlocked: true });
+    return true;
+  }
+
+  // ---------- transcendencja: cała gra od zera ----------
+  // Dostępna po odkryciu całego drzewka Wszechświata.
+  canTranscend() { const u = this.layers.universe; return !!u && u.allTechs(); }
+  // Zaczyna imperium od garażu. Zostają: osiągnięcia, moduły autopilota, ustawienia, nazwa firmy,
+  // poziomy wyzwań i licznik transcendencji (stały mnożnik przychodu i badań).
+  transcend(now = this.now) {
+    if (!this.canTranscend()) return false;
+    const old = this.meta;
+    const meta = createMeta(now);
+    meta.companyName = old.companyName;
+    meta.achievements = { ...old.achievements };
+    meta.autopilot = { owned: { ...old.autopilot.owned }, off: { ...old.autopilot.off } };
+    meta.settings = { ...old.settings, layer: 'earth' };
+    meta.stats = { ...old.stats };
+    meta.challenges = { ...old.challenges };
+    meta.execSeq = old.execSeq;
+    meta.transcend = (old.transcend || 0) + 1;
+    // flagi zabawnych osiągnięć i lobbingu zostają; komunikaty o kolejnych etapach i finał wracają
+    meta.flags = Object.fromEntries(Object.entries(old.flags).filter(([k]) => !k.startsWith('ready_') && k !== 'finale'));
+    this.meta = meta;
+    this.now = now;
+    this.layers = {};
+    const g = this.addLayer('earth', null);
+    g.s.lastTick = now;
+    this.setLayer('earth');
+    this.feedLinks();
+    this.recalc();
+    g.runStartBonuses();
+    this.recalc();
+    this.emit('transcend', { n: meta.transcend });
     return true;
   }
 

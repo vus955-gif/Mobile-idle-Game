@@ -444,6 +444,150 @@ export const SPACE_VIEWS = {
   proxima: { dark: true, stops: ['#10021c', '#360b3c', '#742848'], ground: '#381532', edge: '#5a2350', far: '#290e29', farWin: '#ff9ecb', stars: true },
 };
 
+// Widoki z mostka statku-matki w układach gwiezdnych (statek zawsze dryfuje w przestrzeni).
+export const GALAXY_VIEWS = {
+  sol: { dark: true, orbit: true, stops: ['#000005', '#05061a', '#0d0f2e'], stars: true },
+  alpha: { dark: true, orbit: true, stops: ['#050208', '#140a1c', '#2a1630'], stars: true },
+  trappist: { dark: true, orbit: true, stops: ['#0a0103', '#1e0508', '#3a0c10'], stars: true },
+  pleiades: { dark: true, orbit: true, stops: ['#01030c', '#06122e', '#0f2552'], stars: true },
+  crab: { dark: true, orbit: true, stops: ['#020208', '#0b0a1f', '#1c1236'], stars: true },
+  orion: { dark: true, orbit: true, stops: ['#0b0210', '#2a0a2e', '#4d1440'], stars: true },
+  omega: { dark: true, orbit: true, stops: ['#060402', '#16100a', '#2b2012'], stars: true },
+  lmc: { dark: true, orbit: true, stops: ['#000000', '#020208', '#070a18'], stars: true },
+  sgr: { dark: true, orbit: true, stops: ['#050100', '#140602', '#2e0f05'], stars: true },
+};
+for (const v of Object.values(GALAXY_VIEWS)) Object.assign(v, { ground: '#2a2440', edge: '#4a4070', far: '#1e1a33', farWin: '#c4b5fd' });
+
+// Widoki z cytadeli we wszechświecie: galaktyki, gromady i kraniec obserwowalnego kosmosu.
+export const UNIVERSE_VIEWS = {
+  milkyway: { stops: ['#000003', '#04030f', '#0b0820'] },
+  andromeda: { stops: ['#010208', '#050a1e', '#0d1636'] },
+  triangulum: { stops: ['#020206', '#08081a', '#121230'] },
+  virgo: { stops: ['#040302', '#100c08', '#221a10'] },
+  bullet: { stops: ['#060208', '#14061c', '#260c30'] },
+  attractor: { stops: ['#020408', '#061020', '#0c1e38'] },
+  bootes: { stops: ['#000000', '#010101', '#030306'] },
+  hercules: { stops: ['#030104', '#0e0612', '#1c0c22'] },
+  edge: { stops: ['#1a0a04', '#3a1608', '#5a2a10'] },
+};
+for (const v of Object.values(UNIVERSE_VIEWS)) Object.assign(v, { dark: true, orbit: true, stars: true, ground: '#241a33', edge: '#3d2d55', far: '#1a1228', farWin: '#fde68a' });
+
+// Galaktyka spiralna w kadrze (cx, cy, rozmiar, nachylenie, kolory).
+function spiral(cx, cy, r, tilt, rot, arm = '#c7d2fe', core = '#fde68a') {
+  let out = `<g transform="rotate(${rot} ${cx} ${cy})"><ellipse cx="${cx}" cy="${cy}" rx="${r}" ry="${r * tilt}" fill="${arm}" opacity=".1"/>`;
+  for (let a = 0; a < 2; a++) {
+    let d = '';
+    for (let k = 0; k <= 24; k++) {
+      const th = (k / 24) * 3.2 + a * Math.PI;
+      const rr = r * (0.12 + (k / 24) * 0.88);
+      d += `${k ? 'L' : 'M'}${(cx + rr * Math.cos(th)).toFixed(1)} ${(cy + rr * tilt * Math.sin(th)).toFixed(1)} `;
+    }
+    out += `<path d="${d}" stroke="${arm}" stroke-width="${(r / 9).toFixed(1)}" fill="none" opacity=".28" stroke-linecap="round"/>`;
+  }
+  return `${out}<ellipse cx="${cx}" cy="${cy}" rx="${r * 0.2}" ry="${r * 0.2 * tilt}" fill="${core}" opacity=".8"/></g>`;
+}
+function elliptical(cx, cy, r, c = '#fde6c0') {
+  return `<ellipse cx="${cx}" cy="${cy}" rx="${r * 1.3}" ry="${r}" fill="${c}" opacity=".12"/><ellipse cx="${cx}" cy="${cy}" rx="${r * 0.6}" ry="${r * 0.46}" fill="${c}" opacity=".35"/><ellipse cx="${cx}" cy="${cy}" rx="${r * 0.2}" ry="${r * 0.16}" fill="#fff8e7"/>`;
+}
+
+function universeBodies(view) {
+  switch (view) {
+    case 'milkyway':
+      return spiral(270, 66, 64, 0.38, -14) + spiral(70, 40, 12, 0.5, 30, '#bfdbfe');
+    case 'andromeda':
+      return spiral(240, 70, 110, 0.32, -28, '#bfdbfe', '#fef3c7') + spiral(60, 36, 16, 0.6, 20);
+    case 'triangulum':
+      return spiral(270, 64, 52, 0.7, 10, '#a5f3fc', '#e0f2fe') + spiral(80, 44, 22, 0.35, -20);
+    case 'virgo':
+      return [[260, 60, 22], [300, 92, 12], [220, 96, 9], [190, 46, 7], [320, 40, 8], [90, 70, 6]].map(([x, y, r]) => elliptical(x, y, r)).join('') + spiral(140, 30, 10, 0.4, 15);
+    case 'bullet':
+      return `<ellipse cx="230" cy="70" rx="56" ry="34" fill="#f472b6" opacity=".22"/><ellipse cx="300" cy="74" rx="40" ry="26" fill="#f472b6" opacity=".22"/>
+        <ellipse cx="200" cy="66" rx="44" ry="30" fill="#60a5fa" opacity=".2"/><ellipse cx="320" cy="76" rx="34" ry="24" fill="#60a5fa" opacity=".2"/>
+        ${[[200, 66, 8], [214, 76, 5], [320, 76, 7], [308, 66, 4]].map(([x, y, r]) => elliptical(x, y, r)).join('')}`;
+    case 'attractor': {
+      let out = '<circle cx="270" cy="70" r="40" fill="#93c5fd" opacity=".12"/>';
+      for (let i = 0; i < 9; i++) {
+        const a = (i / 9) * Math.PI * 2;
+        out += `<path d="M${(270 + Math.cos(a) * 160).toFixed(0)} ${(70 + Math.sin(a) * 90).toFixed(0)} Q${(270 + Math.cos(a + 0.4) * 70).toFixed(0)} ${(70 + Math.sin(a + 0.4) * 40).toFixed(0)} 270 70" stroke="#bfdbfe" stroke-width="2" fill="none" opacity=".3"/>`;
+      }
+      return out + elliptical(270, 70, 10, '#dbeafe');
+    }
+    case 'bootes':
+      return elliptical(310, 40, 4) + spiral(60, 110, 6, 0.5, 10) + `<circle cx="200" cy="80" r="1.4" fill="#fff" opacity=".6"/>`;
+    case 'hercules': {
+      let out = '<path d="M-40 120 Q 120 40 420 30" stroke="#c4b5fd" stroke-width="40" fill="none" opacity=".08"/>';
+      for (let i = 0; i < 26; i++) {
+        const x = -20 + i * 17;
+        const y = 116 - i * 3.4 + Math.sin(i * 1.7) * 8;
+        out += `<ellipse cx="${x}" cy="${y.toFixed(0)}" rx="${(2 + (i % 4)).toFixed(0)}" ry="${(1.2 + (i % 3) * 0.6).toFixed(1)}" fill="#e9d5ff" opacity=".7"/>`;
+      }
+      return out;
+    }
+    case 'edge': {
+      // poświata Wielkiego Wybuchu: plamy promieniowania tła
+      let out = '';
+      for (let i = 0; i < 40; i++) {
+        const x = (i * 97) % 420 - 30;
+        const y = (i * 53) % 160 + 10;
+        out += `<ellipse cx="${x}" cy="${y}" rx="${18 + (i % 5) * 6}" ry="${10 + (i % 4) * 5}" fill="${i % 3 ? '#f59e0b' : '#38bdf8'}" opacity=".12"/>`;
+      }
+      return out;
+    }
+    default: return '';
+  }
+}
+
+function galaxyBodies(view) {
+  const star = (x, y, r, c, glow = 2.6) => `<circle cx="${x}" cy="${y}" r="${r * glow}" fill="${c}" opacity=".18"/><circle cx="${x}" cy="${y}" r="${r * 1.6}" fill="${c}" opacity=".35"/><circle cx="${x}" cy="${y}" r="${r}" fill="#fffbe8"/>`;
+  switch (view) {
+    case 'sol':
+      return `${star(286, 64, 12, '#ffd166')}<ellipse cx="286" cy="64" rx="34" ry="12" fill="none" stroke="#ffe08a" stroke-width="1.5" stroke-dasharray="1.5 3" opacity=".8" transform="rotate(-18 286 64)"/>
+        <circle cx="236" cy="88" r="2.2" fill="#60a5fa"/>`;
+    case 'alpha':
+      return `${star(270, 60, 10, '#ffd166')}${star(300, 76, 7, '#ffb347')}${star(64, 36, 2, '#ff6a3d', 3)}`;
+    case 'trappist':
+      return `<circle cx="290" cy="70" r="70" fill="#ff3b1f" opacity=".1"/><circle cx="290" cy="70" r="34" fill="#ff5a36" opacity=".35"/><circle cx="290" cy="70" r="22" fill="#ff7a4f"/>
+        ${[0, 1, 2, 3, 4, 5, 6].map((i) => `<circle cx="${40 + i * 30}" cy="${118 - i * 7}" r="${2.2 + (i % 3) * 0.9}" fill="${['#a16207', '#b45309', '#2563eb', '#16a34a', '#0ea5e9', '#7c3aed', '#94a3b8'][i]}"/>`).join('')}`;
+    case 'pleiades':
+      return `<ellipse cx="250" cy="70" rx="110" ry="60" fill="#60a5fa" opacity=".08"/>${[[230, 50, 4], [262, 44, 5], [284, 66, 4.5], [248, 80, 3.5], [212, 72, 3], [300, 40, 3], [270, 92, 3.5]].map(([x, y, r]) => star(x, y, r, '#93c5fd', 3)).join('')}`;
+    case 'crab':
+      return `<g opacity=".75">${[[0, '#f97316'], [40, '#38bdf8'], [80, '#f97316'], [120, '#a78bfa'], [160, '#38bdf8']].map(([a, c]) => `<path d="M270 70 q${30 * Math.cos((a * Math.PI) / 180)} ${-34 * Math.sin((a * Math.PI) / 180)} ${60 * Math.cos(((a + 30) * Math.PI) / 180)} ${30 * Math.sin(((a + 30) * Math.PI) / 180)}" stroke="${c}" stroke-width="3" fill="none"/>`).join('')}</g>
+        <ellipse cx="270" cy="70" rx="64" ry="40" fill="#f97316" opacity=".1"/>${star(270, 70, 3, '#e0f2fe', 4)}`;
+    case 'orion':
+      return `<ellipse cx="230" cy="70" rx="140" ry="70" fill="#f472b6" opacity=".14"/><ellipse cx="260" cy="60" rx="80" ry="40" fill="#fb7185" opacity=".18"/><ellipse cx="200" cy="90" rx="60" ry="26" fill="#a78bfa" opacity=".2"/>
+        ${[[250, 58, 3], [262, 64, 2.6], [244, 68, 2.4], [256, 72, 2.2]].map(([x, y, r]) => star(x, y, r, '#e0e7ff', 3)).join('')}`;
+    case 'omega': {
+      let out = '<circle cx="270" cy="66" r="62" fill="#fde68a" opacity=".1"/><circle cx="270" cy="66" r="34" fill="#fde68a" opacity=".16"/>';
+      for (let i = 0; i < 90; i++) {
+        const a = i * 2.39996;
+        const d = Math.sqrt(i / 90) * 56;
+        out += `<circle cx="${(270 + d * Math.cos(a)).toFixed(1)}" cy="${(66 + d * Math.sin(a)).toFixed(1)}" r="${(1.6 - d / 60).toFixed(2)}" fill="#fff4d6"/>`;
+      }
+      return out;
+    }
+    case 'lmc': {
+      // Droga Mleczna widziana z zewnątrz
+      let out = '<ellipse cx="240" cy="78" rx="130" ry="44" fill="#8b5cf6" opacity=".12" transform="rotate(-12 240 78)"/><ellipse cx="240" cy="78" rx="26" ry="12" fill="#fde68a" opacity=".65" transform="rotate(-12 240 78)"/>';
+      for (let arm = 0; arm < 2; arm++) {
+        let d = '';
+        for (let k = 0; k <= 30; k++) {
+          const th = (k / 30) * 3.4 + arm * Math.PI;
+          const r = 10 + k * 3.6;
+          d += `${k ? 'L' : 'M'}${(240 + r * Math.cos(th)).toFixed(1)} ${(78 + r * 0.34 * Math.sin(th)).toFixed(1)} `;
+        }
+        out += `<path d="${d}" stroke="#c7d2fe" stroke-width="7" fill="none" opacity=".22" stroke-linecap="round" transform="rotate(-12 240 78)"/>`;
+      }
+      return out;
+    }
+    case 'sgr':
+      return `<ellipse cx="270" cy="70" rx="72" ry="20" fill="none" stroke="#fb923c" stroke-width="9" opacity=".45" transform="rotate(-10 270 70)"/>
+        <ellipse cx="270" cy="70" rx="58" ry="14" fill="none" stroke="#fde68a" stroke-width="4" opacity=".7" transform="rotate(-10 270 70)"/>
+        <circle cx="270" cy="70" r="30" fill="#fb923c" opacity=".25"/><circle cx="270" cy="70" r="22" fill="#000"/>
+        <path d="M244 64 a28 18 0 0 1 52 0" stroke="#fde68a" stroke-width="3" fill="none" opacity=".8"/>`;
+    default: return '';
+  }
+}
+
 function spaceBodies(view, groundY) {
   switch (view) {
     case 'leo':
@@ -519,6 +663,28 @@ function satellite(y, dur, delay, rev = false) {
     <rect x="19" y="${y - 2}" width="9" height="4" fill="#3b82f6" stroke="#93c5fd" stroke-width=".5"/><circle cx="14" cy="${y - 5}" r="1.2" fill="#f87171"/></g>`;
 }
 
+// Sonda lecąca przez kadr (w galaktyce zamiast satelitów).
+function comet(y, dur, delay, rev = false) {
+  return `<g class="car${rev ? ' rev' : ''}" style="animation-duration:${dur}s;animation-delay:${delay}s">
+    <path d="M-26 ${y} L2 ${y - 2} L2 ${y + 2} Z" fill="#c4b5fd" opacity=".45"/><circle cx="4" cy="${y}" r="2.6" fill="#f5f3ff"/><circle cx="4" cy="${y}" r="5" fill="#c4b5fd" opacity=".35"/></g>`;
+}
+
+// Iskra kreacji: zarodek nowego wszechświata (pierwszy etap cytadeli).
+function spark(x, y, s = 1) {
+  return `<g transform="translate(${x} ${y}) scale(${s})">
+    <circle r="22" fill="#fde68a" opacity=".12"/><circle r="12" fill="#fdba74" opacity=".35"/><circle r="6" fill="#fff7ed"/>
+    <ellipse rx="20" ry="6" fill="none" stroke="#fde68a" stroke-width="1.2" opacity=".7" transform="rotate(-20)"/>
+    <ellipse rx="16" ry="5" fill="none" stroke="#c4b5fd" stroke-width="1.2" opacity=".7" transform="rotate(35)"/></g>`;
+}
+
+// Prom galaktyczny: spłaszczony kadłub, kopuła i świecący napęd.
+function shuttle(x, y, s = 1) {
+  return `<g transform="translate(${x} ${y}) scale(${s})">
+    <ellipse cx="0" cy="14" rx="20" ry="5" fill="#a78bfa" opacity=".35"/>
+    <path d="M-22 6 Q0 -6 22 6 L14 12 H-14 Z" fill="#e2e8f0"/><path d="M-10 0 Q0 -14 10 0 Z" fill="#93c5fd" stroke="#e2e8f0" stroke-width="1.5"/>
+    <rect x="-14" y="11" width="28" height="3" rx="1.5" fill="#64748b"/><circle cx="-8" cy="7" r="1.4" fill="#f0abfc"/><circle cx="0" cy="7" r="1.4" fill="#f0abfc"/><circle cx="8" cy="7" r="1.4" fill="#f0abfc"/></g>`;
+}
+
 function rocket(x, y, s = 1, flame = false) {
   return `<g transform="translate(${x} ${y}) scale(${s})">
     ${flame ? '<path d="M-5 30 q5 22 10 0 z" fill="#ffb347" opacity=".9"/><path d="M-3 30 q3 12 6 0 z" fill="#fff3b0"/>' : ''}
@@ -565,8 +731,11 @@ export class Scene {
   render(game, force = false) {
     const phase = phaseFor();
     const space = game.D.id !== 'earth';
+    const galaxy = game.D.id === 'galaxy';
+    const universe = game.D.id === 'universe';
     const view = game.s.view || game.D.HQ;
-    const th = space ? SPACE_VIEWS[view] || SPACE_VIEWS.leo : null;
+    const th = universe ? UNIVERSE_VIEWS[view] || UNIVERSE_VIEWS.milkyway
+      : galaxy ? GALAXY_VIEWS[view] || GALAXY_VIEWS.sol : space ? SPACE_VIEWS[view] || SPACE_VIEWS.leo : null;
     const orbit = !!(th && th.orbit);
     this.env = envFor();
     // W kosmosie nie ma pór roku ani pogody, ale święta zostają.
@@ -632,7 +801,10 @@ export class Scene {
     const now = new Date();
     const hour = now.getHours() + now.getMinutes() / 60;
     if (th) {
-      back.push(spaceBodies(view, groundY));
+      // w galaktyce i wszechświecie statek rośnie w górę, więc tło schodzi niżej, żeby nie chowało się pod paskiem etapów
+      const drop = galaxy || universe ? Math.max(0, (groundY - 240) * 0.4) : 0;
+      const bodies = universe ? universeBodies(view) : galaxy ? galaxyBodies(view) : spaceBodies(view, groundY);
+      back.push(drop ? `<g transform="translate(0 ${drop.toFixed(0)})">${bodies}</g>` : bodies);
     } else if (overcast && env.weather !== 'cloudy') {
       // przy deszczu, śniegu i mgle nie widać ani słońca, ani księżyca
     } else if (night) {
@@ -697,7 +869,9 @@ export class Scene {
       parts.push(`<rect x="-700" y="${groundY + 10}" width="${W + 1400}" height="8" fill="${shade('#9aa3c7', sky.wall)}"/>`);
       parts.push(`<rect x="-700" y="${groundY + 18}" width="${W + 1400}" height="${GROUND + 400}" fill="${sky.ground}"/>`);
     }
-    if (orbit) {
+    if (galaxy || universe) {
+      ANIM.push(comet(groundY - 40 - (nFloors * 7), 46, -9), comet(70, 70, -40, true));
+    } else if (orbit) {
       ANIM.push(satellite(groundY - 30 - (nFloors * 7), 34, -6), satellite(60, 52, -31, true));
     } else if (th) {
       const kr = seeded(13);
@@ -752,8 +926,10 @@ export class Scene {
   station(game, unlocked, groundY, night, orbit) {
     const s = game.s;
     const n = unlocked.length;
+    const ship = game.D.id === 'galaxy';
+    const citadel = game.D.id === 'universe';
     const name = s.meta.companyName.length > 24 ? s.meta.companyName.slice(0, 23) + '…' : s.meta.companyName;
-    const hull = night ? '#c9cfe6' : '#e9edf7';
+    const hull = citadel ? '#d6cfee' : ship ? '#b8bfd9' : night ? '#c9cfe6' : '#e9edf7';
     const base = orbit ? groundY - 18 : groundY;
     let out = '';
     if (n <= 1) {
@@ -762,7 +938,7 @@ export class Scene {
       const cx = W / 2;
       if (orbit) {
         const cy = base - 150;
-        out += rocket(cx, cy - 34, 2.2, false);
+        out += citadel ? spark(cx, cy - 14, 2.4) : ship ? shuttle(cx, cy - 4, 3) : rocket(cx, cy - 34, 2.2, false);
         out += `<rect x="${cx - 52}" y="${cy + 46}" width="104" height="14" rx="4" fill="#1b1e3d"/>`;
         out += `<text x="${cx}" y="${cy + 56.4}" text-anchor="middle" font-size="8.5" font-weight="800" fill="#ffe08a" font-family="system-ui, sans-serif">${esc(name.toUpperCase())}</text>`;
         ANIM.push(`<circle class="blink" cx="${cx}" cy="${cy - 82}" r="2.4" fill="#ff4d4d" filter="url(#glowA)"/>`);
@@ -777,10 +953,31 @@ export class Scene {
       return out;
     }
     const top = base - STATION_BASE - n * (FLOOR_H + MOD_GAP);
-    // kratownica i panele słoneczne
+    // kratownica i panele słoneczne (statek-matka: gondole napędu warp i pierścień)
     out += `<rect x="${W / 2 - 5}" y="${top - 30}" width="10" height="${base - top + 22}" fill="#8b93ad"/>`;
     const wings = Math.min(3, Math.ceil(n / 3));
-    for (let k = 0; k < wings; k++) {
+    if (citadel) {
+      // cytadela: halo pierścieni i portal nad szczytem (więcej pierścieni po kolejnych eonach)
+      const midY = base - STATION_BASE - (n * (FLOOR_H + MOD_GAP)) / 2;
+      const rings = 1 + Math.min(2, s.prestigeCount);
+      for (let k = 0; k < rings; k++) {
+        out += `<ellipse cx="${W / 2}" cy="${midY}" rx="${MOD_W / 2 + 70 + k * 18}" ry="${26 + k * 9}" fill="none" stroke="${['#fde68a', '#c4b5fd', '#67e8f9'][k]}" stroke-width="2.5" opacity=".5" transform="rotate(${-8 + k * 9} ${W / 2} ${midY})"/>`;
+      }
+      out += `<ellipse cx="${W / 2}" cy="${top - 58}" rx="34" ry="14" fill="#1e1b4b" stroke="#fde68a" stroke-width="2" opacity=".9"/>`;
+      ANIM.push(`<ellipse class="blink" cx="${W / 2}" cy="${top - 58}" rx="22" ry="8" fill="#fde68a" opacity=".55" filter="url(#glowA)"/>`);
+    }
+    if (ship) {
+      const midY = base - STATION_BASE - (n * (FLOOR_H + MOD_GAP)) / 2;
+      if (s.prestigeCount >= 1) out += `<ellipse cx="${W / 2}" cy="${midY}" rx="${MOD_W / 2 + 92}" ry="22" fill="none" stroke="#c4b5fd" stroke-width="3" opacity=".55"/>`;
+      for (const side of [-1, 1]) {
+        const nx = side < 0 ? MOD_X - 70 : MOD_X + MOD_W + 26;
+        out += `<rect x="${side < 0 ? nx + 40 : MOD_X + MOD_W}" y="${midY - 2}" width="30" height="4" fill="#8b93ad"/>`;
+        out += `<rect x="${nx}" y="${midY - 60}" width="44" height="120" rx="22" fill="${hull}"/>`;
+        out += `<rect x="${nx + 8}" y="${midY - 48}" width="28" height="96" rx="14" fill="#7c3aed" opacity=".55"/>`;
+        ANIM.push(`<rect class="blink" x="${nx + 14}" y="${midY - 40}" width="16" height="80" rx="8" fill="#e9d5ff" opacity=".7" filter="url(#glowA)"/>`);
+      }
+    }
+    for (let k = 0; k < (ship || citadel ? 0 : wings); k++) {
       const wy = base - STATION_BASE - ((k + 0.5) / wings) * n * (FLOOR_H + MOD_GAP);
       const span = 74 + k * 6;
       out += `<rect x="${MOD_X - span}" y="${wy - 1.5}" width="${MOD_W + span * 2}" height="3" fill="#8b93ad"/>`;
@@ -794,8 +991,14 @@ export class Scene {
         }
       }
     }
-    // podstawa: nogi lądownika na powierzchni albo węzeł dokujący na orbicie
-    if (orbit) {
+    // podstawa: nogi lądownika na powierzchni albo węzeł dokujący na orbicie (statek: dysze napędu)
+    if (citadel) {
+      out += `<path d="M${W / 2 - 40} ${base - STATION_BASE + 4} h80 l-40 34 z" fill="${hull}"/>`;
+      ANIM.push(`<circle class="blink" cx="${W / 2}" cy="${base - STATION_BASE + 40}" r="5" fill="#fde68a" filter="url(#glowA)"/>`);
+    } else if (ship) {
+      out += `<path d="M${W / 2 - 34} ${base - STATION_BASE + 4} h68 l-10 18 h-48 z" fill="${hull}"/>`;
+      ANIM.push(`<ellipse class="blink" cx="${W / 2}" cy="${base - STATION_BASE + 30}" rx="20" ry="7" fill="#c4b5fd" opacity=".8" filter="url(#glowA)"/>`);
+    } else if (orbit) {
       out += `<rect x="${W / 2 - 26}" y="${base - STATION_BASE + 4}" width="52" height="16" rx="8" fill="${hull}"/><rect x="${W / 2 - 10}" y="${base - STATION_BASE + 20}" width="20" height="8" rx="2" fill="#8b93ad"/>`;
     } else {
       out += `<path d="M${MOD_X + 20} ${base - STATION_BASE + 4} L${MOD_X} ${base} M${MOD_X + MOD_W - 20} ${base - STATION_BASE + 4} L${MOD_X + MOD_W} ${base}" stroke="#8b93ad" stroke-width="5"/>`;
@@ -834,9 +1037,10 @@ export class Scene {
     out += `<line x1="${W / 2 + 34}" y1="${rt - 2}" x2="${W / 2 + 34}" y2="${rt - 30}" stroke="#8b93ad" stroke-width="2"/><path d="M${W / 2 + 22} ${rt - 34} q12 10 24 0" fill="none" stroke="#cbd5e1" stroke-width="3"/>`;
     ANIM.push(`<circle class="blink" cx="${W / 2 + 34}" cy="${rt - 32}" r="2.6" fill="#ff4d4d" filter="url(#glowA)"/>`);
     const pc = s.prestigeCount;
-    if (pc >= 1) out += rocket(W / 2, rt - 52, 1.1);
-    if (pc >= 3) out += rocket(MOD_X - 30, rt + 10, 0.8);
-    if (pc >= 5) out += rocket(MOD_X + MOD_W + 30, rt + 10, 0.8);
+    const craft = (x, y, k) => (citadel ? spark(x, y + 16, k * 0.7) : ship ? shuttle(x, y + 20, k) : rocket(x, y, k));
+    if (pc >= 1) out += craft(W / 2, rt - 52, 1.1);
+    if (pc >= 3) out += craft(MOD_X - 30, rt + 10, 0.8);
+    if (pc >= 5) out += craft(MOD_X + MOD_W + 30, rt + 10, 0.8);
     return out;
   }
 

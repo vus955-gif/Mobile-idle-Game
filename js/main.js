@@ -4,7 +4,7 @@ import { UI } from './ui.js';
 import { setLang, detectLang } from './i18n.js';
 import { startMusic, stopMusic } from './music.js';
 
-export const VERSION = '2.0.0';
+export const VERSION = '2.3.0';
 const SAVE_KEY = 'krzemowe-imperium-save';
 const BACKUP_KEY = 'krzemowe-imperium-backup';
 
@@ -73,7 +73,11 @@ const ui = new UI(co, {
   },
   reset: () => {
     try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(BACKUP_KEY); } catch { /* ignoruj */ }
+    // ustawienia (język, dźwięk, limit rynku) przechodzą do nowej gry
+    const { sound, music, lang, cap, buyAmount } = co.meta.settings;
     co.load(null, Date.now());
+    Object.assign(co.meta.settings, { sound, music, lang, cap, buyAmount });
+    co.recalc();
     lastSaveJson = '';
     ui.fullRender();
     ui.showWelcome();

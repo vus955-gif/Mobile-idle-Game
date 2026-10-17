@@ -1,8 +1,8 @@
 // Interfejs: renderowanie zakładek, HUD, efekty kliknięć, modale i toasty.
 import {
   PERKS, CATEGORIES, BUBBLES, DEPT_MILESTONE_X, DEPT_MILESTONES,
-  AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, SCALE_LEVELS, DECISIONS, OFFICE_MAX_LEVEL, COMPETITORS, MARKET,
-  ROLES, BOARD,
+  AUTOPILOT, CHALLENGE_TIERS, CHALLENGE_REACH, TRANSCEND, SCALE_LEVELS, DECISIONS, OFFICE_MAX_LEVEL, COMPETITORS, MARKET,
+  ROLES, BOARD, LOBBY_RULES,
 } from './data.js';
 import {
   ACH_BONUS, nextMilestone, prevMilestone, nextDeptMilestone, deptMilestoneMult, MAX_SLOTS,
@@ -14,9 +14,9 @@ import { fmt, money, fmtInt, fmtTime, fmtClock, fmtPct, num, decimal } from './f
 import { t, noun, getLang, setLang, LANGS, DICT } from './i18n.js';
 import * as TX from './text.js';
 import { Scene } from './scene.js';
-import { LAYERS, LAYER_CHIPS } from './layers.js';
-import { play, setSound, unlockAudio } from './audio.js';
-import { startMusic, stopMusic, musicAudible } from './music.js';
+import { LAYERS, LAYER_CHIPS, LAYER_ORDER, ALL_CHALLENGES } from './layers.js';
+import { play, setSound, unlockAudio, setSfxStyle } from './audio.js';
+import { startMusic, stopMusic, musicAudible, setMusicStyle } from './music.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -26,7 +26,7 @@ const SOUND_OFF = '<svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><pa
 const PARTICLES = ['{ }', '</>', '01', ';', '( )', '=>', '#', '[ ]', '&&', 'fn'];
 const PARTICLE_COLORS = ['#a78bfa', '#22d3ee', '#4ade80', '#fbbf24', '#f472b6'];
 const BUY_OPTIONS = [[1, '×1'], [10, '×10'], [100, '×100'], ['max', 'MAX']];
-const COMPANY_TABS = ['investors', 'challenges', 'market', 'contracts', 'acq', 'ach', 'stats', 'settings'];
+const COMPANY_TABS = ['investors', 'challenges', 'market', 'contracts', 'acq', 'lobby', 'ach', 'stats', 'settings'];
 // Mały wykres liniowy (np. kurs akcji)
 function spark(values, w = 120, h = 30, color = '#4ade80') {
   const v = values.filter((x) => x > 0);
@@ -50,6 +50,17 @@ const PLANETS = {
 const COLONY_AT = { leo: ['earth', 0, -9], l2: ['earth', 10, 4], moon: ['earth', -9, 5], mercury: ['mercury', 0, 0], venus: ['venus', 0, 0],
   mars: ['mars', 0, 0], ceres: ['ceres', 0, 0], europa: ['jupiter', 12, -6], titan: ['saturn', 11, 6] };
 const TAP_ROCKET = '<path d="M32 6c9 7 13 18 11 30H21C19 24 23 13 32 6z" fill="rgba(255,255,255,.2)" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><circle cx="32" cy="22" r="4.5" fill="none" stroke="#fff" stroke-width="3"/><path d="M21 34l-7 9h10M43 34l7 9H40" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><path d="M27 42c0 7 2 11 5 15 3-4 5-8 5-15" fill="#fff"/>';
+const TAP_WARP = '<ellipse cx="32" cy="32" rx="25" ry="10" fill="none" stroke="#fff" stroke-width="3" opacity=".55"/><path d="M14 38c6-10 30-10 36 0" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/><path d="M20 30c0-9 5-17 12-17s12 8 12 17" fill="rgba(255,255,255,.2)" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><circle cx="32" cy="24" r="4" fill="#fff"/><path d="M8 50l7-5M56 50l-7-5M32 56v-8" stroke="#fff" stroke-width="3" stroke-linecap="round"/>';
+const TAP_SPARK = '<circle cx="32" cy="32" r="9" fill="rgba(255,255,255,.25)" stroke="#fff" stroke-width="3"/><path d="M32 6v12M32 46v12M6 32h12M46 32h12M14 14l8 8M42 42l8 8M50 14l-8 8M22 42l-8 8" stroke="#fff" stroke-width="3" stroke-linecap="round"/><circle cx="32" cy="32" r="3.5" fill="#fff"/>';
+// Symbole warstw na ekranie: waluta resetu, ikona rundy, mapa i przycisk akcji.
+const LAYER_UI = {
+  earth: { cur: '💎', round: '🦄', world: '🌍', hero: '🚀', tap: null },
+  space: { cur: '👩‍🚀', round: '🌊', world: '🪐', hero: '🚀', tap: TAP_ROCKET },
+  galaxy: { cur: '🛸', round: '🌠', world: '🌌', hero: '🌌', tap: TAP_WARP },
+  universe: { cur: '💫', round: '💥', world: '🕸️', hero: '🕳️', tap: TAP_SPARK },
+};
+// Mapa galaktyki: spirala z ramionami, gwiazdy układów rozmieszczone w kpc od centrum.
+const GALAXY_MAP = { cx: 180, cy: 92, scale: 2.9, tilt: 0.6 };
 // Kropki lądu jako jedna ścieżka (lżej niż tysiące kółek). Mapa: 1 jednostka = 1° długości.
 let LAND_PATH = null;
 function landPath() {
@@ -115,10 +126,14 @@ export class UI {
 
   // Aktywna warstwa (Ziemia, Kosmos…) — to, co widać na ekranie.
   get g() { return this.co.g; }
-  get space() { return this.co.g.D.id === 'space'; }
-  // Tekst z wariantem dla Kosmosu (klucz z przedrostkiem sp.), jeśli taki istnieje.
-  tl(key, params) {
-    if (this.space && DICT.pl[`sp.${key}`] !== undefined) return t(`sp.${key}`, params);
+  // Symbole warstwy na ekranie (waluta resetu, ikony).
+  get lu() { return LAYER_UI[this.co.g.D.id] || LAYER_UI.earth; }
+  // Tekst z wariantem dla warstwy (np. sp.tab.office: Stacja, gx.tab.office: Statek), jeśli taki istnieje.
+  tl(key, params) { return this.lt(key, this.g.D.id, params); }
+  // To samo dla dowolnej warstwy — np. teksty przejścia do kolejnej (Kosmos, Galaktyka).
+  lt(key, id, params) {
+    const pre = LAYERS[id] ? LAYERS[id].TEXT : '';
+    if (pre && DICT.pl[`${pre}${key}`] !== undefined) return t(`${pre}${key}`, params);
     return t(key, params);
   }
 
@@ -197,11 +212,17 @@ export class UI {
     });
     g.on('offline', (r, layer) => this.queueOffline(r, layer));
     g.on('prestige', () => play('prestige'));
+    g.on('brake', (b) => {
+      if (b.on) this.toast(this.tl('brake.icon'), t('brake.on'), t('brake.onText', { x: fmt(b.gain) }), 'achievement');
+      else this.toast(this.tl('brake.icon'), t('brake.off'), t('brake.offText'), 'info');
+      this.sigs = {};
+    });
     g.on('autopilot', (a) => {
       for (const id of a.researched || []) {
         const tech = this.g.D.TECH_MAP[id];
         if (tech) this.toast(tech.icon, t('toast.researched', { name: TX.techName(id) }), TX.describeFx(tech.fx), 'tech');
       }
+      if (a.round) this.toast('🔁', this.tl('toast.roundClosed', { n: fmt(a.round) }), `${t('ap.roundAuto')} · ${this.tl('toast.roundClosedText', { x: fmt(this.g.m.invMult) })}`, 'achievement');
       this.scene.render(this.g);
     });
     g.on('challenge', (c) => {
@@ -245,6 +266,8 @@ export class UI {
       case 'buy-all': { const n = g.buyAllUpgrades(); if (n) this.toast('⬆️', t('up.bought', { n, noun: noun('upgrades', n) }), '', 'info'); this.updateAll(true); break; }
       case 'buy-perk': g.buyPerk(id); this.updateAll(true); break;
       case 'buy-acq': g.buyAcq(id); this.updateAll(true); break;
+      case 'buy-lobby': g.buyLobby(); this.updateAll(true); break;
+      case 'release-brake': if (g.releaseBrake(Date.now())) play('prestige'); this.updateAll(true); break;
       case 'accept-contract': if (g.acceptContract(Number(id), Date.now())) play('coin'); this.updateAll(true); break;
       case 'decline-contract': g.declineContract(Number(id)); this.updateAll(true); break;
       case 'company-sub': this.companySub = el.dataset.sub; this.renderCompanyTabs(); this.updateAll(true); break;
@@ -271,7 +294,7 @@ export class UI {
         if (gain) {
           this.scene.render(g, true);
           this.showTab('office');
-          this.toast(this.space ? '🌊' : '🦄', this.tl('toast.roundClosed', { n: fmt(gain) }), this.tl('toast.roundClosedText', { x: fmt(g.m.invMult) }), 'achievement');
+          this.toast(this.lu.round, this.tl('toast.roundClosed', { n: fmt(gain) }), this.tl('toast.roundClosedText', { x: fmt(g.m.invMult) }), 'achievement');
           this.hooks.save?.();
         }
         break;
@@ -279,13 +302,25 @@ export class UI {
       case 'layer': this.switchLayer(id); break;
       case 'layers-open': this.showLayers(); break;
       case 'layer-start': this.confirmLayerStart(); break;
+      case 'transcend': this.confirmTranscend(); break;
+      case 'transcend-confirm': {
+        this.closeModal();
+        if (this.co.transcend(Date.now())) {
+          play('prestige');
+          this.switchLayer('earth', true);
+          this.fullRender();
+          this.toast('♾️', t('tr.done', { n: this.co.meta.transcend }), t('tr.doneText'), 'achievement');
+          this.hooks.save?.();
+        }
+        break;
+      }
       case 'layer-start-confirm': {
         this.closeModal();
         const next = this.co.nextLayer();
         if (this.co.unlockLayer(next, Date.now())) {
           play('prestige');
           this.switchLayer(next, true);
-          this.toast(LAYERS[next].icon, t('space.welcome'), t('space.welcomeText'), 'achievement');
+          this.toast(LAYERS[next].icon, this.lt('space.welcome', next), this.lt('space.welcomeText', next), 'achievement');
           this.hooks.save?.();
         }
         break;
@@ -352,6 +387,12 @@ export class UI {
         break;
       }
       case 'zen': this.enterZen(); break;
+      case 'toggle-cap': {
+        g.setCap(!g.capOn());
+        this.sigs.company = '';
+        this.updateAll(true);
+        break;
+      }
       case 'toggle-music': {
         s.meta.settings.music = !s.meta.settings.music;
         if (s.meta.settings.music) startMusic(); else stopMusic();
@@ -384,15 +425,18 @@ export class UI {
     for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = this.tl(el.dataset.i18n);
     for (const el of document.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', this.tl(el.dataset.i18nAria));
     $('app').dataset.layer = this.g.D.id;
+    // każdy etap brzmi inaczej: muzyka i efekty
+    setMusicStyle(this.g.D.id);
+    setSfxStyle(this.g.D.id);
     const icon = document.querySelector('.tap-icon');
     if (icon) {
       if (!this.tapIconEarth) this.tapIconEarth = icon.innerHTML;
-      icon.innerHTML = this.space ? TAP_ROCKET : this.tapIconEarth;
+      icon.innerHTML = this.lu.tap || this.tapIconEarth;
     }
     const world = document.querySelector('.scene-tool[data-sub="world"]');
-    if (world) world.textContent = this.space ? '🪐' : '🌍';
+    if (world) world.textContent = this.lu.world;
     const inv = document.querySelector('#hud-inv-chip .chip-ico');
-    if (inv) inv.textContent = this.space ? '👩‍🚀' : '💎';
+    if (inv) inv.textContent = this.lu.cur;
   }
 
   changeLang(lang) {
@@ -490,7 +534,7 @@ export class UI {
   // Giełda i wyzwania są tylko na Ziemi.
   companyTabs() {
     const F = this.g.D.FEATURES;
-    return COMPANY_TABS.filter((k) => (k !== 'market' || F.market) && (k !== 'challenges' || F.challenges));
+    return COMPANY_TABS.filter((k) => k !== 'market' || F.market);
   }
 
   renderCompanyTabs() {
@@ -524,7 +568,7 @@ export class UI {
     if (musicAudible()) s.meta.stats.musicTime += dt;
     const env = this.scene.env;
     // pogoda ze sceny Ziemi wpływa na dziwactwo „deszczowe natchnienie” w zarządzie (w kosmosie nie pada)
-    if (env && !this.space) {
+    if (env && this.g.D.id === 'earth') {
       for (const L of Object.values(this.co.layers)) if (L.weather !== env.weather) { L.weather = env.weather; L.recalc(); }
     }
     if (env && this.tab === 'office') {
@@ -564,6 +608,7 @@ export class UI {
     this.updateBadges();
     this.updateSceneBadges();
     this.updateLayerBar();
+    this.checkFinale();
     if (this.scene) this.scene.render(this.g);
   }
 
@@ -589,8 +634,8 @@ export class UI {
     // jednorazowy sygnał, że kolejna warstwa czeka
     if (p && p.ready && !co.meta.flags[`ready_${p.id}`]) {
       co.meta.flags[`ready_${p.id}`] = true;
-      this.toast(LAYERS[p.id].icon, t('layer.readyToast'), t('layer.readyToastText'), 'achievement');
-      this.pendingNews.unshift(`${LAYERS[p.id].icon} <b>${esc(t('layer.readyToast'))}</b> ${esc(t('layer.readyToastText'))}`);
+      this.toast(LAYERS[p.id].icon, this.lt('layer.readyToast', p.id), this.lt('layer.readyToastText', p.id), 'achievement');
+      this.pendingNews.unshift(`${LAYERS[p.id].icon} <b>${esc(this.lt('layer.readyToast', p.id))}</b> ${esc(this.lt('layer.readyToastText', p.id))}`);
       play('achievement');
     }
   }
@@ -602,13 +647,14 @@ export class UI {
     const tile = `<div class="tile" style="${grad(LAYER_GRADS[c.id])}">${c.icon}</div>`;
     if (g) {
       const active = g === this.g;
-      const rounds = c.id === 'earth' ? t('layer.rounds', { n: g.s.prestigeCount }) : t('layer.waves', { n: g.s.prestigeCount });
-      const fin = g.feedIn > 0 ? ` · ${t('layer.feedIn')}: <b>+${money(g.feedIn)}/s</b>` : '';
+      const rounds = c.id === 'earth' ? t('layer.rounds', { n: g.s.prestigeCount }) : this.lt('layer.waves', c.id, { n: g.s.prestigeCount });
+      const fin = g.feedIn > 0 ? ` · ${this.lt('layer.feedIn', c.id)}: <b>+${money(g.feedIn)}/s</b>` : '';
       let feed = '';
-      if (g.feedTarget()) {
-        feed = `<div class="layer-feed"><div class="budget-head"><b>${t('layer.feedTitle')}</b>
+      const to = g.feedTarget();
+      if (to) {
+        feed = `<div class="layer-feed"><div class="budget-head"><b>${this.lt('layer.feedTitle', to)}</b>
           <div class="seg">${FEED_SHARES.map((v) => `<button data-act="feed" data-layer="${c.id}" data-v="${v}" class="${v === g.s.feed ? 'on' : ''}">${Math.round(v * 100)}%</button>`).join('')}</div></div>
-          <div class="card-sub" style="margin-top:6px">${t('layer.feedText', { v: money(g.feedOut) })}</div></div>`;
+          <div class="card-sub" style="margin-top:6px">${this.lt('layer.feedText', to, { v: money(g.feedOut * (g.m.feedMult || 1)) })}</div></div>`;
       }
       return `<div class="card layer-card ${active ? 'on' : ''}">${tile}
         <div class="card-title"><h3>${name}</h3><span class="lvl">${active ? t('layer.active') : t('layer.bg')}</span></div>
@@ -623,14 +669,17 @@ export class UI {
       const rp = Math.min(1, p.revenue / p.need);
       return `<div class="card layer-card ${p.ready ? 'ready' : 'locked'}">${tile}
         <div class="card-title"><h3>${name}</h3><span class="lvl">${p.ready ? '✨' : '🔒'}</span></div>
-        <div class="prog" style="margin-top:6px"><div class="prog-bar"><i style="width:${tp * 100}%"></i></div><div class="prog-label">${t('layer.needTechs', { n: p.techs, m: p.techsNeed })}</div></div>
-        <div class="prog" style="margin-top:6px"><div class="prog-bar"><i style="width:${rp * 100}%"></i></div><div class="prog-label">${t('layer.needRevenue', { v: money(p.revenue), need: money(p.need) })}</div></div>
-        ${p.ready ? `<div class="card-foot"><div class="prog"></div><button class="btn gold" data-act="layer-start">${t('layer.start')}</button></div>` : ''}
+        <div class="prog" style="margin-top:6px"><div class="prog-bar"><i style="width:${tp * 100}%"></i></div><div class="prog-label">${this.lt('layer.needTechs', c.id, { n: p.techs, m: p.techsNeed })}</div></div>
+        <div class="prog" style="margin-top:6px"><div class="prog-bar"><i style="width:${rp * 100}%"></i></div><div class="prog-label">${this.lt('layer.needRevenue', c.id, { v: money(p.revenue), need: money(p.need) })}</div></div>
+        ${p.ready ? `<div class="card-foot"><div class="prog"></div><button class="btn gold" data-act="layer-start">${this.lt('layer.start', c.id)}</button></div>` : ''}
       </div>`;
     }
+    // etap istnieje, ale najpierw trzeba otworzyć poprzedni
+    const prev = LAYER_ORDER.find((k) => LAYERS[k].NEXT && LAYERS[k].NEXT.layer === c.id);
+    const why = LAYERS[c.id] && prev ? t('layer.needPrev', { name: t(`layer.${prev}`) }) : t('layer.soon');
     return `<div class="card layer-card locked">${tile}
       <div class="card-title"><h3>${name}</h3><span class="lvl">🔒</span></div>
-      <div class="card-sub">${t('layer.soon')}</div></div>`;
+      <div class="card-sub">${why}</div></div>`;
   }
 
   showLayers() {
@@ -639,6 +688,10 @@ export class UI {
       <h2>${t('layer.title')}</h2>
       <p style="text-align:center">${t('layer.lead')}</p>
       <div class="list">${LAYER_CHIPS.map((c) => this.layerCard(c)).join('')}</div>
+      ${this.co.canTranscend() ? `<div class="card layer-card ready"><div class="tile" style="${grad(['#f59e0b', '#7c3aed'])}">♾️</div>
+        <div class="card-title"><h3>${t('tr.title')}</h3><span class="lvl">${this.co.meta.transcend ? `♾️ ${this.co.meta.transcend}` : ''}</span></div>
+        <div class="card-sub">${t('tr.short')}</div>
+        <div class="card-foot"><div class="prog"></div><button class="btn gold" data-act="transcend">${t('tr.btn')}</button></div></div>` : ''}
       <div class="actions"><button class="btn ghost btn-wide" data-act="modal-close">${t('close')}</button></div>`);
   }
 
@@ -646,19 +699,20 @@ export class UI {
     const p = this.co.unlockProgress();
     if (!p || !p.ready) { this.showLayers(); return; }
     const from = this.co.layers[p.from];
-    const feed = from.income * (from.s.feed || 0.25);
+    const feed = from.income * (from.s.feed || 0.25) * (from.m.feedMult || 1);
+    const lt = (key, params) => this.lt(key, p.id, params);
     this.openModal(`
-      <div class="hero">🚀</div>
-      <h2>${t('space.title')}</h2>
-      <p style="text-align:center">${t('space.lead')}</p>
+      <div class="hero">${LAYER_UI[p.id].hero}</div>
+      <h2>${lt('space.title')}</h2>
+      <p style="text-align:center">${lt('space.lead')}</p>
       <ul>
-        <li>${t('space.p1')}</li>
-        <li>${t('space.p2', { grant: money(from.income * LAYER_GRANT_SECONDS), feed: money(feed) })}</li>
-        <li>${t('space.p3')}</li><li>${t('space.p4')}</li><li>${t('space.p5')}</li>
+        <li>${lt('space.p1')}</li>
+        <li>${lt('space.p2', { grant: money(from.income * LAYER_GRANT_SECONDS), feed: money(feed) })}</li>
+        <li>${lt('space.p3')}</li><li>${lt('space.p4')}</li><li>${lt('space.p5')}</li>
       </ul>
       <div class="actions">
-        <button class="btn gold btn-wide" data-act="layer-start-confirm">${t('space.go')}</button>
-        <button class="btn ghost btn-wide" data-act="modal-close">${t('space.later')}</button>
+        <button class="btn gold btn-wide" data-act="layer-start-confirm">${lt('space.go')}</button>
+        <button class="btn ghost btn-wide" data-act="modal-close">${lt('space.later')}</button>
       </div>`);
   }
 
@@ -703,7 +757,7 @@ export class UI {
     this.setText($('hud-cash'), money(s.cash));
     this.setText($('hud-income'), money(g.netIncome));
     $('hud-income').parentElement.classList.toggle('rd', (g.m.rdShare || 0) > 0);
-    $('hud-income').parentElement.classList.toggle('boosted', g.m.boostIncome > 1);
+    $('hud-income').parentElement.classList.toggle('boosted', g.m.boostIncome > 1 || g.brakeActive());
     this.setText($('hud-company'), s.meta.companyName);
     this.setText($('hud-stage'), this.stageName());
     const rpVis = s.deptUnlocked[g.D.RD_DEPT] || s.rp > 0 || g.techCount() > 0;
@@ -720,11 +774,11 @@ export class UI {
   stageName() {
     const s = this.g.s;
     const n = this.g.deptCount() - 1;
-    const stage = this.space ? t('sp.stages')[n >= 8 ? 5 : n >= 6 ? 4 : n >= 4 ? 3 : n >= 2 ? 2 : n >= 1 ? 1 : 0] : TX.stageName(n);
+    const stage = this.g.D.TEXT ? this.tl('stages')[n >= 8 ? 5 : n >= 6 ? 4 : n >= 4 ? 3 : n >= 2 ? 2 : n >= 1 ? 1 : 0] : TX.stageName(n);
     return s.prestigeCount > 0 ? `${stage} · ${this.roundLabel(s.prestigeCount - 1)}` : stage;
   }
-  // Nazwa rundy finansowania (Ziemia) albo fali kolonizacji (Kosmos) o numerze i (od zera).
-  roundLabel(i) { return this.space ? t('sp.round', { n: i + 1 }) : TX.roundName(i); }
+  // Nazwa rundy finansowania (Ziemia), fali kolonizacji (Kosmos) albo wyprawy (Galaktyka) o numerze i (od zera).
+  roundLabel(i) { return this.g.D.TEXT ? this.tl('round', { n: i + 1 }) : TX.roundName(i); }
 
   updateSoundBtn() {
     $('sound-btn').innerHTML = this.g.s.meta.settings.sound ? SOUND_ON : SOUND_OFF;
@@ -742,15 +796,17 @@ export class UI {
       left = `<div class="mini-stat">${t('off.firstStep')}<b>${t('off.collect', { v: money(this.g.D.PRODUCTS[0].cost) })}</b></div><button class="mini-btn" data-act="goto" data-tab="products">${t('off.toProducts')}</button>`;
     } else {
       left = `<div class="mini-stat">${t('off.team')}<b>${t('off.people', { n: fmtInt(g.totalHeads()) })}</b></div>`;
-      if (g.feedIn > 0) left += `<div class="mini-stat">${t('layer.feedIn')}<b>+${money(g.feedIn)}/s</b></div>`;
+      if (g.feedIn > 0) left += `<div class="mini-stat">${this.tl('layer.feedIn')}<b>+${money(g.feedIn)}/s</b></div>`;
       else if (g.rpRate > 0) left += `<div class="mini-stat">${t('off.research')}<b>${fmt(g.rpRate)} ${t('unit.rp')}/s</b></div>`;
       else left += `<div class="mini-stat">${t('off.products')}<b>${t('off.levels', { n: fmtInt(owned) })}</b></div>`;
     }
     let right = `<div class="mini-stat">${t('off.valuation')}<b>${money(g.valuation())}</b></div>`;
     const gain = g.prestigeGain();
     const offers = s.contracts.offers.length;
-    if (gain >= 1 && gain >= Math.max(1, s.investors * 0.5)) {
-      right += `<button class="mini-btn glow" data-act="goto" data-tab="company" data-sub="investors">${this.space ? '👩‍🚀' : '💎'} +${fmt(gain)}</button>`;
+    if (g.brakeActive()) {
+      right += `<div class="mini-stat">${this.tl('brake.icon')} ${t('brake.hud')}<b>${fmtClock((s.brakeUntil - Date.now()) / 1000)}</b></div>`;
+    } else if (gain >= 1 && gain >= Math.max(1, s.investors * 0.5)) {
+      right += `<button class="mini-btn glow" data-act="goto" data-tab="company" data-sub="investors">${this.lu.cur} +${fmt(gain)}</button>`;
     } else if (g.contractsUnlocked() && offers > 0) {
       right += `<button class="mini-btn" data-act="goto" data-tab="company" data-sub="contracts">${t('off.offers', { n: offers })}</button>`;
     } else {
@@ -787,7 +843,7 @@ export class UI {
     }
     if (s.challenge) {
       const ch = CHALLENGE_MAP[s.challenge.id];
-      const goal = s.challenge.goal || CHALLENGE_GOALS[s.challenge.tier];
+      const goal = s.challenge.goal;
       parts.push(`<span class="scene-badge click" data-act="goto" data-tab="company" data-sub="challenges">${t('badge.challenge', { icon: ch.icon, name: esc(TX.challengeName(ch.id)), p: `${money(s.runEarned)} / ${money(goal)}` })}</span>`);
     }
     const html = parts.join('');
@@ -911,9 +967,9 @@ export class UI {
       root.innerHTML = html;
     }
     const hint = $('products-reach');
-    const sat = g.rawIncome > g.marketCap * 1.05;
+    const sat = g.capOn() && g.rawIncome > g.marketCap * 1.05;
     if (hint.hidden === sat) hint.hidden = !sat;
-    if (sat) this.patchHtml(hint, t('reach.sat', { stage: t(`reach.${g.marketStage()}`), v: money(g.marketCap) }));
+    if (sat) this.patchHtml(hint, `${t('reach.sat', { stage: t(`reach.${g.marketStage()}`), v: money(g.marketCap) })} <button class="mini-btn" data-act="goto" data-tab="company" data-sub="lobby">${t('reach.lobby')}</button>`);
     const amt = this.buyAmount();
     for (const card of root.querySelectorAll('[data-pid]')) {
       const id = card.dataset.pid;
@@ -1074,7 +1130,7 @@ export class UI {
       const list = this.g.D.OFFICES;
       const opened = list.filter((o) => !o.hq && g.officeLevel(o.id) > 0).length;
       root.innerHTML = `
-        <div class="map-card ${this.space ? 'space solar' : ''}">${this.space ? this.solarSvg() : this.mapSvg()}</div>
+        <div class="map-card ${{ space: 'space solar', galaxy: 'space galaxy', universe: 'space cosmos' }[g.D.id] || ''}">${{ space: () => this.solarSvg(), galaxy: () => this.galaxySvg(), universe: () => this.webSvg() }[g.D.id]?.() ?? this.mapSvg()}</div>
         <div class="kv"><span>${this.tl('off.title')}</span><b>${this.tl('off.count', { n: opened, m: list.length - 1 })}</b></div>
         <p class="card-sub" style="margin:8px 2px 0">${this.tl('off.lead')} ${this.tl('off.viewHint')}</p>
         <div class="list" style="margin-top:12px">${list.map((o) => this.officeCard(o)).join('')}</div>`;
@@ -1178,7 +1234,7 @@ export class UI {
     const avail = g.officeAvailable(o.id);
     const tech = o.req ? this.g.D.TECH_MAP[o.req] : null;
     const viewing = this.g.s.view === o.id;
-    const lvlName = lvl > 0 ? `${o.hq ? this.tl('off.hq') : t('off.levelNames')[lvl - 1]} · ` : '';
+    const lvlName = lvl > 0 ? `${o.hq ? this.tl('off.hq') : this.tl('off.levelNames')[lvl - 1]} · ` : '';
     const fxNow = lvl > 1 ? ` · ${t('off.now', { fx: esc(TX.describeFx(scaledFx(o.fx, lvl))) })}` : '';
     let action;
     if (maxed) action = `<span class="lvl" style="color:var(--money)">${t('off.max')}</span>`;
@@ -1186,7 +1242,7 @@ export class UI {
     else action = `<button class="btn violet" data-act="goto" data-tab="research">${t('goResearch')}</button>`;
     const viewBtn = lvl > 0 ? `<button class="btn btn-small ghost ${viewing ? 'on-view' : ''}" data-act="set-view" data-id="${o.id}">${viewing ? '👁' : '🪟'} ${viewing ? t('off.viewing') : t('off.view')}</button>` : '';
     return `<div class="card office ${lvl ? '' : avail ? '' : 'locked'}" id="office-${o.id}">
-      <div class="tile" style="${grad(o.kind === 'space' ? ['#1e1b4b', '#7c3aed'] : ['#0ea5e9', '#22c55e'])}">${o.icon}</div>
+      <div class="tile" style="${grad(LAYER_GRADS[g.D.id] || LAYER_GRADS.earth)}">${o.icon}</div>
       <div class="card-title"><h3>${esc(TX.officeName(o.id))}</h3><span class="lvl">${lvlName}${t('off.level', { n: lvl, m: OFFICE_MAX_LEVEL })}</span></div>
       <div class="card-sub">${avail || lvl ? `${t('off.perLevel', { fx: esc(TX.describeFx(o.fx)) })}${fxNow}` : `${t('prod.requires')} <span class="rp">${tech.icon} ${esc(TX.techName(tech.id))}</span>`}</div>
       <div class="card-desc">${esc(TX.officeDesc(o.id))}</div>
@@ -1260,6 +1316,120 @@ export class UI {
       <defs><radialGradient id="sunR"><stop offset="0" stop-color="#fff7c2"/><stop offset=".5" stop-color="#ffd166"/><stop offset="1" stop-color="#ff9f43" stop-opacity="0"/></radialGradient></defs>
       ${orbits}<circle cx="${cx}" cy="${cy}" r="22" fill="url(#sunR)"/><circle cx="${cx}" cy="${cy}" r="9" fill="#ffe08a"/>${bodies}${marks}
     </svg><div class="map-hint">${this.tl('off.mapHint')}</div>`;
+  }
+
+  // Mapa Drogi Mlecznej: cztery ramiona spiralne (log-spirale), jądro i placówki w układach.
+  galaxySvg() {
+    const g = this.g;
+    const { cx, cy, scale, tilt } = GALAXY_MAP;
+    const pos = (r, ang) => {
+      const a = (ang * Math.PI) / 180;
+      return { x: cx + r * scale * Math.cos(a), y: cy + r * scale * tilt * Math.sin(a) };
+    };
+    let seed = 11;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const colors = ['#e0e7ff', '#c7d2fe', '#fbcfe8', '#fde68a'];
+    let stars = '';
+    for (let arm = 0; arm < 4; arm++) {
+      for (let k = 0; k < 64; k++) {
+        const r = 3 + (42 * k) / 64 + (rnd() - 0.5) * 3;
+        const ang = 148 + arm * 90 + 140 * Math.log(Math.max(r, 3) / 3) + (rnd() - 0.5) * 16;
+        const q = pos(r, ang);
+        stars += `<circle cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${(0.5 + rnd() * 0.9).toFixed(2)}" fill="${colors[Math.floor(rnd() * colors.length)]}" opacity="${(0.45 + rnd() * 0.5).toFixed(2)}"/>`;
+      }
+    }
+    let marks = '';
+    for (const o of g.D.OFFICES) {
+      const q = pos(o.r, o.ang);
+      const lvl = g.officeLevel(o.id);
+      const cls = lvl > 0 ? 'm-on' : g.officeAvailable(o.id) ? 'm-avail' : 'm-lock';
+      marks += `<g class="marker ${cls}" data-act="office-focus" data-id="${o.id}">
+        ${lvl > 0 ? `<circle class="ping" cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${3 + lvl}"/>` : ''}
+        <circle class="dot" cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${lvl > 0 ? 2.2 + lvl * 0.5 : 2}"/>
+        <circle cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="10" fill="transparent"/></g>`;
+    }
+    const lmc = pos(50, 228);
+    return `<svg viewBox="0 0 360 184" role="img" aria-label="${this.tl('off.title')}">
+      <defs><radialGradient id="bulgeG"><stop offset="0" stop-color="#fff7d6"/><stop offset=".35" stop-color="#fcd34d" stop-opacity=".8"/><stop offset="1" stop-color="#a855f7" stop-opacity="0"/></radialGradient>
+        <radialGradient id="discG"><stop offset="0" stop-color="#8b5cf6" stop-opacity=".35"/><stop offset="1" stop-color="#1e1b4b" stop-opacity="0"/></radialGradient></defs>
+      <ellipse cx="${cx}" cy="${cy}" rx="${46 * scale}" ry="${46 * scale * tilt}" fill="url(#discG)"/>
+      <ellipse cx="${lmc.x.toFixed(1)}" cy="${lmc.y.toFixed(1)}" rx="14" ry="7" fill="#c7d2fe" opacity=".18"/>
+      ${stars}
+      <ellipse cx="${cx}" cy="${cy}" rx="26" ry="13" fill="url(#bulgeG)"/>${marks}
+    </svg><div class="map-hint">${this.tl('off.mapHint')}</div>`;
+  }
+
+  // Mapa kosmicznej sieci: węzły gromad połączone włóknami, placówki w węzłach.
+  webSvg() {
+    const g = this.g;
+    let seed = 23;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const nodes = g.D.OFFICES.map((o) => ({ x: o.x, y: o.y }));
+    for (let i = 0; i < 34; i++) nodes.push({ x: 8 + rnd() * 344, y: 8 + rnd() * 168 });
+    let web = '';
+    for (const [i, a] of nodes.entries()) {
+      const near = nodes.map((b, j) => ({ j, d: (a.x - b.x) ** 2 + (a.y - b.y) ** 2 })).filter((q) => q.j !== i).sort((p, q) => p.d - q.d).slice(0, 3);
+      for (const q of near) {
+        if (q.j < i) continue;
+        const b = nodes[q.j];
+        web += `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="#a5b4fc" stroke-width="${(0.6 + rnd() * 1.2).toFixed(2)}" opacity="${(0.18 + rnd() * 0.2).toFixed(2)}"/>`;
+      }
+      web += `<circle cx="${a.x.toFixed(1)}" cy="${a.y.toFixed(1)}" r="${(1.2 + rnd() * 2.2).toFixed(2)}" fill="#e0e7ff" opacity=".55"/>`;
+    }
+    let marks = '';
+    for (const o of g.D.OFFICES) {
+      const lvl = g.officeLevel(o.id);
+      const cls = lvl > 0 ? 'm-on' : g.officeAvailable(o.id) ? 'm-avail' : 'm-lock';
+      marks += `<g class="marker ${cls}" data-act="office-focus" data-id="${o.id}">
+        ${lvl > 0 ? `<circle class="ping" cx="${o.x}" cy="${o.y}" r="${3 + lvl}"/>` : ''}
+        <circle class="dot" cx="${o.x}" cy="${o.y}" r="${lvl > 0 ? 2.2 + lvl * 0.5 : 2}"/>
+        <circle cx="${o.x}" cy="${o.y}" r="10" fill="transparent"/></g>`;
+    }
+    return `<svg viewBox="0 0 360 184" role="img" aria-label="${this.tl('off.title')}">
+      <defs><radialGradient id="webG"><stop offset="0" stop-color="#6366f1" stop-opacity=".28"/><stop offset="1" stop-color="#0b0820" stop-opacity="0"/></radialGradient></defs>
+      <ellipse cx="180" cy="92" rx="190" ry="100" fill="url(#webG)"/>${web}${marks}
+    </svg><div class="map-hint">${this.tl('off.mapHint')}</div>`;
+  }
+
+  // Finał: całe drzewko Wszechświata odkryte (pokazujemy raz).
+  checkFinale() {
+    const u = this.co.layers.universe;
+    const m = this.co.meta;
+    if (!u || m.flags.finale || !u.allTechs()) return;
+    m.flags.finale = true;
+    play('prestige');
+    this.openModal(`
+      <div class="hero">🌅</div>
+      <h2>${t('fin.title')}</h2>
+      <p style="text-align:center">${t('fin.text')}</p>
+      <p style="text-align:center">${t('fin.more')}</p>
+      <p style="text-align:center">${t('fin.choice')}</p>
+      <div class="actions">
+        <button class="btn gold btn-wide" data-act="transcend">${t('tr.btn')}</button>
+        <button class="btn ghost btn-wide" data-act="modal-close">${t('fin.ok')}</button>
+      </div>`);
+    this.hooks.save?.();
+  }
+
+  // Transcendencja: potwierdzenie z listą tego, co zostaje, i stałej premii.
+  confirmTranscend() {
+    const co = this.co;
+    if (!co.canTranscend()) return;
+    const n = (co.meta.transcend || 0) + 1;
+    this.openModal(`
+      <div class="hero">♾️</div>
+      <h2>${t('tr.title')}</h2>
+      <p style="text-align:center">${t('tr.lead')}</p>
+      <ul>
+        <li>${t('tr.resets')}</li>
+        <li>${t('tr.keeps')}</li>
+        <li>${t('tr.bonus', { x: fmt(Math.pow(TRANSCEND.income, n)), r: fmt(Math.pow(TRANSCEND.rp, n)) })}</li>
+        <li>${t('tr.chal', { n: ALL_CHALLENGES.length })}</li>
+      </ul>
+      <div class="actions">
+        <button class="btn gold btn-wide" data-act="transcend-confirm">${t('tr.confirm')}</button>
+        <button class="btn ghost btn-wide" data-act="modal-close">${t('tr.later')}</button>
+      </div>`);
   }
 
   // ---------------------------------------------------------------------
@@ -1422,6 +1592,7 @@ export class UI {
       case 'market': return this.renderMarket();
       case 'contracts': return this.renderContracts();
       case 'acq': return this.renderAcq();
+      case 'lobby': return this.renderLobby();
       case 'ach': return this.renderAch();
       case 'stats': return this.renderStats();
       case 'settings': return this.renderSettings();
@@ -1512,7 +1683,7 @@ export class UI {
     const vp = g.valuationParts();
     const vals = {
       round: this.tl('inv.nextRound', { r: this.roundLabel(s.prestigeCount) }),
-      gain: `+${fmt(gain)} ${this.space ? '👩‍🚀' : '💎'}`,
+      gain: `+${fmt(gain)} ${this.lu.cur}`,
       invsub: { html: `${this.tl('inv.now', { n: fmt(s.investors), x: fmt(g.m.invMult) })}<br>${this.tl('inv.perPoint', { p: num(per * 100) })}` },
       val: money(vp.total),
       assets: money(vp.assets),
@@ -1541,21 +1712,21 @@ export class UI {
     }
     const active = s.challenge;
     const sig = `chal|${JSON.stringify(s.meta.challenges)}|${active ? active.id + active.tier : ''}|${getLang()}`;
-    let html = `<p class="card-sub" style="margin:0 2px 10px">${t('chal.lead')}</p>`;
+    let html = `<p class="card-sub" style="margin:0 2px 10px">${t('chal.layerLead', { x: `×${num(Math.pow(10, CHALLENGE_REACH))}` })} ${t('chal.lead')}</p>`;
     if (active) {
       const ch = CHALLENGE_MAP[active.id];
       html += `<div class="chal-active">
         <div class="lbl" style="font-size:12px;font-weight:800;color:var(--accent2);text-transform:uppercase;letter-spacing:.8px">${t('chal.activeTitle')}</div>
-        <h3>${ch.icon} ${esc(TX.challengeName(ch.id))} · ${t('chal.tier', { n: active.tier + 1, m: CHALLENGE_GOALS.length })}</h3>
+        <h3>${ch.icon} ${esc(TX.challengeName(ch.id))} · ${t('chal.tier', { n: active.tier + 1, m: CHALLENGE_TIERS.length })}</h3>
         <div class="chal-meta">${esc(TX.challengeDesc(ch.id))}</div>
         <div class="prog" style="margin-top:10px"><div class="prog-bar"><i data-v="cbar"></i></div><div class="prog-label" data-v="cprog"></div></div>
         <button class="btn ghost btn-small" style="margin-top:10px" data-act="chal-abandon">${t('chal.abandon')}</button>
       </div>`;
     }
-    html += '<div class="list">' + CHALLENGES.map((ch) => {
+    html += '<div class="list">' + g.D.CHALLENGES.map((ch) => {
       const tier = s.meta.challenges[ch.id] || 0;
-      const done = tier >= CHALLENGE_GOALS.length;
-      const dots = CHALLENGE_GOALS.map((_, i) => `<i class="${i < tier ? 'on' : ''}"></i>`).join('');
+      const done = tier >= CHALLENGE_TIERS.length;
+      const dots = CHALLENGE_TIERS.map((_, i) => `<i class="${i < tier ? 'on' : ''}"></i>`).join('');
       const have = tier > 0 ? `<div class="chal-meta">${t('chal.have', { fx: `<b>${esc(TX.describeFx(scaledFx(ch.fx, tier)))}</b>` })}</div>` : '';
       return `<div class="card">
         <div class="tile" style="${grad(['#0ea5e9', '#7c3aed'])}">${ch.icon}</div>
@@ -1567,7 +1738,7 @@ export class UI {
     }).join('') + '</div>';
     this.setBody(sig, html);
     if (active) {
-      const goal = active.goal || CHALLENGE_GOALS[active.tier];
+      const goal = active.goal;
       const p = Math.min(1, Math.log10(1 + s.runEarned) / Math.log10(goal));
       this.patch({ cbar: { width: `${p * 100}%` }, cprog: `${money(s.runEarned)} / ${money(goal)}` });
     }
@@ -1654,16 +1825,16 @@ export class UI {
     if (s.challenge) { this.toast('🏅', t('chal.otherActive'), '', 'info'); return; }
     const ch = CHALLENGE_MAP[id];
     const tier = s.meta.challenges[id] || 0;
-    if (tier >= CHALLENGE_GOALS.length) return;
+    if (tier >= CHALLENGE_TIERS.length) return;
     const gain = g.prestigeGain();
     this.openModal(`
       <div class="hero">${ch.icon}</div>
       <h2>${esc(t('chal.confirmTitle', { name: TX.challengeName(id) }))}</h2>
       <p style="text-align:center">${t('chal.confirmRule', { rule: esc(TX.challengeDesc(id)) })}</p>
       <ul>
-        <li>${t('chal.goal', { v: money(g.challengeGoal(id)) })} (${t('chal.tier', { n: tier + 1, m: CHALLENGE_GOALS.length })})</li>
+        <li>${t('chal.goal', { v: money(g.challengeGoal(id)) })} (${t('chal.tier', { n: tier + 1, m: CHALLENGE_TIERS.length })})</li>
         <li>${t('chal.reward', { fx: `<b>${esc(TX.describeFx(ch.fx))}</b>` })}</li>
-        <li>${gain >= 1 ? t('chal.confirmGain', { n: fmt(gain) }) : t('chal.confirmNoGain')}</li>
+        <li>${gain >= 1 ? t('chal.confirmGain', { n: `${fmt(gain)} ${this.lu.cur}` }) : t('chal.confirmNoGain')}</li>
       </ul>
       <div class="actions">
         <button class="btn violet btn-wide" data-act="chal-confirm" data-id="${id}">${t('chal.confirm')}</button>
@@ -1720,8 +1891,9 @@ export class UI {
   renderAcq() {
     const g = this.g;
     const s = g.s;
-    if (!g.acqUnlocked()) {
-      this.setBody(`acq-locked|${getLang()}`, `<div class="hint">${t('acq.locked')}</div>`);
+    if (!g.acqUnlocked() || g.acqBlocked()) {
+      const k = g.acqBlocked() ? 'acq.blocked' : 'acq.locked';
+      this.setBody(`${k}|${getLang()}`, `<div class="hint">${t(k)}</div>`);
       return;
     }
     this.setBody(`acq|${Object.keys(s.acquisitions).join(',')}|${getLang()}`, '<div class="list">' + this.g.D.ACQUISITIONS.map((a) => {
@@ -1737,6 +1909,52 @@ export class UI {
     const vals = {};
     for (const a of this.g.D.ACQUISITIONS) vals[`acq-${a.id}`] = { off: s.cash < g.acqCost(a.id) };
     this.patch(vals);
+  }
+
+  // Lobbing (poszerza rynek w tej rundzie) i jednorazowe zdjęcie hamulca.
+  renderLobby() {
+    const g = this.g;
+    const s = g.s;
+    if (!g.capOn()) {
+      this.setBody(`lobby-off|${getLang()}`, `<div class="hint">${t('lob.off')}</div>`);
+      return;
+    }
+    const max = g.lobbyMax();
+    const active = g.brakeActive();
+    const inChal = !!s.challenge;
+    const noLobby = g.lobbyBlocked();
+    const sig = `lobby|${g.D.id}|${s.lobby}|${s.brakeUsed}|${active}|${inChal}|${noLobby}|${getLang()}`;
+    this.setBody(sig, `
+      <div class="section-title">${this.tl('brake.icon')} ${this.tl('brake.name')}</div>
+      <div class="card">
+        <div class="tile" style="${grad(['#f59e0b', '#ef4444'])}">${this.tl('brake.icon')}</div>
+        <div class="card-title"><h3>${esc(this.tl('brake.name'))}</h3></div>
+        <div class="card-sub">${t('brake.desc')}</div>
+        <div class="card-desc" data-v="brk-now"></div>
+        <div class="card-foot"><div class="prog"></div>${active || s.brakeUsed || inChal ? '' : `<button class="btn gold" data-act="release-brake" data-v="brk-btn"><span>${t('brake.btn')}</span><small data-v="brk-cost"></small></button>`}</div>
+      </div>
+      <div class="section-title">🏛️ ${t('lob.title')} <span style="color:var(--gold)">${t('lob.level', { n: s.lobby, m: max })}</span></div>
+      <p class="card-sub" style="margin:0 2px 8px">${t('lob.lead', { x: num(Math.pow(10, LOBBY_RULES.step)) })}</p>
+      ${noLobby ? `<div class="hint">${t('lob.blocked')}</div>` : ''}
+      <div class="kv"><span>${t('lob.reach')}</span><b data-v="lob-reach"></b><span class="kv-sub">${t('lob.from')}</span><b class="kv-sub">×${num(Math.pow(10, LOBBY_RULES.step * s.lobby))}</b></div>
+      <div class="list" style="margin-top:10px">${g.D.LOBBY.map((L, i) => {
+    const own = i < s.lobby;
+    const next = i === s.lobby;
+    return `<div class="card ${own || next ? '' : 'dim'}">
+          <div class="tile" style="${grad(['#64748b', '#1e293b'])}">${L.icon}</div>
+          <div class="card-title"><h3>${esc(TX.lobbyName(L.id))}</h3><span class="lvl">${own ? `<span style="color:var(--money)">${t('lob.done')}</span>` : `${i + 1}/${max}`}</span></div>
+          <div class="card-desc">${esc(TX.lobbyDesc(L.id))}</div>
+          ${next && !noLobby ? `<div class="card-foot"><div class="prog"></div><button class="btn violet" data-act="buy-lobby" data-v="lob-btn"><span>${t('lob.buy')}</span><small>${money(g.lobbyCost())}</small></button></div>` : ''}
+        </div>`;
+  }).join('')}</div>`);
+    const left = Math.max(0, (s.brakeUntil - Date.now()) / 1000);
+    this.patch({
+      'brk-now': active ? t('brake.active', { t: fmtClock(left), x: fmt(g.brakeGain) }) : inChal ? t('brake.chal') : s.brakeUsed ? t('brake.used') : t('brake.now', { x: fmt(g.brakeGain) }),
+      'brk-btn': { off: s.cash < g.brakeCost() },
+      'brk-cost': money(g.brakeCost()),
+      'lob-btn': { off: s.cash < g.lobbyCost() },
+      'lob-reach': `${money(g.marketCap)}/s`,
+    });
   }
 
   renderAch() {
@@ -1802,12 +2020,12 @@ export class UI {
       scnext: { html: !nextT ? '' : SCALE_LEVELS[cur + 1].tech && !g.hasTech(SCALE_LEVELS[cur + 1].tech)
         ? t('sc.nextTech', { icon: SCALE_LEVELS[cur + 1].icon, name: `<b>${esc(TX.scaleName(cur + 1))}</b>`, v: money(nextT), tech: esc(TX.techName(SCALE_LEVELS[cur + 1].tech)) })
         : t('sc.next', { icon: SCALE_LEVELS[cur + 1].icon, name: `<b>${esc(TX.scaleName(cur + 1))}</b>`, v: money(nextT) }) },
-      screach: { html: `${t('reach.row', { stage: t(`reach.${g.marketStage()}`), v: money(g.marketCap) })}${g.rawIncome > g.marketCap ? ` · ${t('reach.satShort')}` : ''}` },
+      screach: { html: !g.capOn() ? t('reach.off') : `${t('reach.row', { stage: t(`reach.${g.marketStage()}`), v: money(g.marketCap) })}${g.rawIncome > g.marketCap ? ` · ${t('reach.satShort')}` : ''}` },
       sctop: { html: top >= 0 ? t('sc.top', { icon: SCALE_LEVELS[top].icon, name: `<b>${esc(TX.scaleName(top))}</b>` }) : t('sc.none') },
       'st-income': `${money(g.income)}/s`,
       'st-maxIncome': `${money(st.maxIncome)}/s`,
       'st-click': money(g.clickValue),
-      'st-auto': `${fmt(g.m.auto)}/s`,
+      'st-auto': g.m.auto > 0 ? `${fmt(g.m.auto)}/s · ${money(g.autoIncome)}/s` : '0/s',
       'st-total': money(s.totalEarned),
       'st-run': money(s.runEarned),
       'st-bestRun': money(Math.max(st.bestRun, s.runEarned)),
@@ -1820,7 +2038,7 @@ export class UI {
       'st-bubbles': fmtInt(st.bubbles),
       'st-contracts': fmtInt(st.contracts),
       'st-decisions': fmtInt(st.decisions),
-      'st-challenges': `${g.challengeTiers()}/${CHALLENGES.length * CHALLENGE_GOALS.length}`,
+      'st-challenges': `${g.challengeTiers()}/${ALL_CHALLENGES.length * CHALLENGE_TIERS.length}`,
       'st-autoBuys': fmtInt(st.autoBuys),
       'st-rounds': String(s.prestigeCount),
       'st-offlineCap': fmtTime(g.m.offlineCap),
@@ -1884,13 +2102,14 @@ export class UI {
       <div class="setting"><div>${t('set.lang')}<p>${t('set.langHint')}</p></div>${this.langSeg('set-lang')}</div>
       <div class="setting"><div>${t('set.sound')}<p>${t('set.soundHint')}</p></div><button class="switch ${s.meta.settings.sound ? 'on' : ''}" data-act="toggle-sound" aria-label="${t('set.sound')}"></button></div>
       <div class="setting"><div>${t('set.music')}<p>${t('set.musicHint')}</p></div><button class="switch ${s.meta.settings.music ? 'on' : ''}" data-act="toggle-music" aria-label="${t('set.music')}"></button></div>
+      <div class="setting"><div>${t('set.cap')}<p>${t('set.capHint')}</p></div><button class="switch ${this.g.capOn() ? '' : 'on'}" data-act="toggle-cap" aria-label="${t('set.cap')}"></button></div>
       <div class="setting"><div>${t('set.install')}<p>${t('set.installHint')}</p></div><button class="btn btn-small ghost" data-act="install-help">${t('set.show')}</button></div>
       <div class="section-title">${t('set.saveTitle')}</div>
       <div class="setting"><div>${t('set.export')}<p>${t('set.exportHint')}</p></div><button class="btn btn-small ghost" data-act="export">${t('set.exportBtn')}</button></div>
       <div class="setting"><div>${t('set.import')}<p>${t('set.importHint')}</p></div><button class="btn btn-small ghost" data-act="import">${t('set.importBtn')}</button></div>
       <div class="setting"><div>${t('set.reset')}<p>${t('set.resetHint')}</p></div><button class="btn btn-small danger" data-act="reset">${t('set.resetBtn')}</button></div>
       <p class="card-sub" style="text-align:center;margin-top:18px">${esc(t('appName'))} · ${t('set.footer', { v: esc(this.hooks.version || '1.0') })}</p>`;
-    this.setBody(`settings|${s.meta.settings.sound}|${s.meta.settings.music}|${getLang()}`, html);
+    this.setBody(`settings|${s.meta.settings.sound}|${s.meta.settings.music}|${this.g.capOn()}|${getLang()}`, html);
   }
 
   rename() {
@@ -2078,16 +2297,16 @@ export class UI {
     const s = g.s;
     const gain = g.prestigeGain();
     if (gain < 1) {
-      this.toast(this.space ? '👩‍🚀' : '💎', this.tl('toast.tooEarly'), this.tl('toast.tooEarlyText', { v: money(g.nextPrestigeAt()) }), 'info');
+      this.toast(this.lu.cur, this.tl('toast.tooEarly'), this.tl('toast.tooEarlyText', { v: money(g.nextPrestigeAt()) }), 'info');
       return;
     }
     const per = g.D.PRESTIGE.bonus + g.m.investorPct;
     const after = 1 + (s.investors + gain) * per;
     this.openModal(`
-      <div class="hero">${this.space ? '🌊' : '🦄'}</div>
+      <div class="hero">${this.lu.round}</div>
       <h2>${esc(this.tl('p.title', { r: this.roundLabel(s.prestigeCount) }))}</h2>
       <p style="text-align:center">${this.tl('p.lead')}</p>
-      <div class="big-money" style="color:var(--gold)">+${fmt(gain)} ${this.space ? '👩‍🚀' : '💎'}</div>
+      <div class="big-money" style="color:var(--gold)">+${fmt(gain)} ${this.lu.cur}</div>
       <p style="text-align:center">${this.tl('p.gain', { a: fmt(g.m.invMult), b: fmt(after), n: fmt(gain) })}</p>
       <ul><li>${this.tl('p.resets')}</li><li>${this.tl('p.keeps')}</li></ul>
       <div class="actions">
