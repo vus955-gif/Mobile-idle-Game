@@ -748,7 +748,7 @@ export class Game {
     s.deptUnlocked[id] = true;
     s.depts[id] = 0;
     this.recalc();
-    this.toast(d.icon, t('toast.newDept', { name: TX.deptName(id) }), t(this.D.id === 'space' ? 'sp.toast.newDeptText' : 'toast.newDeptText'), 'unlock');
+    this.toast(d.icon, t('toast.newDept', { name: TX.deptName(id) }), t(this.D.TEXT ? `${this.D.TEXT}toast.newDeptText` : 'toast.newDeptText'), 'unlock');
     this.emit('structure');
     return true;
   }

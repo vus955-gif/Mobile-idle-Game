@@ -4,6 +4,7 @@
 // Plik nie dotyka DOM — korzystają z niego gra, testy i symulator.
 import * as E from './data.js';
 import * as S from './space.js';
+import * as G from './galaxy.js';
 
 const byId = (arr) => Object.fromEntries(arr.map((x, i) => [x.id, { ...x, index: i }]));
 const plainById = (arr) => Object.fromEntries(arr.map((x) => [x.id, x]));
@@ -120,11 +121,33 @@ function spaceAchievements(D) {
   return list;
 }
 
+// Osiągnięcia Galaktyki: produkty, załoga statku-matki, drzewko, wyprawy, sondy, układy, przejęcia.
+function galaxyAchievements(D) {
+  const list = [];
+  const ach = (id, icon, type, v, i, check, extra = {}) => list.push({ id, icon, type, v, i, check, hidden: false, ...extra });
+  for (const p of D.PRODUCTS) {
+    [1, 50, 100, 200, 300, 500, 1000].forEach((v, i) =>
+      ach(`p_${p.id}_${i}`, p.icon, 'prod', v, i, (g) => (g.s.products[p.id] || 0) >= v, { pid: p.id }));
+  }
+  [10, 100, 500, 1000, 2500, 5000].forEach((v, i) => ach(`g_crew${i}`, '🧑‍✈️', 'gcrew', v, i, (g) => g.totalHeads() >= v));
+  [1, 7, 14, D.TECHS.length].forEach((v, i) => ach(`g_tech${i}`, '🌠', 'gtech', v, i, (g) => g.techCount() >= v));
+  [10, 50, 100, 200].forEach((v, i) => ach(`g_upg${i}`, '🔧', 'gupg', v, i, (g) => g.upgradeCount() >= v));
+  [1, 3, 5, 10, 25].forEach((v, i) => ach(`g_exp${i}`, '🚀', 'gexp', v, i, (g) => g.s.prestigeCount >= v));
+  [10, 1000, 1e5, 1e7].forEach((v, i) => ach(`g_probe${i}`, '🛸', 'gprobe', v, i, (g) => g.s.investors >= v));
+  const systems = D.OFFICES.filter((o) => !o.hq).length;
+  [1, 4, systems].forEach((v, i) => ach(`g_sys${i}`, '✨', 'gsys', v, i, (g) => g.officeCount('galaxy') >= v));
+  [1, D.ACQUISITIONS.length].forEach((v, i) => ach(`g_acq${i}`, '🦈', 'gacq', v, i, (g) => g.acqCount() >= v));
+  ach('f_galaxy', '🌌', 'fun', 0, 0, () => true, { hidden: true });
+  return list;
+}
+
 // Składa definicję warstwy w gotowy zestaw danych dla silnika (mapy, ulepszenia, osiągnięcia).
 export function buildLayer(def) {
   const D = {
     id: def.id,
     icon: def.icon,
+    // przedrostek tekstów interfejsu z innymi nazwami tych samych rzeczy (np. „sp.tab.office”: Stacja)
+    TEXT: def.textPrefix || '',
     PRODUCTS: def.products,
     PRODUCT_MAP: byId(def.products),
     DEPTS: def.depts,
@@ -200,6 +223,7 @@ export const EARTH = buildLayer({
 export const SPACE = buildLayer({
   id: 'space',
   icon: '🛰️',
+  textPrefix: 'sp.',
   products: S.SPACE_PRODUCTS,
   depts: S.SPACE_DEPTS,
   techs: S.SPACE_TECHS,
@@ -221,7 +245,7 @@ export const SPACE = buildLayer({
   salesDept: 'logistics',
   legalDept: 'spacelaw',
   features: {},
-  // galaktyka to kolejny etap — na razie „wkrótce”
+  // galaktyka otwiera się przy cywilizacji typu II (cała energia Słońca)
   next: { layer: 'galaxy', revenue: Math.pow(10, 26) / E.ENERGY_W_PER_USD },
   clickBase: S.SPACE_CLICK_BASE,
   categories: S.SPACE_CATEGORIES,
@@ -230,12 +254,46 @@ export const SPACE = buildLayer({
   achievements: spaceAchievements,
 });
 
-export const LAYERS = { earth: EARTH, space: SPACE };
-export const LAYER_ORDER = ['earth', 'space'];
+export const GALAXY = buildLayer({
+  id: 'galaxy',
+  icon: '🌌',
+  textPrefix: 'gx.',
+  products: G.GALAXY_PRODUCTS,
+  depts: G.GALAXY_DEPTS,
+  techs: G.GALAXY_TECHS,
+  eras: G.GALAXY_ERAS,
+  repeat: G.GALAXY_REPEAT,
+  culture: G.GALAXY_CULTURE,
+  click: G.GALAXY_CLICK,
+  acquisitions: G.GALAXY_ACQUISITIONS,
+  offices: G.GALAXY_OFFICES,
+  officeLevelCost: G.GALAXY_OFFICE_LEVEL_COST,
+  hq: 'sol',
+  reach: G.GALAXY_REACH,
+  techCapStep: G.GALAXY_TECH_CAP_STEP,
+  rd: G.GALAXY_RD_BUDGET,
+  prestige: G.GALAXY_PRESTIGE,
+  firstDept: 'navigators',
+  rdDept: 'astro',
+  researchDepts: ['astro'],
+  salesDept: 'traders',
+  legalDept: 'senate',
+  features: {},
+  // wszechświat to kolejny etap — na razie „wkrótce” (cywilizacja typu III)
+  next: { layer: 'universe', revenue: Math.pow(10, 36) / E.ENERGY_W_PER_USD },
+  clickBase: G.GALAXY_CLICK_BASE,
+  categories: G.GALAXY_CATEGORIES,
+  clients: G.GALAXY_CLIENTS,
+  tasks: G.GALAXY_TASKS,
+  achievements: galaxyAchievements,
+});
+
+export const LAYERS = { earth: EARTH, space: SPACE, galaxy: GALAXY };
+export const LAYER_ORDER = ['earth', 'space', 'galaxy'];
 // Przełącznik warstw: kolejne etapy pokazujemy z góry jako „wkrótce”.
 export const LAYER_CHIPS = [
   { id: 'earth', icon: '🌍' },
   { id: 'space', icon: '🛰️' },
-  { id: 'galaxy', icon: '🌌', soon: true },
+  { id: 'galaxy', icon: '🌌' },
   { id: 'universe', icon: '🕳️', soon: true },
 ];

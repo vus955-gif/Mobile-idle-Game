@@ -17,10 +17,16 @@ const only = arg('only');
 // (ery 8–10 to Kosmos), SPACE_RDK/SPACE_RDP — budżet badań Kosmosu.
 const E = LAYERS.earth;
 const S = LAYERS.space;
+const G = LAYERS.galaxy;
 if (process.env.RDK) E.RD_BUDGET.k = Number(process.env.RDK);
 if (process.env.RDP) E.RD_BUDGET.p = Number(process.env.RDP);
 if (process.env.SPACE_RDK) S.RD_BUDGET.k = Number(process.env.SPACE_RDK);
 if (process.env.SPACE_RDP) S.RD_BUDGET.p = Number(process.env.SPACE_RDP);
+// GALAXY_TECH="c0:r" — koszty technologii Galaktyki jako ciąg geometryczny.
+if (process.env.GALAXY_TECH) {
+  const [c0, r] = process.env.GALAXY_TECH.split(':').map(Number);
+  G.TECHS.forEach((tch, i) => { tch.cost = c0 * Math.pow(r, i); });
+}
 // SPACE_TECH="c0:r" — koszty technologii Kosmosu jako ciąg geometryczny (w kolejności listy).
 if (process.env.SPACE_TECH) {
   const [c0, r] = process.env.SPACE_TECH.split(':').map(Number);
@@ -41,7 +47,7 @@ const co = new Company(null, { now, rng });
 if (off.has('cap')) { co.meta.settings.cap = false; co.recalc(); }
 const t = () => fmtTime((now - T0) / 1000);
 const note = (msg) => { console.log(`[${t().padStart(12)}] ${msg}`); };
-const tag = (g) => (g.D.id === 'earth' ? '🌍' : '🛰️');
+const tag = (g) => g.D.icon;
 const seen = {};
 const seenOf = (g) => (seen[g.D.id] ||= { products: new Set(), depts: new Set([g.D.FIRST_DEPT]), eras: new Set() });
 const lastPrestigeAt = {};

@@ -50,6 +50,15 @@ const PLANETS = {
 const COLONY_AT = { leo: ['earth', 0, -9], l2: ['earth', 10, 4], moon: ['earth', -9, 5], mercury: ['mercury', 0, 0], venus: ['venus', 0, 0],
   mars: ['mars', 0, 0], ceres: ['ceres', 0, 0], europa: ['jupiter', 12, -6], titan: ['saturn', 11, 6] };
 const TAP_ROCKET = '<path d="M32 6c9 7 13 18 11 30H21C19 24 23 13 32 6z" fill="rgba(255,255,255,.2)" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><circle cx="32" cy="22" r="4.5" fill="none" stroke="#fff" stroke-width="3"/><path d="M21 34l-7 9h10M43 34l7 9H40" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><path d="M27 42c0 7 2 11 5 15 3-4 5-8 5-15" fill="#fff"/>';
+const TAP_WARP = '<ellipse cx="32" cy="32" rx="25" ry="10" fill="none" stroke="#fff" stroke-width="3" opacity=".55"/><path d="M14 38c6-10 30-10 36 0" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/><path d="M20 30c0-9 5-17 12-17s12 8 12 17" fill="rgba(255,255,255,.2)" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><circle cx="32" cy="24" r="4" fill="#fff"/><path d="M8 50l7-5M56 50l-7-5M32 56v-8" stroke="#fff" stroke-width="3" stroke-linecap="round"/>';
+// Symbole warstw na ekranie: waluta resetu, ikona rundy, mapa i przycisk akcji.
+const LAYER_UI = {
+  earth: { cur: '💎', round: '🦄', world: '🌍', hero: '🚀', tap: null },
+  space: { cur: '👩‍🚀', round: '🌊', world: '🪐', hero: '🚀', tap: TAP_ROCKET },
+  galaxy: { cur: '🛸', round: '🌠', world: '🌌', hero: '🌌', tap: TAP_WARP },
+};
+// Mapa galaktyki: spirala z ramionami, gwiazdy układów rozmieszczone w kpc od centrum.
+const GALAXY_MAP = { cx: 180, cy: 92, scale: 2.9, tilt: 0.6 };
 // Kropki lądu jako jedna ścieżka (lżej niż tysiące kółek). Mapa: 1 jednostka = 1° długości.
 let LAND_PATH = null;
 function landPath() {
@@ -115,10 +124,14 @@ export class UI {
 
   // Aktywna warstwa (Ziemia, Kosmos…) — to, co widać na ekranie.
   get g() { return this.co.g; }
-  get space() { return this.co.g.D.id === 'space'; }
-  // Tekst z wariantem dla Kosmosu (klucz z przedrostkiem sp.), jeśli taki istnieje.
-  tl(key, params) {
-    if (this.space && DICT.pl[`sp.${key}`] !== undefined) return t(`sp.${key}`, params);
+  // Symbole warstwy na ekranie (waluta resetu, ikony).
+  get lu() { return LAYER_UI[this.co.g.D.id] || LAYER_UI.earth; }
+  // Tekst z wariantem dla warstwy (np. sp.tab.office: Stacja, gx.tab.office: Statek), jeśli taki istnieje.
+  tl(key, params) { return this.lt(key, this.g.D.id, params); }
+  // To samo dla dowolnej warstwy — np. teksty przejścia do kolejnej (Kosmos, Galaktyka).
+  lt(key, id, params) {
+    const pre = LAYERS[id] ? LAYERS[id].TEXT : '';
+    if (pre && DICT.pl[`${pre}${key}`] !== undefined) return t(`${pre}${key}`, params);
     return t(key, params);
   }
 
@@ -272,7 +285,7 @@ export class UI {
         if (gain) {
           this.scene.render(g, true);
           this.showTab('office');
-          this.toast(this.space ? '🌊' : '🦄', this.tl('toast.roundClosed', { n: fmt(gain) }), this.tl('toast.roundClosedText', { x: fmt(g.m.invMult) }), 'achievement');
+          this.toast(this.lu.round, this.tl('toast.roundClosed', { n: fmt(gain) }), this.tl('toast.roundClosedText', { x: fmt(g.m.invMult) }), 'achievement');
           this.hooks.save?.();
         }
         break;
@@ -286,7 +299,7 @@ export class UI {
         if (this.co.unlockLayer(next, Date.now())) {
           play('prestige');
           this.switchLayer(next, true);
-          this.toast(LAYERS[next].icon, t('space.welcome'), t('space.welcomeText'), 'achievement');
+          this.toast(LAYERS[next].icon, this.lt('space.welcome', next), this.lt('space.welcomeText', next), 'achievement');
           this.hooks.save?.();
         }
         break;
@@ -394,12 +407,12 @@ export class UI {
     const icon = document.querySelector('.tap-icon');
     if (icon) {
       if (!this.tapIconEarth) this.tapIconEarth = icon.innerHTML;
-      icon.innerHTML = this.space ? TAP_ROCKET : this.tapIconEarth;
+      icon.innerHTML = this.lu.tap || this.tapIconEarth;
     }
     const world = document.querySelector('.scene-tool[data-sub="world"]');
-    if (world) world.textContent = this.space ? '🪐' : '🌍';
+    if (world) world.textContent = this.lu.world;
     const inv = document.querySelector('#hud-inv-chip .chip-ico');
-    if (inv) inv.textContent = this.space ? '👩‍🚀' : '💎';
+    if (inv) inv.textContent = this.lu.cur;
   }
 
   changeLang(lang) {
@@ -531,7 +544,7 @@ export class UI {
     if (musicAudible()) s.meta.stats.musicTime += dt;
     const env = this.scene.env;
     // pogoda ze sceny Ziemi wpływa na dziwactwo „deszczowe natchnienie” w zarządzie (w kosmosie nie pada)
-    if (env && !this.space) {
+    if (env && this.g.D.id === 'earth') {
       for (const L of Object.values(this.co.layers)) if (L.weather !== env.weather) { L.weather = env.weather; L.recalc(); }
     }
     if (env && this.tab === 'office') {
@@ -596,8 +609,8 @@ export class UI {
     // jednorazowy sygnał, że kolejna warstwa czeka
     if (p && p.ready && !co.meta.flags[`ready_${p.id}`]) {
       co.meta.flags[`ready_${p.id}`] = true;
-      this.toast(LAYERS[p.id].icon, t('layer.readyToast'), t('layer.readyToastText'), 'achievement');
-      this.pendingNews.unshift(`${LAYERS[p.id].icon} <b>${esc(t('layer.readyToast'))}</b> ${esc(t('layer.readyToastText'))}`);
+      this.toast(LAYERS[p.id].icon, this.lt('layer.readyToast', p.id), this.lt('layer.readyToastText', p.id), 'achievement');
+      this.pendingNews.unshift(`${LAYERS[p.id].icon} <b>${esc(this.lt('layer.readyToast', p.id))}</b> ${esc(this.lt('layer.readyToastText', p.id))}`);
       play('achievement');
     }
   }
@@ -609,13 +622,14 @@ export class UI {
     const tile = `<div class="tile" style="${grad(LAYER_GRADS[c.id])}">${c.icon}</div>`;
     if (g) {
       const active = g === this.g;
-      const rounds = c.id === 'earth' ? t('layer.rounds', { n: g.s.prestigeCount }) : t('layer.waves', { n: g.s.prestigeCount });
-      const fin = g.feedIn > 0 ? ` · ${t('layer.feedIn')}: <b>+${money(g.feedIn)}/s</b>` : '';
+      const rounds = c.id === 'earth' ? t('layer.rounds', { n: g.s.prestigeCount }) : this.lt('layer.waves', c.id, { n: g.s.prestigeCount });
+      const fin = g.feedIn > 0 ? ` · ${this.lt('layer.feedIn', c.id)}: <b>+${money(g.feedIn)}/s</b>` : '';
       let feed = '';
-      if (g.feedTarget()) {
-        feed = `<div class="layer-feed"><div class="budget-head"><b>${t('layer.feedTitle')}</b>
+      const to = g.feedTarget();
+      if (to) {
+        feed = `<div class="layer-feed"><div class="budget-head"><b>${this.lt('layer.feedTitle', to)}</b>
           <div class="seg">${FEED_SHARES.map((v) => `<button data-act="feed" data-layer="${c.id}" data-v="${v}" class="${v === g.s.feed ? 'on' : ''}">${Math.round(v * 100)}%</button>`).join('')}</div></div>
-          <div class="card-sub" style="margin-top:6px">${t('layer.feedText', { v: money(g.feedOut) })}</div></div>`;
+          <div class="card-sub" style="margin-top:6px">${this.lt('layer.feedText', to, { v: money(g.feedOut * (g.m.feedMult || 1)) })}</div></div>`;
       }
       return `<div class="card layer-card ${active ? 'on' : ''}">${tile}
         <div class="card-title"><h3>${name}</h3><span class="lvl">${active ? t('layer.active') : t('layer.bg')}</span></div>
@@ -630,9 +644,9 @@ export class UI {
       const rp = Math.min(1, p.revenue / p.need);
       return `<div class="card layer-card ${p.ready ? 'ready' : 'locked'}">${tile}
         <div class="card-title"><h3>${name}</h3><span class="lvl">${p.ready ? '✨' : '🔒'}</span></div>
-        <div class="prog" style="margin-top:6px"><div class="prog-bar"><i style="width:${tp * 100}%"></i></div><div class="prog-label">${t('layer.needTechs', { n: p.techs, m: p.techsNeed })}</div></div>
-        <div class="prog" style="margin-top:6px"><div class="prog-bar"><i style="width:${rp * 100}%"></i></div><div class="prog-label">${t('layer.needRevenue', { v: money(p.revenue), need: money(p.need) })}</div></div>
-        ${p.ready ? `<div class="card-foot"><div class="prog"></div><button class="btn gold" data-act="layer-start">${t('layer.start')}</button></div>` : ''}
+        <div class="prog" style="margin-top:6px"><div class="prog-bar"><i style="width:${tp * 100}%"></i></div><div class="prog-label">${this.lt('layer.needTechs', c.id, { n: p.techs, m: p.techsNeed })}</div></div>
+        <div class="prog" style="margin-top:6px"><div class="prog-bar"><i style="width:${rp * 100}%"></i></div><div class="prog-label">${this.lt('layer.needRevenue', c.id, { v: money(p.revenue), need: money(p.need) })}</div></div>
+        ${p.ready ? `<div class="card-foot"><div class="prog"></div><button class="btn gold" data-act="layer-start">${this.lt('layer.start', c.id)}</button></div>` : ''}
       </div>`;
     }
     return `<div class="card layer-card locked">${tile}
@@ -653,19 +667,20 @@ export class UI {
     const p = this.co.unlockProgress();
     if (!p || !p.ready) { this.showLayers(); return; }
     const from = this.co.layers[p.from];
-    const feed = from.income * (from.s.feed || 0.25);
+    const feed = from.income * (from.s.feed || 0.25) * (from.m.feedMult || 1);
+    const lt = (key, params) => this.lt(key, p.id, params);
     this.openModal(`
-      <div class="hero">🚀</div>
-      <h2>${t('space.title')}</h2>
-      <p style="text-align:center">${t('space.lead')}</p>
+      <div class="hero">${LAYER_UI[p.id].hero}</div>
+      <h2>${lt('space.title')}</h2>
+      <p style="text-align:center">${lt('space.lead')}</p>
       <ul>
-        <li>${t('space.p1')}</li>
-        <li>${t('space.p2', { grant: money(from.income * LAYER_GRANT_SECONDS), feed: money(feed) })}</li>
-        <li>${t('space.p3')}</li><li>${t('space.p4')}</li><li>${t('space.p5')}</li>
+        <li>${lt('space.p1')}</li>
+        <li>${lt('space.p2', { grant: money(from.income * LAYER_GRANT_SECONDS), feed: money(feed) })}</li>
+        <li>${lt('space.p3')}</li><li>${lt('space.p4')}</li><li>${lt('space.p5')}</li>
       </ul>
       <div class="actions">
-        <button class="btn gold btn-wide" data-act="layer-start-confirm">${t('space.go')}</button>
-        <button class="btn ghost btn-wide" data-act="modal-close">${t('space.later')}</button>
+        <button class="btn gold btn-wide" data-act="layer-start-confirm">${lt('space.go')}</button>
+        <button class="btn ghost btn-wide" data-act="modal-close">${lt('space.later')}</button>
       </div>`);
   }
 
@@ -727,11 +742,11 @@ export class UI {
   stageName() {
     const s = this.g.s;
     const n = this.g.deptCount() - 1;
-    const stage = this.space ? t('sp.stages')[n >= 8 ? 5 : n >= 6 ? 4 : n >= 4 ? 3 : n >= 2 ? 2 : n >= 1 ? 1 : 0] : TX.stageName(n);
+    const stage = this.g.D.TEXT ? this.tl('stages')[n >= 8 ? 5 : n >= 6 ? 4 : n >= 4 ? 3 : n >= 2 ? 2 : n >= 1 ? 1 : 0] : TX.stageName(n);
     return s.prestigeCount > 0 ? `${stage} · ${this.roundLabel(s.prestigeCount - 1)}` : stage;
   }
-  // Nazwa rundy finansowania (Ziemia) albo fali kolonizacji (Kosmos) o numerze i (od zera).
-  roundLabel(i) { return this.space ? t('sp.round', { n: i + 1 }) : TX.roundName(i); }
+  // Nazwa rundy finansowania (Ziemia), fali kolonizacji (Kosmos) albo wyprawy (Galaktyka) o numerze i (od zera).
+  roundLabel(i) { return this.g.D.TEXT ? this.tl('round', { n: i + 1 }) : TX.roundName(i); }
 
   updateSoundBtn() {
     $('sound-btn').innerHTML = this.g.s.meta.settings.sound ? SOUND_ON : SOUND_OFF;
@@ -749,7 +764,7 @@ export class UI {
       left = `<div class="mini-stat">${t('off.firstStep')}<b>${t('off.collect', { v: money(this.g.D.PRODUCTS[0].cost) })}</b></div><button class="mini-btn" data-act="goto" data-tab="products">${t('off.toProducts')}</button>`;
     } else {
       left = `<div class="mini-stat">${t('off.team')}<b>${t('off.people', { n: fmtInt(g.totalHeads()) })}</b></div>`;
-      if (g.feedIn > 0) left += `<div class="mini-stat">${t('layer.feedIn')}<b>+${money(g.feedIn)}/s</b></div>`;
+      if (g.feedIn > 0) left += `<div class="mini-stat">${this.tl('layer.feedIn')}<b>+${money(g.feedIn)}/s</b></div>`;
       else if (g.rpRate > 0) left += `<div class="mini-stat">${t('off.research')}<b>${fmt(g.rpRate)} ${t('unit.rp')}/s</b></div>`;
       else left += `<div class="mini-stat">${t('off.products')}<b>${t('off.levels', { n: fmtInt(owned) })}</b></div>`;
     }
@@ -757,7 +772,7 @@ export class UI {
     const gain = g.prestigeGain();
     const offers = s.contracts.offers.length;
     if (gain >= 1 && gain >= Math.max(1, s.investors * 0.5)) {
-      right += `<button class="mini-btn glow" data-act="goto" data-tab="company" data-sub="investors">${this.space ? '👩‍🚀' : '💎'} +${fmt(gain)}</button>`;
+      right += `<button class="mini-btn glow" data-act="goto" data-tab="company" data-sub="investors">${this.lu.cur} +${fmt(gain)}</button>`;
     } else if (g.contractsUnlocked() && offers > 0) {
       right += `<button class="mini-btn" data-act="goto" data-tab="company" data-sub="contracts">${t('off.offers', { n: offers })}</button>`;
     } else {
@@ -1081,7 +1096,7 @@ export class UI {
       const list = this.g.D.OFFICES;
       const opened = list.filter((o) => !o.hq && g.officeLevel(o.id) > 0).length;
       root.innerHTML = `
-        <div class="map-card ${this.space ? 'space solar' : ''}">${this.space ? this.solarSvg() : this.mapSvg()}</div>
+        <div class="map-card ${{ space: 'space solar', galaxy: 'space galaxy' }[g.D.id] || ''}">${g.D.id === 'space' ? this.solarSvg() : g.D.id === 'galaxy' ? this.galaxySvg() : this.mapSvg()}</div>
         <div class="kv"><span>${this.tl('off.title')}</span><b>${this.tl('off.count', { n: opened, m: list.length - 1 })}</b></div>
         <p class="card-sub" style="margin:8px 2px 0">${this.tl('off.lead')} ${this.tl('off.viewHint')}</p>
         <div class="list" style="margin-top:12px">${list.map((o) => this.officeCard(o)).join('')}</div>`;
@@ -1185,7 +1200,7 @@ export class UI {
     const avail = g.officeAvailable(o.id);
     const tech = o.req ? this.g.D.TECH_MAP[o.req] : null;
     const viewing = this.g.s.view === o.id;
-    const lvlName = lvl > 0 ? `${o.hq ? this.tl('off.hq') : t('off.levelNames')[lvl - 1]} · ` : '';
+    const lvlName = lvl > 0 ? `${o.hq ? this.tl('off.hq') : this.tl('off.levelNames')[lvl - 1]} · ` : '';
     const fxNow = lvl > 1 ? ` · ${t('off.now', { fx: esc(TX.describeFx(scaledFx(o.fx, lvl))) })}` : '';
     let action;
     if (maxed) action = `<span class="lvl" style="color:var(--money)">${t('off.max')}</span>`;
@@ -1193,7 +1208,7 @@ export class UI {
     else action = `<button class="btn violet" data-act="goto" data-tab="research">${t('goResearch')}</button>`;
     const viewBtn = lvl > 0 ? `<button class="btn btn-small ghost ${viewing ? 'on-view' : ''}" data-act="set-view" data-id="${o.id}">${viewing ? '👁' : '🪟'} ${viewing ? t('off.viewing') : t('off.view')}</button>` : '';
     return `<div class="card office ${lvl ? '' : avail ? '' : 'locked'}" id="office-${o.id}">
-      <div class="tile" style="${grad(o.kind === 'space' ? ['#1e1b4b', '#7c3aed'] : ['#0ea5e9', '#22c55e'])}">${o.icon}</div>
+      <div class="tile" style="${grad(LAYER_GRADS[g.D.id] || LAYER_GRADS.earth)}">${o.icon}</div>
       <div class="card-title"><h3>${esc(TX.officeName(o.id))}</h3><span class="lvl">${lvlName}${t('off.level', { n: lvl, m: OFFICE_MAX_LEVEL })}</span></div>
       <div class="card-sub">${avail || lvl ? `${t('off.perLevel', { fx: esc(TX.describeFx(o.fx)) })}${fxNow}` : `${t('prod.requires')} <span class="rp">${tech.icon} ${esc(TX.techName(tech.id))}</span>`}</div>
       <div class="card-desc">${esc(TX.officeDesc(o.id))}</div>
@@ -1266,6 +1281,47 @@ export class UI {
     return `<svg viewBox="0 0 360 168" role="img" aria-label="${this.tl('off.title')}">
       <defs><radialGradient id="sunR"><stop offset="0" stop-color="#fff7c2"/><stop offset=".5" stop-color="#ffd166"/><stop offset="1" stop-color="#ff9f43" stop-opacity="0"/></radialGradient></defs>
       ${orbits}<circle cx="${cx}" cy="${cy}" r="22" fill="url(#sunR)"/><circle cx="${cx}" cy="${cy}" r="9" fill="#ffe08a"/>${bodies}${marks}
+    </svg><div class="map-hint">${this.tl('off.mapHint')}</div>`;
+  }
+
+  // Mapa Drogi Mlecznej: cztery ramiona spiralne (log-spirale), jądro i placówki w układach.
+  galaxySvg() {
+    const g = this.g;
+    const { cx, cy, scale, tilt } = GALAXY_MAP;
+    const pos = (r, ang) => {
+      const a = (ang * Math.PI) / 180;
+      return { x: cx + r * scale * Math.cos(a), y: cy + r * scale * tilt * Math.sin(a) };
+    };
+    let seed = 11;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const colors = ['#e0e7ff', '#c7d2fe', '#fbcfe8', '#fde68a'];
+    let stars = '';
+    for (let arm = 0; arm < 4; arm++) {
+      for (let k = 0; k < 64; k++) {
+        const r = 3 + (42 * k) / 64 + (rnd() - 0.5) * 3;
+        const ang = 148 + arm * 90 + 140 * Math.log(Math.max(r, 3) / 3) + (rnd() - 0.5) * 16;
+        const q = pos(r, ang);
+        stars += `<circle cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${(0.5 + rnd() * 0.9).toFixed(2)}" fill="${colors[Math.floor(rnd() * colors.length)]}" opacity="${(0.45 + rnd() * 0.5).toFixed(2)}"/>`;
+      }
+    }
+    let marks = '';
+    for (const o of g.D.OFFICES) {
+      const q = pos(o.r, o.ang);
+      const lvl = g.officeLevel(o.id);
+      const cls = lvl > 0 ? 'm-on' : g.officeAvailable(o.id) ? 'm-avail' : 'm-lock';
+      marks += `<g class="marker ${cls}" data-act="office-focus" data-id="${o.id}">
+        ${lvl > 0 ? `<circle class="ping" cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${3 + lvl}"/>` : ''}
+        <circle class="dot" cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="${lvl > 0 ? 2.2 + lvl * 0.5 : 2}"/>
+        <circle cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="10" fill="transparent"/></g>`;
+    }
+    const lmc = pos(50, 228);
+    return `<svg viewBox="0 0 360 184" role="img" aria-label="${this.tl('off.title')}">
+      <defs><radialGradient id="bulgeG"><stop offset="0" stop-color="#fff7d6"/><stop offset=".35" stop-color="#fcd34d" stop-opacity=".8"/><stop offset="1" stop-color="#a855f7" stop-opacity="0"/></radialGradient>
+        <radialGradient id="discG"><stop offset="0" stop-color="#8b5cf6" stop-opacity=".35"/><stop offset="1" stop-color="#1e1b4b" stop-opacity="0"/></radialGradient></defs>
+      <ellipse cx="${cx}" cy="${cy}" rx="${46 * scale}" ry="${46 * scale * tilt}" fill="url(#discG)"/>
+      <ellipse cx="${lmc.x.toFixed(1)}" cy="${lmc.y.toFixed(1)}" rx="14" ry="7" fill="#c7d2fe" opacity=".18"/>
+      ${stars}
+      <ellipse cx="${cx}" cy="${cy}" rx="26" ry="13" fill="url(#bulgeG)"/>${marks}
     </svg><div class="map-hint">${this.tl('off.mapHint')}</div>`;
   }
 
@@ -1519,7 +1575,7 @@ export class UI {
     const vp = g.valuationParts();
     const vals = {
       round: this.tl('inv.nextRound', { r: this.roundLabel(s.prestigeCount) }),
-      gain: `+${fmt(gain)} ${this.space ? '👩‍🚀' : '💎'}`,
+      gain: `+${fmt(gain)} ${this.lu.cur}`,
       invsub: { html: `${this.tl('inv.now', { n: fmt(s.investors), x: fmt(g.m.invMult) })}<br>${this.tl('inv.perPoint', { p: num(per * 100) })}` },
       val: money(vp.total),
       assets: money(vp.assets),
@@ -2086,16 +2142,16 @@ export class UI {
     const s = g.s;
     const gain = g.prestigeGain();
     if (gain < 1) {
-      this.toast(this.space ? '👩‍🚀' : '💎', this.tl('toast.tooEarly'), this.tl('toast.tooEarlyText', { v: money(g.nextPrestigeAt()) }), 'info');
+      this.toast(this.lu.cur, this.tl('toast.tooEarly'), this.tl('toast.tooEarlyText', { v: money(g.nextPrestigeAt()) }), 'info');
       return;
     }
     const per = g.D.PRESTIGE.bonus + g.m.investorPct;
     const after = 1 + (s.investors + gain) * per;
     this.openModal(`
-      <div class="hero">${this.space ? '🌊' : '🦄'}</div>
+      <div class="hero">${this.lu.round}</div>
       <h2>${esc(this.tl('p.title', { r: this.roundLabel(s.prestigeCount) }))}</h2>
       <p style="text-align:center">${this.tl('p.lead')}</p>
-      <div class="big-money" style="color:var(--gold)">+${fmt(gain)} ${this.space ? '👩‍🚀' : '💎'}</div>
+      <div class="big-money" style="color:var(--gold)">+${fmt(gain)} ${this.lu.cur}</div>
       <p style="text-align:center">${this.tl('p.gain', { a: fmt(g.m.invMult), b: fmt(after), n: fmt(gain) })}</p>
       <ul><li>${this.tl('p.resets')}</li><li>${this.tl('p.keeps')}</li></ul>
       <div class="actions">

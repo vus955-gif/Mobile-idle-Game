@@ -478,3 +478,133 @@ export const EN = {
     'It’s all anyone talks about: {p} ×{x}',
   ],
 };
+
+// Galaxy (eras 11–13): the same ids as js/galaxy.js, merged into the sections above.
+Object.assign(EN.categories, { voyage: 'Voyages', stars: 'Stars', galactic: 'Galactic' });
+Object.assign(EN.products, {
+  probes: { name: 'Interstellar Probes', desc: 'They fly to the nearest stars and send back postcards. The first one arrives in twenty years.',
+    ups: ['A Stamp-Sized Probe', 'Graphene Shield', 'A Camera for the Whole Trip', 'A Fleet of a Thousand Probes', 'Flyby of Proxima b', 'A Probe That Brakes Itself', 'A Photo From Another System'] },
+  sails: { name: 'Light Mail', desc: 'Laser-pushed sails deliver parcels to the stars at a fifth of the speed of light.',
+    ups: ['The First Sail', 'A Desert-Sized Laser', 'Priority Parcels', 'Nanotube Sails', 'Braking on Stellar Wind', 'Courier to Sirius', 'Delivered Yesterday'] },
+  arks: { name: 'Generation Arks', desc: 'A city built for a thousand-year voyage. Only the passengers’ grandchildren get off, but the views are worth it.',
+    ups: ['Hibernation Pods', 'A Forest On Board', 'A School for a Hundred Generations', 'A Garden Under an Artificial Sun', 'All of Humanity’s Library', 'Elections On Board', 'Home on the Road'] },
+  exoworlds: { name: 'Turnkey Exoplanets', desc: 'Atmosphere, oceans and forest included as standard. Pick up your keys in orbit.',
+    ups: ['The First Oxygen World', 'Oceans From Comets', 'Forest Package', 'Two Suns in the Sky', 'Free Rings', 'Planets Made to Order', 'A New Earth Every Week'] },
+  antimatter: { name: 'Antimatter Factories', desc: 'One gram of fuel lasts a year of travel. Keep the store in a magnetic field and the lighters far away.',
+    ups: ['Magnetic Trap', 'A Star-Wide Accelerator', 'In-Flight Refuelling', 'A Kilogram in Stock', 'Annihilation Engine', 'Fuel Stations Across the Arm', 'Fuel From Nothing'] },
+  matrioshka: { name: 'Matrioshka Brains', desc: 'A computer made of nested shells around a star. Each one feeds on the waste heat of the last.',
+    ups: ['The First Shell', 'Infrared Cooling', 'Seven Layers', 'Star-Scale Thinking', 'A Simulation of All of Earth', 'A Hundred Stars, One Network', 'A Thought That Lasts a Million Years'] },
+  blackholes: { name: 'Black Hole Power Plants', desc: 'An accretion disc outshines any star. Just don’t stand too close.',
+    ups: ['The First Accretion Disc', 'The Penrose Process', 'The Rubbish Chute', 'A Ring of Collectors', 'Jets at Full Power', 'A Black Hole on a Leash', 'Time Runs Slower Here. So Do the Bonuses.'] },
+  warp: { name: 'Warp Corridors', desc: 'Space shrinks ahead of the ship and stretches behind it. A ticket across the galaxy for the price of a weekend away.',
+    ups: ['The First Warp Bubble', 'A Flight Timetable', 'A Corridor to the Pleiades', 'Express Through the Core', 'Warp for Everyone', 'The Spiral Motorway', 'The Galaxy Within Reach'] },
+  galaxynet: { name: 'Galactic Internet', desc: 'A hundred billion stars on one network. Whole civilisations pay the subscription.',
+    ups: ['The First Node', 'A Relay in Every System', 'A Ping Through the Core', 'A Search Engine for Stars', 'A Network for Aliens', 'Full Milky Way Coverage', 'Signal in Andromeda'] },
+});
+Object.assign(EN.depts, {
+  navigators: { name: 'Star Navigators', desc: 'They plot the course between the stars. Every navigator raises income and jump power.', ups: ['A 3D Star Map', 'A Planetarium on the Bridge', 'An Atlas of the Whole Galaxy'] },
+  astro: { name: 'Astrophysicists', desc: 'They generate galactic research points. Without them you won’t get past the next star.', ups: ['An Orbital Interferometer', 'A Gravitational Wave Detector', 'A Telescope the Size of a System'] },
+  envoys: { name: 'First Contact Diplomats', desc: 'They speak four hundred languages, including some without sounds. They raise income and jump power.', ups: ['Universal Translator', 'A Dictionary of Gestures', 'An Embassy On Board'] },
+  shipai: { name: 'Ship AI', desc: 'It flies the ship while the crew sleeps. Every copy of the AI means automatic jumps.', ups: ['Quantum Core', 'Backups in Every Probe', 'An AI With a Sense of Humour'] },
+  traders: { name: 'Interstellar Traders', desc: 'They open requests from civilisations and colonies. Every 25 people add another request slot.', ups: ['An Exchange in Every Port', 'An Energy-Backed Currency', 'Thousand-Year Contracts'] },
+  geneticists: { name: 'Geneticists', desc: 'A long-lived crew keeps working while you’re away. More offline earnings.', ups: ['Telomere Repair', 'Radiation Resistance', 'Living to Three Hundred'] },
+  senate: { name: 'Galactic Senate', desc: 'Who owns a star? Your senators have a majority on that. Unlocks acquisitions.', ups: ['The Milky Way Code', 'The Interstellar Tribunal', 'The Orion Arm Constitution'] },
+  gravitons: { name: 'Gravitologists', desc: 'Cheaper products and a bonus for stars. They move heavy things with a light touch.', ups: ['Gravitational Lens', 'Braking at the Horizon', 'A Tunnel Through Spacetime'] },
+  xeno: { name: 'Xenobiologists', desc: 'They bring dead planets to life. More probes with every new expedition.', ups: ['A Seed Bank of Life', 'Fast-Forward Evolution', 'The First Alien Conversation'] },
+});
+Object.assign(EN.eras, { 11: 'The Nearest Stars', 12: 'The Orion Arm', 13: 'The Milky Way' });
+Object.assign(EN.techs, {
+  laserArrays: { name: 'Laser Arrays', desc: 'A continent-sized laser speeds a probe up to a fifth of the speed of light.' },
+  lightsails: { name: 'Light Sails', desc: 'A sail thinner than a soap bubble. Pushed by light, it needs no fuel.' },
+  cryosleep: { name: 'Hibernation', desc: 'Fall asleep by the Sun, wake up at Tau Ceti. Breakfast is cold.' },
+  quantumComm: { name: 'Entangled Comms', desc: 'Pairs of entangled particles keep the fleet in touch. The signal is still slow, but at least the keys match.' },
+  exoTerraform: { name: 'Exoplanet Terraforming', desc: 'After Mars and Venus it’s routine. Every planet gets a made-to-measure atmosphere.' },
+  vonNeumann: { name: 'Von Neumann Probes', desc: 'A probe reaches a star, builds two copies and moves on. A few generations later there are millions.' },
+  stellarHighway: { name: 'The Star Highway', desc: 'A network of lasers and fuel stations between the nearest stars. Traffic jams around Sirius.' },
+  antimatterTech: { name: 'Antimatter Production', desc: 'Accelerators the size of planetary orbits make fuel that turns helium-3 into charcoal.' },
+  starLifting: { name: 'Star Lifting', desc: 'Harvesting matter straight from a star. It extends the star’s life by a few billion years, too.' },
+  starForge: { name: 'Star Forges', desc: 'New stars lit to order from clouds of gas. You pick the colour and size.' },
+  matrioshkaTech: { name: 'Matrioshka Shells', desc: 'A Dyson swarm in several layers. Each one computes on heat the last one couldn’t use.' },
+  blackHoleTaming: { name: 'Tamed Black Holes', desc: 'Throw rubbish in, take energy out. The best recycling in the universe.' },
+  seeding: { name: 'Seeding Life', desc: 'Microbes, seeds and a little patience. In a million years someone will say thank you.' },
+  tachyonComms: { name: 'The Tachyon Phone', desc: 'The answer arrives before you ask the question. Physicists are still arguing about it.' },
+  warpDrive: { name: 'Warp Drive', desc: 'The ship stands still; it’s space that moves. The speed of light has no say in it.' },
+  coreMining: { name: 'Galactic Core Mines', desc: 'Stars are packed so tightly at the centre of the galaxy that you can read at night.' },
+  uplift: { name: 'Civilisation Uplift', desc: 'Young civilisations get textbooks and a free internship. In a few thousand years they’ll be customers.' },
+  hypervelocity: { name: 'Stars on Course', desc: 'Stars launched from the core at thousands of kilometres per second. Wherever they’re needed.' },
+  galacticNet: { name: 'The Galactic Network', desc: 'The energy and information of the whole Milky Way on one network. A Type III civilisation.' },
+  sgrPower: { name: 'The Sagittarius A* Power Plant', desc: 'Four million solar masses right at the centre of the galaxy. The best-located power plant around.' },
+  galacticMind: { name: 'The Galactic Mind', desc: 'A hundred billion stars thinking together. First question: what lies beyond Andromeda?' },
+});
+Object.assign(EN.repeat, {
+  rg_nav: { name: 'Stellar Current Maps', desc: '+10% revenue per level.' },
+  rg_click: { name: 'Shorter Jumps', desc: '+25% jump power per level.' },
+  rg_science: { name: 'Observatories in the Void', desc: '+15% research points per level.' },
+  rg_ops: { name: 'Recruiting Through Hibernation', desc: 'Hiring 5% cheaper per level.' },
+});
+Object.assign(EN.culture, {
+  g_tea: { name: 'Nebula Tea', desc: 'Brewed with comet water. A faint hint of cyanogen.' },
+  g_window: { name: 'A Window on the Milky Way', desc: 'The galactic spiral from below. A wallpaper nobody ever changes.' },
+  g_forest: { name: 'A Forest On Board', desc: 'A square kilometre of pines. Mushrooms grow whatever the star.' },
+  g_holo: { name: 'The Holodeck', desc: 'Friday trips to the beach in Sopot, a hundred light years from Sopot.' },
+  g_dinner: { name: 'Dinner Under Two Suns', desc: 'Sunset lasts twice as long. So does dessert.' },
+  g_orchestra: { name: 'Music of the Spheres', desc: 'Music played on the vibrations of stars. Sounds best near a pulsar.' },
+  g_sabbatical: { name: 'Hibernation Sabbatical', desc: 'A hundred years off. Your inbox will wait.' },
+  g_aurora: { name: 'Pulsar Wind Aurora', desc: 'The Crab Nebula glows just for you. Almost.' },
+  g_core: { name: 'An Office Overlooking the Core', desc: 'Thousands of stars per square metre of sky. Curtains are mandatory.' },
+  g_pizza: { name: 'Pizza From Another Galaxy', desc: 'Delivered from the Magellanic Cloud. Still warm, thanks to warp.' },
+  g_eclipse: { name: 'Eclipses on Demand', desc: 'The planets line up for the company photo.' },
+});
+Object.assign(EN.click, {
+  gk_compass: { name: 'A Star Compass', desc: 'Always points at the nearest undiscovered star.' },
+  gk_hyper: { name: 'The Hyperspace Button', desc: 'Blue, not red. The red one is for self-destruct.' },
+  gk_pulsar: { name: 'Pulsar Clock', desc: 'Every jump also earns 0.5% of your revenue per second.' },
+  gk_slingshot: { name: 'Black Hole Slingshot', desc: 'The fastest way to the other side of a star.' },
+  gk_swarm: { name: 'A Probe Swarm per Tap', desc: 'One tap, a thousand launches.' },
+  gk_wormhole: { name: 'A Wormhole Shortcut', desc: 'Every jump also earns 1% of your revenue per second.' },
+  gk_tachyon: { name: 'The Tachyon Tap', desc: 'It was tapped before you thought of it.' },
+  gk_mind: { name: 'Tapping by Thought', desc: 'Just think about jumping. The ship will understand.' },
+  gk_bigbang: { name: 'A Little Big Bang', desc: 'Every tap starts a tiny new universe. Just to be tidy.' },
+});
+Object.assign(EN.acquisitions, {
+  ga_arkline: { name: 'Ark Generation Lines', desc: 'Their slogan: “Your grandchildren will thank you.”' },
+  ga_sailco: { name: 'Sailmaker Ltd', desc: 'They hold a patent on a logo-shaped sail.' },
+  ga_antistar: { name: 'Antistar', desc: 'The only antimatter refinery with a health and safety certificate.' },
+  ga_shells: { name: 'Shells Inc.', desc: 'Building matrioshka brains for three generations of stars.' },
+  ga_horizon: { name: 'Event Horizon Energy', desc: 'Nobody knows what’s inside. Nobody who could tell, anyway.' },
+  ga_bubble: { name: 'Warp Bubble Transport', desc: 'They carry anything, even mail from the past.' },
+  ga_andromeda: { name: 'Andromeda Holdings', desc: 'The competition from the galaxy next door. We’re colliding in four billion years anyway.' },
+});
+Object.assign(EN.offices, {
+  sol: { name: 'The Solar System', desc: 'Home. It all started here, and the Dyson swarm still shines like a lighthouse.' },
+  alpha: { name: 'Alpha Centauri', desc: 'Our nearest neighbour: two suns and a red dwarf, four light years from home.' },
+  trappist: { name: 'TRAPPIST-1', desc: 'Seven planets around a small red star. Three of them are habitable.' },
+  pleiades: { name: 'The Pleiades', desc: 'Seven sisters and a few hundred cousins. The youngest stars around.' },
+  crab: { name: 'The Crab Nebula', desc: 'What’s left of the supernova of 1054. The pulsar inside ticks 30 times a second.' },
+  orion: { name: 'The Orion Nebula', desc: 'A stellar nursery. New suns are born here, and you collect the rent.' },
+  omega: { name: 'Omega Centauri', desc: 'Ten million stars in a single cluster. Maybe the core of an ancient galaxy.' },
+  lmc: { name: 'The Large Magellanic Cloud', desc: 'A satellite galaxy with the best view of the Milky Way from outside.' },
+  sgr: { name: 'Sagittarius A*', desc: 'The black hole at the very centre of the galaxy. The office with the longest working day.' },
+});
+EN.galaxyNews = [
+  'A {c} probe reached Alpha Centauri and immediately built two more',
+  'Ark passengers keep asking “are we there yet?”. 340 years to go',
+  'The {c} ship AI asked for a name. It chose “Kevin”',
+  'Astrophysicists: 14 stars were born in the Orion Nebula today',
+  'The first alien civilisation replied to our message. It asks for less spam',
+  'Warp tourists complain about stretched holiday photos',
+  'The Galactic Senate is debating whether Pluto is a planet. Again',
+  '{c} traders have sold their first star in instalments',
+  'The Crab Nebula pulsar keeps the beat at the company party',
+  'The {c} matrioshka counted to infinity. Twice',
+  'Xenobiologists have found lichens that like jazz',
+  'Analysts: “Andromeda is just a matter of time and propulsion”',
+  'Sagittarius A* ate half a star today. Gravitologists decline to comment',
+  'The Magellanic Cloud reports the best view of the Milky Way',
+];
+EN.galaxyClients = ['New Earth Colony', 'The Pleiades Council', 'Proxima Academy', 'The Tau Ceti Civilisation', 'Sirius Star Mine', 'Edge of the Galaxy Observatory',
+  'The Ark “Hope”', 'The Galactic Energy Bank', 'The Pulsar League', 'Orion Nebula Gardens', 'Museum of First Contact', 'Andromeda Holofilm Studio',
+  'Interstellar Post', 'Horizon Power Plant'];
+EN.galaxyTasks = ['a map of the spiral arm', 'a warp route', 'a new exoplanet', 'a scout probe', 'a network relay', 'a supernova shield',
+  'moving a star', 'a generation ark', 'a translator for aliens', 'a race around a pulsar', 'an antimatter delivery',
+  'a brand-new star', 'a cargo port', 'a first contact phrasebook'];
