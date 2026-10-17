@@ -9,6 +9,7 @@ const ASSETS = [
   './js/data.js',
   './js/space.js',
   './js/galaxy.js',
+  './js/universe.js',
   './js/layers.js',
   './js/format.js',
   './js/i18n.js',

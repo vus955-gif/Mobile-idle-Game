@@ -14,7 +14,7 @@ import { fmt, money, fmtInt, fmtTime, fmtClock, fmtPct, num, decimal } from './f
 import { t, noun, getLang, setLang, LANGS, DICT } from './i18n.js';
 import * as TX from './text.js';
 import { Scene } from './scene.js';
-import { LAYERS, LAYER_CHIPS } from './layers.js';
+import { LAYERS, LAYER_CHIPS, LAYER_ORDER } from './layers.js';
 import { play, setSound, unlockAudio } from './audio.js';
 import { startMusic, stopMusic, musicAudible } from './music.js';
 
@@ -51,11 +51,13 @@ const COLONY_AT = { leo: ['earth', 0, -9], l2: ['earth', 10, 4], moon: ['earth',
   mars: ['mars', 0, 0], ceres: ['ceres', 0, 0], europa: ['jupiter', 12, -6], titan: ['saturn', 11, 6] };
 const TAP_ROCKET = '<path d="M32 6c9 7 13 18 11 30H21C19 24 23 13 32 6z" fill="rgba(255,255,255,.2)" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><circle cx="32" cy="22" r="4.5" fill="none" stroke="#fff" stroke-width="3"/><path d="M21 34l-7 9h10M43 34l7 9H40" fill="none" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><path d="M27 42c0 7 2 11 5 15 3-4 5-8 5-15" fill="#fff"/>';
 const TAP_WARP = '<ellipse cx="32" cy="32" rx="25" ry="10" fill="none" stroke="#fff" stroke-width="3" opacity=".55"/><path d="M14 38c6-10 30-10 36 0" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/><path d="M20 30c0-9 5-17 12-17s12 8 12 17" fill="rgba(255,255,255,.2)" stroke="#fff" stroke-width="3" stroke-linejoin="round"/><circle cx="32" cy="24" r="4" fill="#fff"/><path d="M8 50l7-5M56 50l-7-5M32 56v-8" stroke="#fff" stroke-width="3" stroke-linecap="round"/>';
+const TAP_SPARK = '<circle cx="32" cy="32" r="9" fill="rgba(255,255,255,.25)" stroke="#fff" stroke-width="3"/><path d="M32 6v12M32 46v12M6 32h12M46 32h12M14 14l8 8M42 42l8 8M50 14l-8 8M22 42l-8 8" stroke="#fff" stroke-width="3" stroke-linecap="round"/><circle cx="32" cy="32" r="3.5" fill="#fff"/>';
 // Symbole warstw na ekranie: waluta resetu, ikona rundy, mapa i przycisk akcji.
 const LAYER_UI = {
   earth: { cur: '💎', round: '🦄', world: '🌍', hero: '🚀', tap: null },
   space: { cur: '👩‍🚀', round: '🌊', world: '🪐', hero: '🚀', tap: TAP_ROCKET },
   galaxy: { cur: '🛸', round: '🌠', world: '🌌', hero: '🌌', tap: TAP_WARP },
+  universe: { cur: '💫', round: '💥', world: '🕸️', hero: '🕳️', tap: TAP_SPARK },
 };
 // Mapa galaktyki: spirala z ramionami, gwiazdy układów rozmieszczone w kpc od centrum.
 const GALAXY_MAP = { cx: 180, cy: 92, scale: 2.9, tilt: 0.6 };
@@ -584,6 +586,7 @@ export class UI {
     this.updateBadges();
     this.updateSceneBadges();
     this.updateLayerBar();
+    this.checkFinale();
     if (this.scene) this.scene.render(this.g);
   }
 
@@ -649,9 +652,12 @@ export class UI {
         ${p.ready ? `<div class="card-foot"><div class="prog"></div><button class="btn gold" data-act="layer-start">${this.lt('layer.start', c.id)}</button></div>` : ''}
       </div>`;
     }
+    // etap istnieje, ale najpierw trzeba otworzyć poprzedni
+    const prev = LAYER_ORDER.find((k) => LAYERS[k].NEXT && LAYERS[k].NEXT.layer === c.id);
+    const why = LAYERS[c.id] && prev ? t('layer.needPrev', { name: t(`layer.${prev}`) }) : t('layer.soon');
     return `<div class="card layer-card locked">${tile}
       <div class="card-title"><h3>${name}</h3><span class="lvl">🔒</span></div>
-      <div class="card-sub">${t('layer.soon')}</div></div>`;
+      <div class="card-sub">${why}</div></div>`;
   }
 
   showLayers() {
@@ -1096,7 +1102,7 @@ export class UI {
       const list = this.g.D.OFFICES;
       const opened = list.filter((o) => !o.hq && g.officeLevel(o.id) > 0).length;
       root.innerHTML = `
-        <div class="map-card ${{ space: 'space solar', galaxy: 'space galaxy' }[g.D.id] || ''}">${g.D.id === 'space' ? this.solarSvg() : g.D.id === 'galaxy' ? this.galaxySvg() : this.mapSvg()}</div>
+        <div class="map-card ${{ space: 'space solar', galaxy: 'space galaxy', universe: 'space cosmos' }[g.D.id] || ''}">${{ space: () => this.solarSvg(), galaxy: () => this.galaxySvg(), universe: () => this.webSvg() }[g.D.id]?.() ?? this.mapSvg()}</div>
         <div class="kv"><span>${this.tl('off.title')}</span><b>${this.tl('off.count', { n: opened, m: list.length - 1 })}</b></div>
         <p class="card-sub" style="margin:8px 2px 0">${this.tl('off.lead')} ${this.tl('off.viewHint')}</p>
         <div class="list" style="margin-top:12px">${list.map((o) => this.officeCard(o)).join('')}</div>`;
@@ -1323,6 +1329,54 @@ export class UI {
       ${stars}
       <ellipse cx="${cx}" cy="${cy}" rx="26" ry="13" fill="url(#bulgeG)"/>${marks}
     </svg><div class="map-hint">${this.tl('off.mapHint')}</div>`;
+  }
+
+  // Mapa kosmicznej sieci: węzły gromad połączone włóknami, placówki w węzłach.
+  webSvg() {
+    const g = this.g;
+    let seed = 23;
+    const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+    const nodes = g.D.OFFICES.map((o) => ({ x: o.x, y: o.y }));
+    for (let i = 0; i < 34; i++) nodes.push({ x: 8 + rnd() * 344, y: 8 + rnd() * 168 });
+    let web = '';
+    for (const [i, a] of nodes.entries()) {
+      const near = nodes.map((b, j) => ({ j, d: (a.x - b.x) ** 2 + (a.y - b.y) ** 2 })).filter((q) => q.j !== i).sort((p, q) => p.d - q.d).slice(0, 3);
+      for (const q of near) {
+        if (q.j < i) continue;
+        const b = nodes[q.j];
+        web += `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="#a5b4fc" stroke-width="${(0.6 + rnd() * 1.2).toFixed(2)}" opacity="${(0.18 + rnd() * 0.2).toFixed(2)}"/>`;
+      }
+      web += `<circle cx="${a.x.toFixed(1)}" cy="${a.y.toFixed(1)}" r="${(1.2 + rnd() * 2.2).toFixed(2)}" fill="#e0e7ff" opacity=".55"/>`;
+    }
+    let marks = '';
+    for (const o of g.D.OFFICES) {
+      const lvl = g.officeLevel(o.id);
+      const cls = lvl > 0 ? 'm-on' : g.officeAvailable(o.id) ? 'm-avail' : 'm-lock';
+      marks += `<g class="marker ${cls}" data-act="office-focus" data-id="${o.id}">
+        ${lvl > 0 ? `<circle class="ping" cx="${o.x}" cy="${o.y}" r="${3 + lvl}"/>` : ''}
+        <circle class="dot" cx="${o.x}" cy="${o.y}" r="${lvl > 0 ? 2.2 + lvl * 0.5 : 2}"/>
+        <circle cx="${o.x}" cy="${o.y}" r="10" fill="transparent"/></g>`;
+    }
+    return `<svg viewBox="0 0 360 184" role="img" aria-label="${this.tl('off.title')}">
+      <defs><radialGradient id="webG"><stop offset="0" stop-color="#6366f1" stop-opacity=".28"/><stop offset="1" stop-color="#0b0820" stop-opacity="0"/></radialGradient></defs>
+      <ellipse cx="180" cy="92" rx="190" ry="100" fill="url(#webG)"/>${web}${marks}
+    </svg><div class="map-hint">${this.tl('off.mapHint')}</div>`;
+  }
+
+  // Finał: całe drzewko Wszechświata odkryte (pokazujemy raz).
+  checkFinale() {
+    const u = this.co.layers.universe;
+    const m = this.co.meta;
+    if (!u || m.flags.finale || !u.allTechs()) return;
+    m.flags.finale = true;
+    play('prestige');
+    this.openModal(`
+      <div class="hero">🌅</div>
+      <h2>${t('fin.title')}</h2>
+      <p style="text-align:center">${t('fin.text')}</p>
+      <p style="text-align:center">${t('fin.more')}</p>
+      <div class="actions"><button class="btn gold btn-wide" data-act="modal-close">${t('fin.ok')}</button></div>`);
+    this.hooks.save?.();
   }
 
   // ---------------------------------------------------------------------

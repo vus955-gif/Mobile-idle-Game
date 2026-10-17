@@ -18,6 +18,7 @@ const only = arg('only');
 const E = LAYERS.earth;
 const S = LAYERS.space;
 const G = LAYERS.galaxy;
+const U = LAYERS.universe;
 if (process.env.RDK) E.RD_BUDGET.k = Number(process.env.RDK);
 if (process.env.RDP) E.RD_BUDGET.p = Number(process.env.RDP);
 if (process.env.SPACE_RDK) S.RD_BUDGET.k = Number(process.env.SPACE_RDK);
@@ -26,6 +27,11 @@ if (process.env.SPACE_RDP) S.RD_BUDGET.p = Number(process.env.SPACE_RDP);
 if (process.env.GALAXY_TECH) {
   const [c0, r] = process.env.GALAXY_TECH.split(':').map(Number);
   G.TECHS.forEach((tch, i) => { tch.cost = c0 * Math.pow(r, i); });
+}
+// UNIVERSE_TECH="c0:r" — to samo dla Wszechświata.
+if (process.env.UNIVERSE_TECH) {
+  const [c0, r] = process.env.UNIVERSE_TECH.split(':').map(Number);
+  U.TECHS.forEach((tch, i) => { tch.cost = c0 * Math.pow(r, i); });
 }
 // SPACE_TECH="c0:r" — koszty technologii Kosmosu jako ciąg geometryczny (w kolejności listy).
 if (process.env.SPACE_TECH) {

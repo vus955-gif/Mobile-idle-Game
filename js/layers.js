@@ -5,6 +5,7 @@
 import * as E from './data.js';
 import * as S from './space.js';
 import * as G from './galaxy.js';
+import * as U from './universe.js';
 
 const byId = (arr) => Object.fromEntries(arr.map((x, i) => [x.id, { ...x, index: i }]));
 const plainById = (arr) => Object.fromEntries(arr.map((x) => [x.id, x]));
@@ -138,6 +139,27 @@ function galaxyAchievements(D) {
   [1, 4, systems].forEach((v, i) => ach(`g_sys${i}`, '✨', 'gsys', v, i, (g) => g.officeCount('galaxy') >= v));
   [1, D.ACQUISITIONS.length].forEach((v, i) => ach(`g_acq${i}`, '🦈', 'gacq', v, i, (g) => g.acqCount() >= v));
   ach('f_galaxy', '🌌', 'fun', 0, 0, () => true, { hidden: true });
+  return list;
+}
+
+// Osiągnięcia Wszechświata: produkty, załoga cytadeli, drzewko, eony, osobliwości, galaktyki, przejęcia.
+function universeAchievements(D) {
+  const list = [];
+  const ach = (id, icon, type, v, i, check, extra = {}) => list.push({ id, icon, type, v, i, check, hidden: false, ...extra });
+  for (const p of D.PRODUCTS) {
+    [1, 50, 100, 200, 300, 500, 1000].forEach((v, i) =>
+      ach(`p_${p.id}_${i}`, p.icon, 'prod', v, i, (g) => (g.s.products[p.id] || 0) >= v, { pid: p.id }));
+  }
+  [10, 100, 500, 1000, 2500, 5000].forEach((v, i) => ach(`u_crew${i}`, '🧑‍🔬', 'ucrew', v, i, (g) => g.totalHeads() >= v));
+  [1, 7, 14, D.TECHS.length].forEach((v, i) => ach(`u_tech${i}`, '🧮', 'utech', v, i, (g) => g.techCount() >= v));
+  [10, 50, 100, 200].forEach((v, i) => ach(`u_upg${i}`, '🪛', 'uupg', v, i, (g) => g.upgradeCount() >= v));
+  [1, 3, 5, 10, 25].forEach((v, i) => ach(`u_eon${i}`, '💥', 'ueon', v, i, (g) => g.s.prestigeCount >= v));
+  [10, 1000, 1e5, 1e7].forEach((v, i) => ach(`u_sing${i}`, '💫', 'using', v, i, (g) => g.s.investors >= v));
+  const places = D.OFFICES.filter((o) => !o.hq).length;
+  [1, 4, places].forEach((v, i) => ach(`u_gal${i}`, '🌌', 'ugal', v, i, (g) => g.officeCount('universe') >= v));
+  [1, D.ACQUISITIONS.length].forEach((v, i) => ach(`u_acq${i}`, '🦈', 'uacq', v, i, (g) => g.acqCount() >= v));
+  ach('f_universe', '🕳️', 'fun', 0, 0, () => true, { hidden: true });
+  ach('f_light', '🌅', 'fun', 0, 0, (g) => !!g.s.techs.lastQuestion, { hidden: true });
   return list;
 }
 
@@ -279,7 +301,7 @@ export const GALAXY = buildLayer({
   salesDept: 'traders',
   legalDept: 'senate',
   features: {},
-  // wszechświat to kolejny etap — na razie „wkrótce” (cywilizacja typu III)
+  // wszechświat otwiera się przy cywilizacji typu III (energia całej galaktyki)
   next: { layer: 'universe', revenue: Math.pow(10, 36) / E.ENERGY_W_PER_USD },
   clickBase: G.GALAXY_CLICK_BASE,
   categories: G.GALAXY_CATEGORIES,
@@ -288,12 +310,46 @@ export const GALAXY = buildLayer({
   achievements: galaxyAchievements,
 });
 
-export const LAYERS = { earth: EARTH, space: SPACE, galaxy: GALAXY };
-export const LAYER_ORDER = ['earth', 'space', 'galaxy'];
-// Przełącznik warstw: kolejne etapy pokazujemy z góry jako „wkrótce”.
+export const UNIVERSE = buildLayer({
+  id: 'universe',
+  icon: '🕳️',
+  textPrefix: 'un.',
+  products: U.UNIVERSE_PRODUCTS,
+  depts: U.UNIVERSE_DEPTS,
+  techs: U.UNIVERSE_TECHS,
+  eras: U.UNIVERSE_ERAS,
+  repeat: U.UNIVERSE_REPEAT,
+  culture: U.UNIVERSE_CULTURE,
+  click: U.UNIVERSE_CLICK,
+  acquisitions: U.UNIVERSE_ACQUISITIONS,
+  offices: U.UNIVERSE_OFFICES,
+  officeLevelCost: U.UNIVERSE_OFFICE_LEVEL_COST,
+  hq: 'milkyway',
+  reach: U.UNIVERSE_REACH,
+  techCapStep: U.UNIVERSE_TECH_CAP_STEP,
+  rd: U.UNIVERSE_RD_BUDGET,
+  prestige: U.UNIVERSE_PRESTIGE,
+  firstDept: 'cartographers',
+  rdDept: 'cosmologists',
+  researchDepts: ['cosmologists'],
+  salesDept: 'brokers',
+  legalDept: 'tribunal',
+  features: {},
+  // ostatni etap: dalej nie ma już nic do otwarcia
+  next: null,
+  clickBase: U.UNIVERSE_CLICK_BASE,
+  categories: U.UNIVERSE_CATEGORIES,
+  clients: U.UNIVERSE_CLIENTS,
+  tasks: U.UNIVERSE_TASKS,
+  achievements: universeAchievements,
+});
+
+export const LAYERS = { earth: EARTH, space: SPACE, galaxy: GALAXY, universe: UNIVERSE };
+export const LAYER_ORDER = ['earth', 'space', 'galaxy', 'universe'];
+// Przełącznik warstw: wszystkie etapy widać z góry, zablokowane czekają na odblokowanie.
 export const LAYER_CHIPS = [
   { id: 'earth', icon: '🌍' },
   { id: 'space', icon: '🛰️' },
   { id: 'galaxy', icon: '🌌' },
-  { id: 'universe', icon: '🕳️', soon: true },
+  { id: 'universe', icon: '🕳️' },
 ];

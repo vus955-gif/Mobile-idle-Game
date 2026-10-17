@@ -1,10 +1,10 @@
-// Testy warstw: Ziemia → Kosmos → Galaktyka, wspólny stan firmy, zasilanie, zapis v3, fale kolonizacji.
+// Testy warstw: Ziemia → Kosmos → Galaktyka → Wszechświat, wspólny stan firmy, zasilanie, zapis v3, fale kolonizacji.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   Company, Game, createState, SAVE_VERSION, FEED_SHARES, LAYER_GRANT_SECONDS, SECONDS_PER_GAME_YEAR, SCALE_THRESHOLDS,
 } from '../js/engine.js';
-import { EARTH, SPACE, GALAXY, LAYERS, LAYER_ORDER } from '../js/layers.js';
+import { EARTH, SPACE, GALAXY, UNIVERSE, LAYERS, LAYER_ORDER } from '../js/layers.js';
 import { SCALE_LEVELS } from '../js/data.js';
 import { setLang } from '../js/i18n.js';
 import * as TX from '../js/text.js';
@@ -292,7 +292,7 @@ test('Galaktyka: otwiera się po Kosmosie, Kosmos ją zasila, a zapis trzyma trz
   assert.equal(sp.s.feed, 0.25);
   assert.equal(gx.feedIn, sp.feedOut, 'Kosmos zasila Galaktykę');
   assert.ok(gx.s.offices.sol, 'siedziba w Układzie Słonecznym');
-  assert.equal(co.nextLayer(), null, 'wszechświat: wkrótce');
+  assert.equal(co.nextLayer(), 'universe', 'kolejny etap: Wszechświat');
   // pierwszy produkt kosztuje kilka sekund przychodu Kosmosu, a grant wystarcza na start
   assert.ok(GALAXY.PRODUCTS[0].cost < sp.income * 60);
   assert.ok(gx.buyProduct('probes', 1));
@@ -330,4 +330,51 @@ test('Galaktyka: zasięg rynku od roju Dysona do typu III, sondy von Neumanna i 
   const gain = g.doPrestige(T0);
   assert.ok(gain > 0 && g.s.investors === gain && g.s.prestigeCount === 1);
   assert.ok(g.s.techs.galacticNet, 'technologie zostają');
+});
+
+test('Wszechświat: ostatni etap po Galaktyce, cztery warstwy w zapisie, dalej już nic', () => {
+  const co = galaxyCo();
+  assert.ok(co.unlockLayer('galaxy', T0));
+  const gx = co.layers.galaxy;
+  for (const t of GALAXY.TECHS) gx.s.techs[t.id] = true;
+  gx.s.investors = 1e7;
+  for (const p of GALAXY.PRODUCTS) gx.s.products[p.id] = 300;
+  co.recalc();
+  const p = co.unlockProgress();
+  assert.equal(p.id, 'universe');
+  assert.equal(p.from, 'galaxy');
+  assert.ok(p.ready, 'pełne drzewko Galaktyki i typ III');
+  assert.ok(co.unlockLayer('universe', T0));
+  const u = co.layers.universe;
+  assert.equal(co.g, u);
+  assert.equal(u.feedIn, gx.feedOut * (gx.m.feedMult || 1), 'Galaktyka zasila Wszechświat');
+  assert.equal(u.feedTarget(), null, 'ostatni etap nikogo nie zasila');
+  assert.equal(co.nextLayer(), null);
+  assert.ok(UNIVERSE.PRODUCTS[0].cost < gx.income * 60, 'pierwszy produkt za kilka sekund Galaktyki');
+  assert.ok(u.buyProduct('quasars', 1));
+  const co2 = new Company(JSON.parse(co.serialize()), { now: T0, rng });
+  assert.deepEqual(Object.keys(co2.layers), LAYER_ORDER);
+  assert.equal(co2.g.D, UNIVERSE);
+  u.s.deptUnlocked.brokers = true;
+  const o = u.makeOffer(T0);
+  assert.equal(o.L, 'universe');
+  assert.ok(TX.clientName(o).length > 3 && TX.taskName(o).length > 3);
+});
+
+test('Wszechświat: rynek od typu III do multiwersum, bramy K 3,5 / IV / V w drzewku, eon', () => {
+  const g = new Game(null, { now: T0, rng, layer: 'universe' });
+  assert.ok(UNIVERSE.MARKET_REACH.base >= GALAXY.MARKET_REACH.ends.at(-1), 'zaczyna się ponad Galaktyką');
+  const ids = UNIVERSE.TECHS.map((t) => t.id);
+  for (const L of SCALE_LEVELS) if (L.k >= 3.5) assert.ok(ids.includes(L.tech), L.tech);
+  for (const t of UNIVERSE.TECHS) g.s.techs[t.id] = true;
+  g.recalc();
+  assert.ok(Math.abs(g.marketCapLog() - UNIVERSE.MARKET_REACH.ends.at(-1)) < 1e-9);
+  // przy pełnym rynku (z nadwyżką) firma dochodzi do multiwersum
+  const top = SCALE_LEVELS.length - 1;
+  assert.ok(Math.pow(10, g.marketCapLog() + 2) * SECONDS_PER_GAME_YEAR > SCALE_THRESHOLDS[top], 'multiwersum osiągalne');
+  assert.ok(Number.isFinite(Math.pow(10, g.marketCapLog() + 2) * SECONDS_PER_GAME_YEAR * 100), 'liczby mieszczą się w zakresie');
+  g.s.totalEarned = 1e46;
+  const gain = g.doPrestige(T0);
+  assert.ok(gain > 0 && g.s.prestigeCount === 1 && g.s.techs.lastQuestion);
+  assert.ok(TX.newsList('universe').length >= 10);
 });

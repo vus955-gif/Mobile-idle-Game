@@ -608,3 +608,133 @@ EN.galaxyClients = ['New Earth Colony', 'The Pleiades Council', 'Proxima Academy
 EN.galaxyTasks = ['a map of the spiral arm', 'a warp route', 'a new exoplanet', 'a scout probe', 'a network relay', 'a supernova shield',
   'moving a star', 'a generation ark', 'a translator for aliens', 'a race around a pulsar', 'an antimatter delivery',
   'a brand-new star', 'a cargo port', 'a first contact phrasebook'];
+
+// Universe (eras 14–16): the same ids as js/universe.js, merged into the sections above.
+Object.assign(EN.categories, { clusters: 'Clusters', fabric: 'Spacetime', creation: 'Creation' });
+Object.assign(EN.products, {
+  quasars: { name: 'Quasar Beacons', desc: 'The brightest objects in the universe as billboards. Your logo is visible from the far side of the cosmos.',
+    ups: ['The First Quasar', 'Ads in the Jet', 'A Billion-Year Billboard', 'A Quasar in Every Cluster', 'A Slogan in Gamma Rays', 'A Timetable in the Sky', 'Light That Reaches Everywhere'] },
+  gates: { name: 'Intergalactic Gates', desc: 'A tunnel to the next galaxy. Queues like an airport, but the flight takes a second.',
+    ups: ['The First Gate', 'Fast-Track Check-In', 'A Gate to Andromeda', 'A Monthly Pass', 'Duty-Free Zone', 'A Gate in Every Galaxy', 'Everything Is Close'] },
+  mergers: { name: 'Galaxy Mergers', desc: 'Andromeda and the Milky Way are going to collide. You sell the tickets and turn it into a wedding.',
+    ups: ['The First Approach', 'Supernova Fireworks', 'New Stars as a Gift', 'An Elliptical Galaxy', 'Two Clusters Tie the Knot', 'Mergers to Order', 'Milkomeda'] },
+  darkmatter: { name: 'Dark Matter Mines', desc: 'Five times more of it than ordinary matter, and nobody has ever mined it. First to market takes everything.',
+    ups: ['The First Sample', 'A WIMP Sieve', 'Leased Halos', 'An Axion Refinery', 'Dark Matter in Every Home', 'A Cluster-Sized Mine', 'Finally, We Know What It Is'] },
+  filaments: { name: 'Cosmic Web Railways', desc: 'Galaxies line up in filaments hundreds of millions of light years long. Perfect tracks.',
+    ups: ['The First Track', 'The Cluster Express', 'An Interchange Hub', 'A Network With No Changes', 'A Dining Car', 'The Whole Web on One Ticket', 'The Cosmos on a Timetable'] },
+  vacuum: { name: 'Vacuum Energy', desc: 'Empty space is not empty at all. A subscription to nothing has never paid off so well.',
+    ups: ['The First Capacitor', 'The Casimir Effect at Scale', 'A Power Plant in the Void', 'Power From Nothing', 'Vacuum for Export', 'The Universal Grid', 'Nothing That Gives Everything'] },
+  timeloops: { name: 'Time Loops', desc: 'The same Monday sold a million times. Customers always come back, because they have no choice.',
+    ups: ['The First Replay', 'Yesterday’s Mail Tomorrow', 'An Endless Weekend', 'Loops on Subscription', 'A Guaranteed Paradox', 'Time for Rent', 'Never Late Again'] },
+  pocket: { name: 'Pocket Universes', desc: 'A tiny universe in a glass globe. Shake it and galaxies form.',
+    ups: ['The First Bubble', 'Custom Laws of Physics', 'A Universe as a Gift', 'The Christmas Collection', 'A Bubble With Life', 'Limited Edition', 'A Cosmos for Everyone'] },
+  genesis: { name: 'Universes to Order', desc: 'Pick the physical constants, the colour of the sky and the number of dimensions. Big Bang included.',
+    ups: ['The First Big Bang', 'The Constants Configurator', 'A Universe Without Gravity', 'Premium Package: 11 Dimensions', 'Delivery by Inflation', 'A 10¹⁰⁰-Year Warranty', 'Let There Be Light'] },
+});
+Object.assign(EN.depts, {
+  cartographers: { name: 'Cosmic Cartographers', desc: 'They map things that are still being made. Every cartographer raises income and creation power.', ups: ['A Map of the Whole Sky', 'An Atlas of the Cosmic Web', 'A Map of Invisible Things'] },
+  cosmologists: { name: 'Cosmologists', desc: 'They generate cosmic research points. They calculate everything, from the beginning of time to its end.', ups: ['A Map of the Background Radiation', 'A Big Bang Simulation', 'A Telescope at the End of Time'] },
+  ambassadors: { name: 'Galactic Ambassadors', desc: 'They negotiate with whole galaxies at once. They raise income and creation power.', ups: ['The Intergalactic Protocol', 'The Local Group Summit', 'Peace in the Virgo Cluster'] },
+  replicators: { name: 'Replicator Swarms', desc: 'They build clusters on their own, copy after copy. Every swarm means automatic creation.', ups: ['A Dark Matter Replicator', 'A Galaxy-Sized Swarm', 'A Swarm That Designs Swarms'] },
+  brokers: { name: 'Spacetime Brokers', desc: 'They open requests from civilisations across the cosmos. Every 25 people add another request slot.', ups: ['An Exchange in Every Cluster', 'Futures on the Past', 'An Entropy-Backed Currency'] },
+  immortals: { name: 'The Immortals', desc: 'A crew that never dies keeps working while you’re away. More offline earnings.', ups: ['A Mind Backup', 'A Neutron Star Body', 'A Billion-Year Memory'] },
+  tribunal: { name: 'The Cosmic Tribunal', desc: 'It settles disputes over the laws of physics. Its verdicts apply across the universe. Unlocks acquisitions.', ups: ['The Convention on Physical Constants', 'The Court of Last Resort', 'The Constitution of the Cosmos'] },
+  chrononauts: { name: 'Chrononauts', desc: 'Cheaper products and a bonus for spacetime. They buy everything yesterday, when it was cheaper.', ups: ['A Watch That Runs Both Ways', 'A Trip to the Big Bang', 'Meeting Yourself'] },
+  voidwalkers: { name: 'Voidwalkers', desc: 'They go where there is nothing. They bring back more singularities from every new aeon.', ups: ['A Torch for the Void', 'A Map of Nothing', 'A Home in the Boötes Void'] },
+});
+Object.assign(EN.eras, { 14: 'The Local Group', 15: 'The Cosmic Web', 16: 'Beyond Time' });
+Object.assign(EN.techs, {
+  intergalactic: { name: 'Intergalactic Drive', desc: 'Two and a half million light years to Andromeda. With this drive, before lunch.' },
+  wormholes: { name: 'Stable Wormholes', desc: 'A tunnel held open by exotic matter. It stays open even when someone slams the door.' },
+  galaxyMergers: { name: 'Collision Engineering', desc: 'Galaxies collide exactly the way you want, and the stars almost never touch.' },
+  andromedaLink: { name: 'The Andromeda Bridge', desc: 'A permanent link to the next galaxy. A trillion stars on the other side are waiting for an offer.' },
+  darkMatterTech: { name: 'Dark Matter Detectors', desc: 'After a hundred years of searching: there it is. Lots of it. Really lots.' },
+  darkEnergy: { name: 'Tamed Dark Energy', desc: 'The force that pushes the whole universe apart now works for you. A Type IV civilisation.' },
+  hubbleBrake: { name: 'The Hubble Brake', desc: 'You slow the expansion of the universe so customers don’t drift beyond the horizon.' },
+  filamentRails: { name: 'Filament Railways', desc: 'Tracks laid along the gas filaments between clusters. The longest railway line in history.' },
+  laniakea: { name: 'The Laniakea Supercluster', desc: 'A hundred thousand galaxies under one “immeasurable heaven”. Your new home market.' },
+  greatAttractor: { name: 'The Great Attractor', desc: 'Something pulls every galaxy around here. Now it pulls them into your shops.' },
+  vacuumEnergy: { name: 'Vacuum Energy', desc: 'Quantum fluctuations in empty space turned into electricity. Nothing has ever been so valuable.' },
+  chronoTech: { name: 'Time Engineering', desc: 'Time is just another dimension. It can be folded, looped and rented out.' },
+  bootesVoid: { name: 'Settling the Boötes Void', desc: 'Three hundred million light years of nothing. The best plot for a new development.' },
+  ftlThought: { name: 'Faster-Than-Light Thought', desc: 'An idea reaches the far side of the cosmos before you finish thinking it.' },
+  pocketUniverses: { name: 'Pocket Universes', desc: 'A dash of false vacuum in a bottle. Open it and a new cosmos is born.' },
+  falseVacuum: { name: 'False Vacuum Control', desc: 'The one thing that could destroy everything, sealed in a safe jar. With a label.' },
+  theoryOfEverything: { name: 'The Theory of Everything', desc: 'One equation on a T-shirt. Finally, we know what it was all about.' },
+  inflationEngine: { name: 'The Inflation Engine', desc: 'It blows a tiny seed up to the size of a cosmos in 10⁻³² seconds. Economists are scared too.' },
+  babyUniverse: { name: 'Baby Universes', desc: 'New universes with their own laws of physics. The multiverse is open for business.' },
+  heatDeath: { name: 'Reversing Heat Death', desc: 'Entropy no longer has to rise. Stars can keep shining, and shops can stay open.' },
+  lastQuestion: { name: 'The Last Question', desc: 'Can entropy be reversed? At last there is enough data for a meaningful answer.' },
+});
+Object.assign(EN.repeat, {
+  ru_web: { name: 'Cosmic Web Maps', desc: '+12% revenue per level.' },
+  ru_click: { name: 'Faster Creation', desc: '+30% creation power per level.' },
+  ru_science: { name: 'Telescopes at the End of Time', desc: '+15% research points per level.' },
+  ru_ops: { name: 'Recruiting From Other Aeons', desc: 'Hiring 5% cheaper per level.' },
+});
+Object.assign(EN.culture, {
+  u_coffee: { name: 'Coffee From the Dawn of Time', desc: 'Beans picked just after the Big Bang. Very strong.' },
+  u_window: { name: 'A Window on the Cosmic Web', desc: 'A view of the galaxy filaments. More calming than a fish tank.' },
+  u_garden: { name: 'A Nebula Garden', desc: 'Flowers grown from supernova dust. They smell of iron.' },
+  u_retreat: { name: 'A Team Retreat in Another Universe', desc: 'Different laws of physics, same karaoke.' },
+  u_library: { name: 'The Library of All Books', desc: 'Every possible book. The catalogue takes up three galaxies.' },
+  u_party: { name: 'A Party at the End of the Universe', desc: 'A restaurant with a view of the end of everything. Booked yesterday.' },
+  u_nap: { name: 'An Aeon-Long Nap', desc: 'You wake up and the universe has a new shape. The coffee is still warm.' },
+  u_choir: { name: 'The Background Radiation Choir', desc: 'The echo of the Big Bang, sung in four parts.' },
+  u_desk: { name: 'An Event Horizon Desk', desc: 'Whatever you put on it stays there. Tidiness guaranteed.' },
+  u_sunday: { name: 'A Sunday Outside Time', desc: 'It lasts as long as you like. Monday never comes.' },
+  u_light: { name: 'The First Light of a New Cosmos', desc: 'The whole company watches the first star rise in a new universe.' },
+});
+Object.assign(EN.click, {
+  uk_spark: { name: 'The Spark of Creation', desc: 'One tap and something comes out of nothing.' },
+  uk_wand: { name: 'A Gravity Wand', desc: 'One wave and the stars line up by themselves.' },
+  uk_pulse: { name: 'Quasar Pulse', desc: 'Every creation also earns 0.6% of your revenue per second.' },
+  uk_lens: { name: 'A Gravitational Lens', desc: 'Magnifies every tap by a whole cluster.' },
+  uk_swarm: { name: 'A Galaxy Swarm per Tap', desc: 'One tap, a thousand new galaxies.' },
+  uk_echo: { name: 'Echo of the Big Bang', desc: 'Every creation also earns 1.2% of your revenue per second.' },
+  uk_loop: { name: 'A Tap in a Time Loop', desc: 'Tap once, it counts a million times. Monday repeats itself.' },
+  uk_thought: { name: 'Creation by Thought', desc: 'Just think of a new galaxy.' },
+  uk_word: { name: 'The Word That Creates', desc: '“Let it be.” And it is.' },
+});
+Object.assign(EN.acquisitions, {
+  ua_quasarad: { name: 'Quasar Media', desc: 'An ad agency whose billboards have been visible for 12 billion years.' },
+  ua_merger: { name: 'Collisions & Partners', desc: 'A mergers law firm. Galactic mergers, literally.' },
+  ua_wimp: { name: 'WIMP Mining Corp.', desc: 'They found dark matter first. Nobody believed them.' },
+  ua_rails: { name: 'Filament Rail', desc: 'Punctual to the nearest million years.' },
+  ua_casimir: { name: 'Casimir & Sons', desc: 'A family business that has been selling nothing for generations.' },
+  ua_tardis: { name: 'The Time Box Company', desc: 'Bigger on the inside.' },
+  ua_multiverse: { name: 'Multiverse Holdings', desc: 'The competition from the universe next door. As of today, a branch office.' },
+});
+Object.assign(EN.offices, {
+  milkyway: { name: 'The Milky Way', desc: 'Home. A hundred billion stars and one company that knows them all by name.' },
+  andromeda: { name: 'Andromeda', desc: 'A trillion stars and our nearest big neighbour. In four billion years you’d collide anyway.' },
+  triangulum: { name: 'The Triangulum Galaxy', desc: 'The third largest in the Local Group. Small but ambitious.' },
+  virgo: { name: 'The Virgo Cluster', desc: 'Two thousand galaxies in one place. The biggest shopping centre around.' },
+  bullet: { name: 'The Bullet Cluster', desc: 'Two clusters flew through each other, and the dark matter carried on without them.' },
+  attractor: { name: 'The Great Attractor', desc: 'The heart of Laniakea. Everything flows here, money included.' },
+  bootes: { name: 'The Boötes Void', desc: 'Almost nothing across three hundred million light years. The quietest lab in the universe.' },
+  hercules: { name: 'The Hercules Great Wall', desc: 'The largest structure in the universe: ten billion light years of galaxies.' },
+  edge: { name: 'The Edge of the Observable Universe', desc: 'Beyond it you only see the afterglow of the Big Bang. The perfect spot for a new branch.' },
+});
+EN.universeNews = [
+  '{c} opens a branch in Andromeda. Locals ask about opening hours',
+  '{c} cosmologists: “The Big Bang was louder than we thought”',
+  'The queue for the intergalactic gate reaches the Magellanic Cloud',
+  'A {c} time loop replayed last Monday. Nobody noticed',
+  'Chrononauts bring back a souvenir from the past: the first star',
+  'Dark matter finally detected. It turned out to be very shy',
+  'Voidwalkers report: there is one café in the Boötes Void after all',
+  'The Cosmic Tribunal upholds Planck’s constant. No change',
+  '{c} customers order universes without gravity. Deliveries float by themselves',
+  'Analysts: “The multiverse is just a matter of time. And we have time now”',
+  'A quasar with the {c} logo is visible from everywhere in the universe',
+  'Survey: 93% of galaxies want a new constitution of the cosmos',
+  'The Theory of Everything fits on a coffee mug',
+  'Someone asked the {c} computer the last question. Answer: “INSUFFICIENT DATA”',
+];
+EN.universeClients = ['The Local Group Council', 'A Civilisation From Andromeda', 'Laniakea University', 'The Virgo Cluster Consortium', 'The Boötes Void Community', 'Background Radiation Observatory',
+  'Universe Collectors', 'The Entropy Bank', 'The Quasar League', 'New Cosmos Gardens', 'Museum of the Big Bang', 'Multidimensional Dream Studio',
+  'Interuniversal Post', 'The Vacuum Power Plant'];
+EN.universeTasks = ['a new galaxy', 'a tunnel to Andromeda', 'a map of the cosmic web', 'a galaxy collision', 'a dark matter store', 'a false vacuum shield',
+  'a weekend time loop', 'a pocket universe', 'new laws of physics', 'a race across the Boötes Void', 'a vacuum energy delivery',
+  'an anniversary Big Bang', 'a relay at the edge of the cosmos', 'a translator for another universe'];

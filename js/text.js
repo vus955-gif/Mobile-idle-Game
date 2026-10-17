@@ -13,6 +13,10 @@ import {
   GALAXY_PRODUCTS, GALAXY_DEPTS, GALAXY_TECHS, GALAXY_REPEAT, GALAXY_CULTURE, GALAXY_CLICK, GALAXY_ACQUISITIONS, GALAXY_OFFICES,
   GALAXY_ERAS, GALAXY_CATEGORIES, GALAXY_CLIENTS, GALAXY_TASKS, GALAXY_NEWS,
 } from './galaxy.js';
+import {
+  UNIVERSE_PRODUCTS, UNIVERSE_DEPTS, UNIVERSE_TECHS, UNIVERSE_REPEAT, UNIVERSE_CULTURE, UNIVERSE_CLICK, UNIVERSE_ACQUISITIONS,
+  UNIVERSE_OFFICES, UNIVERSE_ERAS, UNIVERSE_CATEGORIES, UNIVERSE_CLIENTS, UNIVERSE_TASKS, UNIVERSE_NEWS,
+} from './universe.js';
 import { EN } from './lang/en.js';
 import { getLang, t, noun } from './i18n.js';
 import { fmt, fmtInt, money, num, fmtTime } from './format.js';
@@ -20,19 +24,19 @@ import { fmt, fmtInt, money, num, fmtTime } from './format.js';
 const en = () => getLang() === 'en';
 const byId = (arr) => Object.fromEntries(arr.map((x) => [x.id, x]));
 // Słowniki obejmują wszystkie warstwy (identyfikatory są unikalne w całej grze).
-const P = byId([...PRODUCTS, ...SPACE_PRODUCTS, ...GALAXY_PRODUCTS]);
-const D = byId([...DEPTS, ...SPACE_DEPTS, ...GALAXY_DEPTS]);
-const T = byId([...TECHS, ...SPACE_TECHS, ...GALAXY_TECHS]);
-const R = byId([...REPEAT_TECHS, ...SPACE_REPEAT, ...GALAXY_REPEAT]);
-const CU = byId([...CULTURE_UPGRADES, ...SPACE_CULTURE, ...GALAXY_CULTURE]);
-const CL = byId([...CLICK_UPGRADES, ...SPACE_CLICK, ...GALAXY_CLICK]);
-const A = byId([...ACQUISITIONS, ...SPACE_ACQUISITIONS, ...GALAXY_ACQUISITIONS]);
-const CATS = { ...CATEGORIES, ...SPACE_CATEGORIES, ...GALAXY_CATEGORIES };
-const ALL_ERAS = [...ERAS, ...SPACE_ERAS, ...GALAXY_ERAS];
+const P = byId([...PRODUCTS, ...SPACE_PRODUCTS, ...GALAXY_PRODUCTS, ...UNIVERSE_PRODUCTS]);
+const D = byId([...DEPTS, ...SPACE_DEPTS, ...GALAXY_DEPTS, ...UNIVERSE_DEPTS]);
+const T = byId([...TECHS, ...SPACE_TECHS, ...GALAXY_TECHS, ...UNIVERSE_TECHS]);
+const R = byId([...REPEAT_TECHS, ...SPACE_REPEAT, ...GALAXY_REPEAT, ...UNIVERSE_REPEAT]);
+const CU = byId([...CULTURE_UPGRADES, ...SPACE_CULTURE, ...GALAXY_CULTURE, ...UNIVERSE_CULTURE]);
+const CL = byId([...CLICK_UPGRADES, ...SPACE_CLICK, ...GALAXY_CLICK, ...UNIVERSE_CLICK]);
+const A = byId([...ACQUISITIONS, ...SPACE_ACQUISITIONS, ...GALAXY_ACQUISITIONS, ...UNIVERSE_ACQUISITIONS]);
+const CATS = { ...CATEGORIES, ...SPACE_CATEGORIES, ...GALAXY_CATEGORIES, ...UNIVERSE_CATEGORIES };
+const ALL_ERAS = [...ERAS, ...SPACE_ERAS, ...GALAXY_ERAS, ...UNIVERSE_ERAS];
 const PK = byId(PERKS);
 const AP = byId(AUTOPILOT);
 const CH = byId(CHALLENGES);
-const OF = byId([...OFFICES, ...SPACE_OFFICES, ...GALAXY_OFFICES]);
+const OF = byId([...OFFICES, ...SPACE_OFFICES, ...GALAXY_OFFICES, ...UNIVERSE_OFFICES]);
 const CO = byId(COMPETITORS);
 const RO = byId(ROLES);
 const QU = byId(QUIRKS);
@@ -56,6 +60,7 @@ export const eraName = (id) => (en() ? EN.eras[id] : ALL_ERAS.find((e) => e.id =
 export function newsList(layer = 'earth') {
   if (layer === 'space') return en() ? EN.spaceNews : SPACE_NEWS;
   if (layer === 'galaxy') return en() ? EN.galaxyNews : GALAXY_NEWS;
+  if (layer === 'universe') return en() ? EN.universeNews : UNIVERSE_NEWS;
   return en() ? EN.news : NEWS;
 }
 export const roleArea = (id) => (en() ? EN.roles[id] : RO[id].area);
@@ -126,12 +131,14 @@ export function clientName(o) {
   if (o.ci === undefined) return o.client || '';
   if (o.L === 'space') return en() ? EN.spaceClients[o.ci] : SPACE_CLIENTS[o.ci][0];
   if (o.L === 'galaxy') return en() ? EN.galaxyClients[o.ci] : GALAXY_CLIENTS[o.ci][0];
+  if (o.L === 'universe') return en() ? EN.universeClients[o.ci] : UNIVERSE_CLIENTS[o.ci][0];
   return en() ? EN.clients[o.ci] : CONTRACT_CLIENTS[o.ci][0];
 }
 export function taskName(o) {
   if (o.ti === undefined) return o.task || '';
   if (o.L === 'space') return en() ? EN.spaceTasks[o.ti] : SPACE_TASKS[o.ti];
   if (o.L === 'galaxy') return en() ? EN.galaxyTasks[o.ti] : GALAXY_TASKS[o.ti];
+  if (o.L === 'universe') return en() ? EN.universeTasks[o.ti] : UNIVERSE_TASKS[o.ti];
   return en() ? EN.tasks[o.ti] : CONTRACT_TASKS[o.ti];
 }
 
@@ -211,6 +218,13 @@ export function achDesc(a) {
     case 'gprobe': return t('ach.gprobe', { n: fmt(v) });
     case 'gsys': return t('ach.gsys', { n: v, noun: noun('systems', v) });
     case 'gacq': return t('ach.gacq', { n: v, noun: noun('companies', v) });
+    case 'ucrew': return t('ach.ucrew', { n: fmtInt(v), noun: noun('people', v) });
+    case 'utech': return t('ach.utech', { n: v, noun: noun('techsGen', v) });
+    case 'uupg': return t('ach.uupg', { n: v, noun: noun('upgrades', v) });
+    case 'ueon': return t('ach.ueon', { n: v, noun: noun('aeons', v) });
+    case 'using': return t('ach.using', { n: fmt(v) });
+    case 'ugal': return t('ach.ugal', { n: v, noun: noun('places', v) });
+    case 'uacq': return t('ach.uacq', { n: v, noun: noun('companies', v) });
     case 'ctl': return t('ach.ctl', { n: v, noun: noun('companies', v) });
     case 'mkt': return t('ach.mktDesc')[a.i];
     case 'exec': return a.i < 2 ? t('ach.exec', { n: v, noun: noun('seats', v) }) : t('ach.execDesc')[a.i - 2];
