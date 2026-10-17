@@ -1,9 +1,11 @@
 // Symulator balansu: bot gra w Krzemowe Imperium (wszystkie warstwy) i raportuje tempo postępu.
-// Użycie: node tools/simulate.mjs [profil] [dni] [-v] [--no=budget,offices,cap,...] [--chal] [--only=earth]
+// Użycie: node tools/simulate.mjs [profil] [dni] [-v] [--no=budget,offices,cap,lobby,brake,...] [--chal] [--only=earth]
+//   TRANSCEND=n — po przejściu gry zaczyna od zera (n razy); SAVE_STATE/LOAD_STATE — zapis i odczyt stanu,
+//   SAVE_TIMES="5.8,6.4" — dodatkowe zapisy w tych dniach
 //   profil: active (ciągła gra), casual (sesje 20 min co ~3 h), idle (bez klikania)
-import { Company, milestoneCount, kardashev } from '../js/engine.js';
-import { LAYERS } from '../js/layers.js';
-import { PERKS, AUTOPILOT, COMPETITORS, MARKET, CHALLENGES, CHALLENGE_GOALS } from '../js/data.js';
+import { Company, Game, milestoneCount, kardashev } from '../js/engine.js';
+import { LAYERS, LAYER_ORDER } from '../js/layers.js';
+import { PERKS, AUTOPILOT, COMPETITORS, MARKET, CHALLENGE_TIERS, LOBBY_RULES, BRAKE } from '../js/data.js';
 import { fmt, fmtTime } from '../js/format.js';
 import * as TX from '../js/text.js';
 
@@ -43,7 +45,15 @@ for (const pair of (process.env.TECHMUL || '').split(',').filter(Boolean)) {
   for (const D of [E, S]) for (const tch of D.TECHS) if (tch.era === era) tch.cost *= mul;
 }
 
-let seed = 12345;
+// LOBBY="krok:wzrost[:sekundy]" i BRAKE_CEIL — strojenie lobbingu i zdjęcia hamulca; --no=lobby wyłącza też lobbing autopilota.
+if (process.env.LOBBY) {
+  const [st, gr, sec] = process.env.LOBBY.split(':').map(Number);
+  Object.assign(LOBBY_RULES, { step: st, growth: gr }, sec ? { costSeconds: sec } : {});
+}
+if (process.env.BRAKE_CEIL) BRAKE.ceiling = Number(process.env.BRAKE_CEIL);
+if (off.has('lobby')) Game.prototype.buyLobby = () => false;
+
+let seed = Number(process.env.SEED || 12345);
 const rng = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
 
 const T0 = 1_700_000_000_000;
@@ -96,6 +106,12 @@ function decide(g) {
       for (const c of cands) if (g.stakeCost(c.id, 0.1) <= s.cash * 0.2 && g.buyStake(c.id, 0.1)) bought = true;
     }
     // przejęcia
+    // lobbing, gdy kosztuje najwyżej 40% gotówki (--no=lobby wyłącza)
+    if (!off.has('lobby') && g.lobbyCost() < s.cash * 0.4 && g.buyLobby()) bought = true;
+    // zdjęcie hamulca, gdy daje co najmniej ×10 i kosztuje najwyżej połowę gotówki (--no=brake wyłącza)
+    if (!off.has('brake') && g.brakeAvailable() && g.brakeGain >= 10 && g.brakeCost() < s.cash * 0.5 && g.releaseBrake(now)) {
+      note(`${tag(g)} HAMULEC ZDJĘTY ×${fmt(g.brakeGain)} (lobbing ${s.lobby})`);
+    }
     for (const a of D.ACQUISITIONS) {
       if (g.acqUnlocked() && !s.acquisitions[a.id] && g.acqCost(a.id) < s.cash * 0.5) { g.buyAcq(a.id); bought = true; }
     }
@@ -114,8 +130,12 @@ function decide(g) {
       const score = cost / delta + wait;
       if (!best || score < best.score) best = { score, cost, act };
     };
+    // przy limicie produktów człowiek wybiera najmocniejsze odblokowane, a nie pierwsze z brzegu
+    const rl = g.rule();
+    const topN = rl && rl.rule === 'maxProducts' ? new Set(D.PRODUCTS.filter((p) => g.productUnlocked(p.id)).slice(-rl.v).map((p) => p.id)) : null;
     for (const p of D.PRODUCTS) {
       if (!g.productUnlocked(p.id) || !g.canOwnProduct(p.id)) continue;
+      if (topN && !(s.products[p.id] > 0) && !topN.has(p.id)) continue;
       const lvl = s.products[p.id] || 0;
       let d;
       if (lvl > 0) {
@@ -183,6 +203,14 @@ function decideCompany() {
       if (cands.length && m.shares >= g.perkCost(cands[0])) { g.buyPerk(cands[0]); ok = true; }
     }
   }
+  // TRANSCEND=n: po przejściu gry bot zaczyna od zera (najwyżej n razy) i gra dalej
+  if (co.canTranscend() && (m.transcend || 0) < Number(process.env.TRANSCEND || 0)) {
+    co.transcend(now);
+    note(`### TRANSCENDENCJA #${co.meta.transcend}`);
+    for (const k of Object.keys(seen)) delete seen[k];
+    for (const k of Object.keys(lastPrestigeAt)) delete lastPrestigeAt[k];
+    return;
+  }
   // kolejna warstwa: otwieramy od razu i przenosimy się tam
   if (only !== 'earth') {
     const p = co.unlockProgress();
@@ -232,12 +260,30 @@ function status(g) {
   }
 }
 
-const end = T0 + days * 86400 * 1000;
+// SAVE_STATE=plik zapisuje stan po symulacji, LOAD_STATE=plik zaczyna od niego (bez głównej pętli).
+const fs = await import('node:fs');
+if (process.env.LOAD_STATE) {
+  const raw = JSON.parse(fs.readFileSync(process.env.LOAD_STATE, 'utf8'));
+  // zegar symulacji rusza od chwili zapisu, inaczej etapy czekałyby na „przyszły” lastTick
+  now = Math.max(now, ...Object.values(raw.layers || {}).map((l) => l.lastTick || 0));
+  co.load(raw, now);
+}
+const end = process.env.LOAD_STATE ? now : T0 + days * 86400 * 1000;
 let nextReport = T0;
 let sessionEnd = profile === 'casual' ? T0 + 20 * 60000 : end;
 let decideTimer = 0;
 
+// SAVE_TIMES="5.8,6.4" (dni) — dodatkowe zapisy stanu w tych chwilach: <SAVE_STATE bez .json>-<dzień>.json
+const saveTimes = (process.env.SAVE_TIMES || '').split(',').filter(Boolean).map(Number).sort((a, b) => a - b);
+function maybeSave() {
+  while (saveTimes.length && now >= T0 + saveTimes[0] * 86400e3) {
+    const d = saveTimes.shift();
+    fs.writeFileSync(`${(process.env.SAVE_STATE || 'state.json').replace(/\.json$/, '')}-${d}.json`, co.serialize());
+  }
+}
+
 while (now < end) {
+  maybeSave();
   const active = now < sessionEnd;
   if (!active) {
     // przerwa offline 3 h (noc: 8 h co 5 sesji)
@@ -267,29 +313,53 @@ while (now < end) {
   }
 }
 
+if (process.env.SAVE_STATE) fs.writeFileSync(process.env.SAVE_STATE, co.serialize());
 console.log(`\nProfil: ${profile}, ${days} dni`);
 for (const g of Object.values(co.layers)) {
   console.log(`${tag(g)} techs ${g.techCount()}/${g.D.TECHS.length}, rundy ${g.s.prestigeCount}, kapitał ${fmt(g.s.investors)}, biura ${Object.keys(g.s.offices).length}/${g.D.OFFICES.length}, przychód $${fmt(g.income)}/s`);
 }
 console.log(`firma: osiągnięcia ${co.g.achCount()}, zarząd ${Object.keys(co.meta.board).length}, skala ${co.meta.scaleMax}`);
 
-// --chal: na koniec bot próbuje każdego wyzwania (na Ziemi) przez 2 h aktywnej gry
-if (process.argv.includes('--chal')) {
-  const saved = JSON.parse(co.serialize());
-  for (const ch of CHALLENGES) {
-    co.load(JSON.parse(JSON.stringify(saved)), now);
-    co.setLayer('earth');
-    const g = co.layers.earth;
-    const startTier = co.meta.challenges[ch.id] || 0;
-    g.startChallenge(ch.id, now);
-    let tnow = now;
-    for (let i = 0; i < 2 * 3600; i++) {
-      tnow += 1000;
-      co.tick(tnow);
-      for (let k = 0; k < 4; k++) g.click(tnow);
-      if (i % 5 === 0) decide(g);
-      if (!g.s.challenge && (co.meta.challenges[ch.id] || 0) < CHALLENGE_GOALS.length && i % 60 === 0) g.startChallenge(ch.id, tnow);
+// --chal[=etap]: po przejściu gry bot dostaje transcendencję (etapy zostają w obecnym stanie) i w każdym
+// etapie próbuje po kolei poziomów każdego wyzwania, grając aktywnie (najwyżej CHAL_HOURS h na poziom).
+const chalArg = process.argv.find((a) => a === '--chal' || a.startsWith('--chal='));
+if (chalArg) {
+  const onlyLayer = chalArg.includes('=') ? chalArg.split('=')[1] : null;
+  co.meta.transcend = Math.max(1, co.meta.transcend || 0);
+  co.recalc();
+  const saved = co.serialize();
+  const tStart = now;
+  const LIMIT = Number(process.env.CHAL_HOURS || 8) * 3600e3;
+  console.log('\nWyzwania (gra aktywna, od stanu po przejściu gry):');
+  for (const id of LAYER_ORDER) {
+    if (onlyLayer && onlyLayer !== id) continue;
+    for (const ch of LAYERS[id].CHALLENGES) {
+      let tnow = tStart;
+      co.load(JSON.parse(saved), tnow);
+      const g = co.layers[id];
+      if (!g) { console.log(`${id} ${ch.id}: etap nieotwarty`); continue; }
+      co.setLayer(id);
+      const times = [];
+      for (let tier = 0; tier < CHALLENGE_TIERS.length; tier++) {
+        if (!g.startChallenge(ch.id, tnow)) { times.push('start?'); break; }
+        const goal = g.s.challenge.goal;
+        const t0 = tnow;
+        let ok = false;
+        let k = 0;
+        while (tnow - t0 < LIMIT) {
+          tnow += 5000;
+          now = tnow;
+          co.tick(tnow);
+          for (let c = 0; c < 20; c++) g.click(tnow);
+          if (g.s.bubble) g.popBubble(tnow);
+          for (const o of [...g.s.contracts.offers]) g.acceptContract(o.id, tnow);
+          if (k++ % 3 === 0) decide(g);
+          if (!g.s.challenge) { ok = (co.meta.challenges[ch.id] || 0) > tier; break; }
+        }
+        times.push(ok ? fmtTime((tnow - t0) / 1000) : `NIE w ${LIMIT / 3600e3} h (${fmt(g.s.runEarned)} z ${fmt(goal)})`);
+        if (!ok) break;
+      }
+      console.log(`${tag(g)} ${ch.id.padEnd(12)} ${times.map((x, i) => `P${i + 1}: ${x}`).join(' · ')}`);
     }
-    console.log(`wyzwanie ${ch.id}: poziomy ${startTier} → ${co.meta.challenges[ch.id] || 0} w 2 h (run $${fmt(g.s.runEarned)})`);
   }
 }

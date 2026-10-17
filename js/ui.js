@@ -1,8 +1,8 @@
 // Interfejs: renderowanie zakładek, HUD, efekty kliknięć, modale i toasty.
 import {
   PERKS, CATEGORIES, BUBBLES, DEPT_MILESTONE_X, DEPT_MILESTONES,
-  AUTOPILOT, CHALLENGES, CHALLENGE_GOALS, SCALE_LEVELS, DECISIONS, OFFICE_MAX_LEVEL, COMPETITORS, MARKET,
-  ROLES, BOARD,
+  AUTOPILOT, CHALLENGE_TIERS, CHALLENGE_REACH, TRANSCEND, SCALE_LEVELS, DECISIONS, OFFICE_MAX_LEVEL, COMPETITORS, MARKET,
+  ROLES, BOARD, LOBBY_RULES,
 } from './data.js';
 import {
   ACH_BONUS, nextMilestone, prevMilestone, nextDeptMilestone, deptMilestoneMult, MAX_SLOTS,
@@ -14,9 +14,9 @@ import { fmt, money, fmtInt, fmtTime, fmtClock, fmtPct, num, decimal } from './f
 import { t, noun, getLang, setLang, LANGS, DICT } from './i18n.js';
 import * as TX from './text.js';
 import { Scene } from './scene.js';
-import { LAYERS, LAYER_CHIPS, LAYER_ORDER } from './layers.js';
-import { play, setSound, unlockAudio } from './audio.js';
-import { startMusic, stopMusic, musicAudible } from './music.js';
+import { LAYERS, LAYER_CHIPS, LAYER_ORDER, ALL_CHALLENGES } from './layers.js';
+import { play, setSound, unlockAudio, setSfxStyle } from './audio.js';
+import { startMusic, stopMusic, musicAudible, setMusicStyle } from './music.js';
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -26,7 +26,7 @@ const SOUND_OFF = '<svg viewBox="0 0 24 24"><path d="M4 9v6h4l5 4V5L8 9H4z"/><pa
 const PARTICLES = ['{ }', '</>', '01', ';', '( )', '=>', '#', '[ ]', '&&', 'fn'];
 const PARTICLE_COLORS = ['#a78bfa', '#22d3ee', '#4ade80', '#fbbf24', '#f472b6'];
 const BUY_OPTIONS = [[1, '×1'], [10, '×10'], [100, '×100'], ['max', 'MAX']];
-const COMPANY_TABS = ['investors', 'challenges', 'market', 'contracts', 'acq', 'ach', 'stats', 'settings'];
+const COMPANY_TABS = ['investors', 'challenges', 'market', 'contracts', 'acq', 'lobby', 'ach', 'stats', 'settings'];
 // Mały wykres liniowy (np. kurs akcji)
 function spark(values, w = 120, h = 30, color = '#4ade80') {
   const v = values.filter((x) => x > 0);
@@ -212,6 +212,11 @@ export class UI {
     });
     g.on('offline', (r, layer) => this.queueOffline(r, layer));
     g.on('prestige', () => play('prestige'));
+    g.on('brake', (b) => {
+      if (b.on) this.toast(this.tl('brake.icon'), t('brake.on'), t('brake.onText', { x: fmt(b.gain) }), 'achievement');
+      else this.toast(this.tl('brake.icon'), t('brake.off'), t('brake.offText'), 'info');
+      this.sigs = {};
+    });
     g.on('autopilot', (a) => {
       for (const id of a.researched || []) {
         const tech = this.g.D.TECH_MAP[id];
@@ -261,6 +266,8 @@ export class UI {
       case 'buy-all': { const n = g.buyAllUpgrades(); if (n) this.toast('⬆️', t('up.bought', { n, noun: noun('upgrades', n) }), '', 'info'); this.updateAll(true); break; }
       case 'buy-perk': g.buyPerk(id); this.updateAll(true); break;
       case 'buy-acq': g.buyAcq(id); this.updateAll(true); break;
+      case 'buy-lobby': g.buyLobby(); this.updateAll(true); break;
+      case 'release-brake': if (g.releaseBrake(Date.now())) play('prestige'); this.updateAll(true); break;
       case 'accept-contract': if (g.acceptContract(Number(id), Date.now())) play('coin'); this.updateAll(true); break;
       case 'decline-contract': g.declineContract(Number(id)); this.updateAll(true); break;
       case 'company-sub': this.companySub = el.dataset.sub; this.renderCompanyTabs(); this.updateAll(true); break;
@@ -295,6 +302,18 @@ export class UI {
       case 'layer': this.switchLayer(id); break;
       case 'layers-open': this.showLayers(); break;
       case 'layer-start': this.confirmLayerStart(); break;
+      case 'transcend': this.confirmTranscend(); break;
+      case 'transcend-confirm': {
+        this.closeModal();
+        if (this.co.transcend(Date.now())) {
+          play('prestige');
+          this.switchLayer('earth', true);
+          this.fullRender();
+          this.toast('♾️', t('tr.done', { n: this.co.meta.transcend }), t('tr.doneText'), 'achievement');
+          this.hooks.save?.();
+        }
+        break;
+      }
       case 'layer-start-confirm': {
         this.closeModal();
         const next = this.co.nextLayer();
@@ -406,6 +425,9 @@ export class UI {
     for (const el of document.querySelectorAll('[data-i18n]')) el.textContent = this.tl(el.dataset.i18n);
     for (const el of document.querySelectorAll('[data-i18n-aria]')) el.setAttribute('aria-label', this.tl(el.dataset.i18nAria));
     $('app').dataset.layer = this.g.D.id;
+    // każdy etap brzmi inaczej: muzyka i efekty
+    setMusicStyle(this.g.D.id);
+    setSfxStyle(this.g.D.id);
     const icon = document.querySelector('.tap-icon');
     if (icon) {
       if (!this.tapIconEarth) this.tapIconEarth = icon.innerHTML;
@@ -512,7 +534,7 @@ export class UI {
   // Giełda i wyzwania są tylko na Ziemi.
   companyTabs() {
     const F = this.g.D.FEATURES;
-    return COMPANY_TABS.filter((k) => (k !== 'market' || F.market) && (k !== 'challenges' || F.challenges));
+    return COMPANY_TABS.filter((k) => k !== 'market' || F.market);
   }
 
   renderCompanyTabs() {
@@ -666,6 +688,10 @@ export class UI {
       <h2>${t('layer.title')}</h2>
       <p style="text-align:center">${t('layer.lead')}</p>
       <div class="list">${LAYER_CHIPS.map((c) => this.layerCard(c)).join('')}</div>
+      ${this.co.canTranscend() ? `<div class="card layer-card ready"><div class="tile" style="${grad(['#f59e0b', '#7c3aed'])}">♾️</div>
+        <div class="card-title"><h3>${t('tr.title')}</h3><span class="lvl">${this.co.meta.transcend ? `♾️ ${this.co.meta.transcend}` : ''}</span></div>
+        <div class="card-sub">${t('tr.short')}</div>
+        <div class="card-foot"><div class="prog"></div><button class="btn gold" data-act="transcend">${t('tr.btn')}</button></div></div>` : ''}
       <div class="actions"><button class="btn ghost btn-wide" data-act="modal-close">${t('close')}</button></div>`);
   }
 
@@ -731,7 +757,7 @@ export class UI {
     this.setText($('hud-cash'), money(s.cash));
     this.setText($('hud-income'), money(g.netIncome));
     $('hud-income').parentElement.classList.toggle('rd', (g.m.rdShare || 0) > 0);
-    $('hud-income').parentElement.classList.toggle('boosted', g.m.boostIncome > 1);
+    $('hud-income').parentElement.classList.toggle('boosted', g.m.boostIncome > 1 || g.brakeActive());
     this.setText($('hud-company'), s.meta.companyName);
     this.setText($('hud-stage'), this.stageName());
     const rpVis = s.deptUnlocked[g.D.RD_DEPT] || s.rp > 0 || g.techCount() > 0;
@@ -777,7 +803,9 @@ export class UI {
     let right = `<div class="mini-stat">${t('off.valuation')}<b>${money(g.valuation())}</b></div>`;
     const gain = g.prestigeGain();
     const offers = s.contracts.offers.length;
-    if (gain >= 1 && gain >= Math.max(1, s.investors * 0.5)) {
+    if (g.brakeActive()) {
+      right += `<div class="mini-stat">${this.tl('brake.icon')} ${t('brake.hud')}<b>${fmtClock((s.brakeUntil - Date.now()) / 1000)}</b></div>`;
+    } else if (gain >= 1 && gain >= Math.max(1, s.investors * 0.5)) {
       right += `<button class="mini-btn glow" data-act="goto" data-tab="company" data-sub="investors">${this.lu.cur} +${fmt(gain)}</button>`;
     } else if (g.contractsUnlocked() && offers > 0) {
       right += `<button class="mini-btn" data-act="goto" data-tab="company" data-sub="contracts">${t('off.offers', { n: offers })}</button>`;
@@ -815,7 +843,7 @@ export class UI {
     }
     if (s.challenge) {
       const ch = CHALLENGE_MAP[s.challenge.id];
-      const goal = s.challenge.goal || CHALLENGE_GOALS[s.challenge.tier];
+      const goal = s.challenge.goal;
       parts.push(`<span class="scene-badge click" data-act="goto" data-tab="company" data-sub="challenges">${t('badge.challenge', { icon: ch.icon, name: esc(TX.challengeName(ch.id)), p: `${money(s.runEarned)} / ${money(goal)}` })}</span>`);
     }
     const html = parts.join('');
@@ -941,7 +969,7 @@ export class UI {
     const hint = $('products-reach');
     const sat = g.capOn() && g.rawIncome > g.marketCap * 1.05;
     if (hint.hidden === sat) hint.hidden = !sat;
-    if (sat) this.patchHtml(hint, t('reach.sat', { stage: t(`reach.${g.marketStage()}`), v: money(g.marketCap) }));
+    if (sat) this.patchHtml(hint, `${t('reach.sat', { stage: t(`reach.${g.marketStage()}`), v: money(g.marketCap) })} <button class="mini-btn" data-act="goto" data-tab="company" data-sub="lobby">${t('reach.lobby')}</button>`);
     const amt = this.buyAmount();
     for (const card of root.querySelectorAll('[data-pid]')) {
       const id = card.dataset.pid;
@@ -1375,8 +1403,33 @@ export class UI {
       <h2>${t('fin.title')}</h2>
       <p style="text-align:center">${t('fin.text')}</p>
       <p style="text-align:center">${t('fin.more')}</p>
-      <div class="actions"><button class="btn gold btn-wide" data-act="modal-close">${t('fin.ok')}</button></div>`);
+      <p style="text-align:center">${t('fin.choice')}</p>
+      <div class="actions">
+        <button class="btn gold btn-wide" data-act="transcend">${t('tr.btn')}</button>
+        <button class="btn ghost btn-wide" data-act="modal-close">${t('fin.ok')}</button>
+      </div>`);
     this.hooks.save?.();
+  }
+
+  // Transcendencja: potwierdzenie z listą tego, co zostaje, i stałej premii.
+  confirmTranscend() {
+    const co = this.co;
+    if (!co.canTranscend()) return;
+    const n = (co.meta.transcend || 0) + 1;
+    this.openModal(`
+      <div class="hero">♾️</div>
+      <h2>${t('tr.title')}</h2>
+      <p style="text-align:center">${t('tr.lead')}</p>
+      <ul>
+        <li>${t('tr.resets')}</li>
+        <li>${t('tr.keeps')}</li>
+        <li>${t('tr.bonus', { x: fmt(Math.pow(TRANSCEND.income, n)), r: fmt(Math.pow(TRANSCEND.rp, n)) })}</li>
+        <li>${t('tr.chal', { n: ALL_CHALLENGES.length })}</li>
+      </ul>
+      <div class="actions">
+        <button class="btn gold btn-wide" data-act="transcend-confirm">${t('tr.confirm')}</button>
+        <button class="btn ghost btn-wide" data-act="modal-close">${t('tr.later')}</button>
+      </div>`);
   }
 
   // ---------------------------------------------------------------------
@@ -1539,6 +1592,7 @@ export class UI {
       case 'market': return this.renderMarket();
       case 'contracts': return this.renderContracts();
       case 'acq': return this.renderAcq();
+      case 'lobby': return this.renderLobby();
       case 'ach': return this.renderAch();
       case 'stats': return this.renderStats();
       case 'settings': return this.renderSettings();
@@ -1658,21 +1712,21 @@ export class UI {
     }
     const active = s.challenge;
     const sig = `chal|${JSON.stringify(s.meta.challenges)}|${active ? active.id + active.tier : ''}|${getLang()}`;
-    let html = `<p class="card-sub" style="margin:0 2px 10px">${t('chal.lead')}</p>`;
+    let html = `<p class="card-sub" style="margin:0 2px 10px">${t('chal.layerLead', { x: `×${num(Math.pow(10, CHALLENGE_REACH))}` })} ${t('chal.lead')}</p>`;
     if (active) {
       const ch = CHALLENGE_MAP[active.id];
       html += `<div class="chal-active">
         <div class="lbl" style="font-size:12px;font-weight:800;color:var(--accent2);text-transform:uppercase;letter-spacing:.8px">${t('chal.activeTitle')}</div>
-        <h3>${ch.icon} ${esc(TX.challengeName(ch.id))} · ${t('chal.tier', { n: active.tier + 1, m: CHALLENGE_GOALS.length })}</h3>
+        <h3>${ch.icon} ${esc(TX.challengeName(ch.id))} · ${t('chal.tier', { n: active.tier + 1, m: CHALLENGE_TIERS.length })}</h3>
         <div class="chal-meta">${esc(TX.challengeDesc(ch.id))}</div>
         <div class="prog" style="margin-top:10px"><div class="prog-bar"><i data-v="cbar"></i></div><div class="prog-label" data-v="cprog"></div></div>
         <button class="btn ghost btn-small" style="margin-top:10px" data-act="chal-abandon">${t('chal.abandon')}</button>
       </div>`;
     }
-    html += '<div class="list">' + CHALLENGES.map((ch) => {
+    html += '<div class="list">' + g.D.CHALLENGES.map((ch) => {
       const tier = s.meta.challenges[ch.id] || 0;
-      const done = tier >= CHALLENGE_GOALS.length;
-      const dots = CHALLENGE_GOALS.map((_, i) => `<i class="${i < tier ? 'on' : ''}"></i>`).join('');
+      const done = tier >= CHALLENGE_TIERS.length;
+      const dots = CHALLENGE_TIERS.map((_, i) => `<i class="${i < tier ? 'on' : ''}"></i>`).join('');
       const have = tier > 0 ? `<div class="chal-meta">${t('chal.have', { fx: `<b>${esc(TX.describeFx(scaledFx(ch.fx, tier)))}</b>` })}</div>` : '';
       return `<div class="card">
         <div class="tile" style="${grad(['#0ea5e9', '#7c3aed'])}">${ch.icon}</div>
@@ -1684,7 +1738,7 @@ export class UI {
     }).join('') + '</div>';
     this.setBody(sig, html);
     if (active) {
-      const goal = active.goal || CHALLENGE_GOALS[active.tier];
+      const goal = active.goal;
       const p = Math.min(1, Math.log10(1 + s.runEarned) / Math.log10(goal));
       this.patch({ cbar: { width: `${p * 100}%` }, cprog: `${money(s.runEarned)} / ${money(goal)}` });
     }
@@ -1771,16 +1825,16 @@ export class UI {
     if (s.challenge) { this.toast('🏅', t('chal.otherActive'), '', 'info'); return; }
     const ch = CHALLENGE_MAP[id];
     const tier = s.meta.challenges[id] || 0;
-    if (tier >= CHALLENGE_GOALS.length) return;
+    if (tier >= CHALLENGE_TIERS.length) return;
     const gain = g.prestigeGain();
     this.openModal(`
       <div class="hero">${ch.icon}</div>
       <h2>${esc(t('chal.confirmTitle', { name: TX.challengeName(id) }))}</h2>
       <p style="text-align:center">${t('chal.confirmRule', { rule: esc(TX.challengeDesc(id)) })}</p>
       <ul>
-        <li>${t('chal.goal', { v: money(g.challengeGoal(id)) })} (${t('chal.tier', { n: tier + 1, m: CHALLENGE_GOALS.length })})</li>
+        <li>${t('chal.goal', { v: money(g.challengeGoal(id)) })} (${t('chal.tier', { n: tier + 1, m: CHALLENGE_TIERS.length })})</li>
         <li>${t('chal.reward', { fx: `<b>${esc(TX.describeFx(ch.fx))}</b>` })}</li>
-        <li>${gain >= 1 ? t('chal.confirmGain', { n: fmt(gain) }) : t('chal.confirmNoGain')}</li>
+        <li>${gain >= 1 ? t('chal.confirmGain', { n: `${fmt(gain)} ${this.lu.cur}` }) : t('chal.confirmNoGain')}</li>
       </ul>
       <div class="actions">
         <button class="btn violet btn-wide" data-act="chal-confirm" data-id="${id}">${t('chal.confirm')}</button>
@@ -1837,8 +1891,9 @@ export class UI {
   renderAcq() {
     const g = this.g;
     const s = g.s;
-    if (!g.acqUnlocked()) {
-      this.setBody(`acq-locked|${getLang()}`, `<div class="hint">${t('acq.locked')}</div>`);
+    if (!g.acqUnlocked() || g.acqBlocked()) {
+      const k = g.acqBlocked() ? 'acq.blocked' : 'acq.locked';
+      this.setBody(`${k}|${getLang()}`, `<div class="hint">${t(k)}</div>`);
       return;
     }
     this.setBody(`acq|${Object.keys(s.acquisitions).join(',')}|${getLang()}`, '<div class="list">' + this.g.D.ACQUISITIONS.map((a) => {
@@ -1854,6 +1909,52 @@ export class UI {
     const vals = {};
     for (const a of this.g.D.ACQUISITIONS) vals[`acq-${a.id}`] = { off: s.cash < g.acqCost(a.id) };
     this.patch(vals);
+  }
+
+  // Lobbing (poszerza rynek w tej rundzie) i jednorazowe zdjęcie hamulca.
+  renderLobby() {
+    const g = this.g;
+    const s = g.s;
+    if (!g.capOn()) {
+      this.setBody(`lobby-off|${getLang()}`, `<div class="hint">${t('lob.off')}</div>`);
+      return;
+    }
+    const max = g.lobbyMax();
+    const active = g.brakeActive();
+    const inChal = !!s.challenge;
+    const noLobby = g.lobbyBlocked();
+    const sig = `lobby|${g.D.id}|${s.lobby}|${s.brakeUsed}|${active}|${inChal}|${noLobby}|${getLang()}`;
+    this.setBody(sig, `
+      <div class="section-title">${this.tl('brake.icon')} ${this.tl('brake.name')}</div>
+      <div class="card">
+        <div class="tile" style="${grad(['#f59e0b', '#ef4444'])}">${this.tl('brake.icon')}</div>
+        <div class="card-title"><h3>${esc(this.tl('brake.name'))}</h3></div>
+        <div class="card-sub">${t('brake.desc')}</div>
+        <div class="card-desc" data-v="brk-now"></div>
+        <div class="card-foot"><div class="prog"></div>${active || s.brakeUsed || inChal ? '' : `<button class="btn gold" data-act="release-brake" data-v="brk-btn"><span>${t('brake.btn')}</span><small data-v="brk-cost"></small></button>`}</div>
+      </div>
+      <div class="section-title">🏛️ ${t('lob.title')} <span style="color:var(--gold)">${t('lob.level', { n: s.lobby, m: max })}</span></div>
+      <p class="card-sub" style="margin:0 2px 8px">${t('lob.lead', { x: num(Math.pow(10, LOBBY_RULES.step)) })}</p>
+      ${noLobby ? `<div class="hint">${t('lob.blocked')}</div>` : ''}
+      <div class="kv"><span>${t('lob.reach')}</span><b data-v="lob-reach"></b><span class="kv-sub">${t('lob.from')}</span><b class="kv-sub">×${num(Math.pow(10, LOBBY_RULES.step * s.lobby))}</b></div>
+      <div class="list" style="margin-top:10px">${g.D.LOBBY.map((L, i) => {
+    const own = i < s.lobby;
+    const next = i === s.lobby;
+    return `<div class="card ${own || next ? '' : 'dim'}">
+          <div class="tile" style="${grad(['#64748b', '#1e293b'])}">${L.icon}</div>
+          <div class="card-title"><h3>${esc(TX.lobbyName(L.id))}</h3><span class="lvl">${own ? `<span style="color:var(--money)">${t('lob.done')}</span>` : `${i + 1}/${max}`}</span></div>
+          <div class="card-desc">${esc(TX.lobbyDesc(L.id))}</div>
+          ${next && !noLobby ? `<div class="card-foot"><div class="prog"></div><button class="btn violet" data-act="buy-lobby" data-v="lob-btn"><span>${t('lob.buy')}</span><small>${money(g.lobbyCost())}</small></button></div>` : ''}
+        </div>`;
+  }).join('')}</div>`);
+    const left = Math.max(0, (s.brakeUntil - Date.now()) / 1000);
+    this.patch({
+      'brk-now': active ? t('brake.active', { t: fmtClock(left), x: fmt(g.brakeGain) }) : inChal ? t('brake.chal') : s.brakeUsed ? t('brake.used') : t('brake.now', { x: fmt(g.brakeGain) }),
+      'brk-btn': { off: s.cash < g.brakeCost() },
+      'brk-cost': money(g.brakeCost()),
+      'lob-btn': { off: s.cash < g.lobbyCost() },
+      'lob-reach': `${money(g.marketCap)}/s`,
+    });
   }
 
   renderAch() {
@@ -1924,7 +2025,7 @@ export class UI {
       'st-income': `${money(g.income)}/s`,
       'st-maxIncome': `${money(st.maxIncome)}/s`,
       'st-click': money(g.clickValue),
-      'st-auto': `${fmt(g.m.auto)}/s`,
+      'st-auto': g.m.auto > 0 ? `${fmt(g.m.auto)}/s · ${money(g.autoIncome)}/s` : '0/s',
       'st-total': money(s.totalEarned),
       'st-run': money(s.runEarned),
       'st-bestRun': money(Math.max(st.bestRun, s.runEarned)),
@@ -1937,7 +2038,7 @@ export class UI {
       'st-bubbles': fmtInt(st.bubbles),
       'st-contracts': fmtInt(st.contracts),
       'st-decisions': fmtInt(st.decisions),
-      'st-challenges': `${g.challengeTiers()}/${CHALLENGES.length * CHALLENGE_GOALS.length}`,
+      'st-challenges': `${g.challengeTiers()}/${ALL_CHALLENGES.length * CHALLENGE_TIERS.length}`,
       'st-autoBuys': fmtInt(st.autoBuys),
       'st-rounds': String(s.prestigeCount),
       'st-offlineCap': fmtTime(g.m.offlineCap),
@@ -2001,7 +2102,7 @@ export class UI {
       <div class="setting"><div>${t('set.lang')}<p>${t('set.langHint')}</p></div>${this.langSeg('set-lang')}</div>
       <div class="setting"><div>${t('set.sound')}<p>${t('set.soundHint')}</p></div><button class="switch ${s.meta.settings.sound ? 'on' : ''}" data-act="toggle-sound" aria-label="${t('set.sound')}"></button></div>
       <div class="setting"><div>${t('set.music')}<p>${t('set.musicHint')}</p></div><button class="switch ${s.meta.settings.music ? 'on' : ''}" data-act="toggle-music" aria-label="${t('set.music')}"></button></div>
-      <div class="setting"><div>${t('set.cap')}<p>${t('set.capHint')}</p></div><button class="switch ${this.g.capOn() ? 'on' : ''}" data-act="toggle-cap" aria-label="${t('set.cap')}"></button></div>
+      <div class="setting"><div>${t('set.cap')}<p>${t('set.capHint')}</p></div><button class="switch ${this.g.capOn() ? '' : 'on'}" data-act="toggle-cap" aria-label="${t('set.cap')}"></button></div>
       <div class="setting"><div>${t('set.install')}<p>${t('set.installHint')}</p></div><button class="btn btn-small ghost" data-act="install-help">${t('set.show')}</button></div>
       <div class="section-title">${t('set.saveTitle')}</div>
       <div class="setting"><div>${t('set.export')}<p>${t('set.exportHint')}</p></div><button class="btn btn-small ghost" data-act="export">${t('set.exportBtn')}</button></div>

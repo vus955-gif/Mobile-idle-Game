@@ -72,7 +72,7 @@ export const UNIVERSE_DEPTS = [
     ups: ['Replikator z ciemnej materii', 'Rój wielkości galaktyki', 'Rój, który projektuje rój'], upIcons: ['⚙️', '🌀', '🧬'] },
   { id: 'brokers', name: 'Maklerzy czasoprzestrzeni', icon: '💹', color: '#4ade80', unlock: 3e43, base: 1e43, g: 1.2,
     desc: 'Otwierają zlecenia od cywilizacji całego kosmosu. Co 25 osób — kolejne miejsce na zlecenie.',
-    per: [{ t: 'income', v: 0.003 }, { t: 'contract', v: 0.01, cap: 2 }, { t: 'slotEvery', v: 25 }],
+    per: [{ t: 'income', v: 0.003 }, { t: 'contract', v: 0.01, cap: 0.5 }, { t: 'slotEvery', v: 25 }],
     ups: ['Giełda w każdej gromadzie', 'Kontrakty terminowe na przeszłość', 'Waluta oparta na entropii'], upIcons: ['📈', '⏪', '🌡️'] },
   { id: 'immortals', name: 'Nieśmiertelni', icon: '♾️', color: '#38bdf8', unlock: 1e45, base: 4e44, g: 1.2,
     desc: 'Załoga, która nie umiera, pracuje także wtedy, gdy Ciebie nie ma. Więcej zarobku offline.',
@@ -284,4 +284,26 @@ export const UNIVERSE_NEWS = [
   'Ankieta: 93% galaktyk chce nowej konstytucji kosmosu',
   'Teoria wszystkiego zmieściła się na kubku do kawy',
   'Ktoś zadał komputerowi {c} ostatnie pytanie. Odpowiedź: „ZA MAŁO DANYCH”',
+];
+
+// Lobbing we wszechświecie: negocjacje z prawami fizyki (patrz LOBBY_RULES w data.js).
+export const UNIVERSE_LOBBY = [
+  { id: 'lu_constants', icon: '🔧', name: 'Negocjacje stałych fizycznych', desc: 'Stała grawitacji trochę w dół, stała zysku trochę w górę.' },
+  { id: 'lu_lightspeed', icon: '💡', name: 'Szybsze światło', desc: 'Dostawy docierają szybciej, bo światło wreszcie się postarało.' },
+  { id: 'lu_entropy', icon: '🌡️', name: 'Ulga entropijna', desc: 'Twoje fabryki mogą produkować porządek bez dopłat.' },
+  { id: 'lu_gravity', icon: '🪶', name: 'Rabat grawitacyjny', desc: 'Towary ważą mniej, więc wysyłka do innych galaktyk tanieje.' },
+  { id: 'lu_dimensions', icon: '📐', name: 'Dodatkowe wymiary', desc: 'Trzy wymiary to za mało na Twój katalog produktów.' },
+  { id: 'lu_time', icon: '⏰', name: 'Wyłączność na czas', desc: 'Kto chce mieć wczoraj, kupuje je u Ciebie.' },
+  { id: 'lu_laws', icon: '📖', name: 'Nowe prawa fizyki', desc: 'Pierwsza zasada termodynamiki dostała aneks. Drugą piszecie razem.' },
+  { id: 'lu_author', icon: '©️', name: 'Prawa autorskie do wszechświata', desc: 'Każdy Wielki Wybuch wymaga licencji. Twojej.' },
+];
+
+// Wyzwania Wszechświata (po transcendencji).
+export const UNIVERSE_CHALLENGES = [
+  { id: 'entropy', icon: '🌡️', rule: 'noMilestones', name: 'Entropia',
+    desc: 'Kamienie milowe produktów nic nie dają.', goal: 2, fx: [{ t: 'startLevels', v: 25 }] },
+  { id: 'noexpansion', icon: '🏚️', rule: 'noOffices', name: 'Bez ekspansji',
+    desc: 'Galaktyki i gromady nie dają żadnych premii.', goal: 2, fx: [{ t: 'officeCost', x: 0.7 }] },
+  { id: 'onestar', icon: '⭐', rule: 'maxProducts', v: 3, name: 'Jedna gwiazda',
+    desc: 'Możesz wydać najwyżej 3 różne produkty.', goal: 2, fx: [{ t: 'startReach', v: 600 }] },
 ];

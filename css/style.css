@@ -553,3 +553,4 @@ textarea.text-input { min-height: 90px; font-family: ui-monospace, Menlo, monosp
   .ping, .arc,
   .cloud, .person, .screen, .car, .star, .rain, .snow, .snow-sway, .leaf, .bat, .firework { animation: none !important; }
 }
+.card.dim { opacity: .55; }

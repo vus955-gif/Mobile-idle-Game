@@ -131,7 +131,7 @@ export const DEPTS = [
     ups: ['Kampania w social mediach', 'Ambasadorzy marki', 'Reklama w finale mundialu'], upIcons: ['📲', '🌟', '⚽'] },
   { id: 'sales', name: 'Sprzedaż', icon: '🤝', color: '#4dd0a1', unlock: 8e5, base: 3e5, g: 1.2,
     desc: 'Odblokowuje kontrakty B2B. Co 25 handlowców — dodatkowe miejsce na kontrakt.',
-    per: [{ t: 'income', v: 0.003 }, { t: 'contract', v: 0.01, cap: 2 }, { t: 'slotEvery', v: 25 }],
+    per: [{ t: 'income', v: 0.003 }, { t: 'contract', v: 0.01, cap: 0.5 }, { t: 'slotEvery', v: 25 }],
     ups: ['System CRM', 'Konferencje branżowe', 'Klienci korporacyjni'], upIcons: ['📇', '🎤', '🏦'] },
   { id: 'support', name: 'Obsługa klienta', icon: '🎧', color: '#4fc3f7', unlock: 1e7, base: 4e6, g: 1.2,
     desc: 'Zadowoleni klienci zostają na dłużej. Więcej zarobku offline.',
@@ -293,8 +293,8 @@ export const REPEAT_TECHS = [
     desc: '+15% punktów badań za każdy poziom.' },
   { id: 'r_ops', name: 'Sprawne procesy', icon: '🗂️', base: 5e4, g: 4, req: ['microservices'], fx: [{ t: 'hireCost', x: 0.95 }],
     desc: 'Rekrutacja tańsza o 5% za każdy poziom.' },
-  { id: 'r_deals', name: 'Sztuka negocjacji', icon: '🤝', base: 2e5, g: 4, req: ['payments'], fx: [{ t: 'contract', x: 1.15 }],
-    desc: '+15% nagród z kontraktów za każdy poziom.' },
+  { id: 'r_deals', name: 'Sztuka negocjacji', icon: '🤝', base: 2e5, g: 4, req: ['payments'], fx: [{ t: 'contract', x: 1.03 }],
+    desc: '+3% nagród z kontraktów za każdy poziom.' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -368,9 +368,9 @@ export const PERKS = [
   { id: 'p_dream', name: 'Firma, która nie śpi', icon: '😴', base: 3, g: 2.5, max: 5,
     desc: 'Wydajność offline +10 pp. za poziom.', fx: [{ t: 'offlineEff', v: 0.1 }] },
   { id: 'p_brand', name: 'Silna marka', icon: '✨', base: 4, g: 2.4, max: 8,
-    desc: 'Wydarzenia viralowe pojawiają się o 15% częściej i są o 15% silniejsze.', fx: [{ t: 'eventFreq', x: 1.15 }, { t: 'eventPower', x: 1.15 }] },
+    desc: 'Wydarzenia viralowe pojawiają się o 15% częściej i są o 8% silniejsze.', fx: [{ t: 'eventFreq', x: 1.15 }, { t: 'eventPower', x: 1.08 }] },
   { id: 'p_network', name: 'Sieć kontaktów', icon: '📇', base: 4, g: 2.3, max: 10,
-    desc: 'Nagrody z kontraktów +25% za poziom.', fx: [{ t: 'contract', x: 1.25 }] },
+    desc: 'Nagrody z kontraktów +5% za poziom.', fx: [{ t: 'contract', x: 1.05 }] },
   { id: 'p_academy', name: 'Akademia firmowa', icon: '🎓', base: 3, g: 2.4, max: 10,
     desc: 'Punkty badań +20% za poziom.', fx: [{ t: 'rp', x: 1.2 }] },
   { id: 'p_auto', name: 'Automatyzacja', icon: '🤖', base: 5, g: 2.5, max: 10,
@@ -438,7 +438,7 @@ export const CONTRACT_TASKS = [
 
 // f: nagroda jako wielokrotność przychodu z czasu trwania kontraktu
 export const CONTRACT_DURATIONS = [
-  { s: 30, f: 1.2 }, { s: 60, f: 1 }, { s: 120, f: 0.9 }, { s: 300, f: 0.8 }, { s: 900, f: 0.65 }, { s: 1800, f: 0.55 },
+  { s: 30, f: 0.85 }, { s: 60, f: 0.7 }, { s: 120, f: 0.63 }, { s: 300, f: 0.56 }, { s: 900, f: 0.45 }, { s: 1800, f: 0.38 },
 ];
 
 export const NEWS = [
@@ -535,6 +535,27 @@ PRODUCTS.forEach((p, i) => {
 export const RD_BUDGET = { shares: [0, 0.1, 0.25, 0.5], k: 0.2, p: 0.4 };
 
 // ---------------------------------------------------------------------------
+// LOBBING i ZDJĘCIE HAMULCA — sposoby na zasięg rynku w obrębie etapu.
+// Lobbing: kolejne poziomy poszerzają rynek o 0,15 rzędu wielkości (×1,41), najwyżej 8 poziomów,
+// kosztują minutę szczytowych zarobków etapu (produkty + auto-kliknięcia) × 2,5^poziom i przepadają
+// przy resecie etapu (jak przejęcia).
+// Zdjęcie hamulca: raz na rundę etapu przez 5 minut przychód ponad zasięgiem rośnie liniowo
+// (bez nasycenia), ale najwyżej do ×1000 zasięgu; kosztuje 20 minut szczytowych zarobków etapu.
+// ---------------------------------------------------------------------------
+export const LOBBY_RULES = { step: 0.15, costSeconds: 60, growth: 2.5 };
+export const BRAKE = { seconds: 300, ceiling: 1000, costSeconds: 1200 };
+export const LOBBY = [
+  { id: 'l_pr', icon: '📣', name: 'Agencja PR', desc: 'Dobre słowo w gazetach. Rynek nagle zauważa, że Twoje produkty istnieją.' },
+  { id: 'l_think', icon: '🧠', name: 'Własny think tank', desc: 'Raporty, z których wynika, że świat potrzebuje więcej Twoich aplikacji.' },
+  { id: 'l_brussels', icon: '🇪🇺', name: 'Biuro w Brukseli', desc: 'Lobbyści na korytarzach Parlamentu Europejskiego. Regulacje piszą się same.' },
+  { id: 'l_trade', icon: '🤝', name: 'Umowy handlowe', desc: 'Cła znikają, granice się otwierają, a Twoje produkty jadą wszędzie.' },
+  { id: 'l_standard', icon: '📏', name: 'Twój format w normach', desc: 'Cała branża musi używać Twojego standardu. Konkurencja płaci za licencje.' },
+  { id: 'l_antitrust', icon: '⚖️', name: 'Zwolnienie antymonopolowe', desc: 'Regulatorzy uznali, że jesteś za duży, żeby upaść.' },
+  { id: 'l_un', icon: '🌐', name: 'Fotel w ONZ', desc: 'Firma ma swoje miejsce przy stole, obok państw.' },
+  { id: 'l_world', icon: '👑', name: 'Gospodarka pod Twoje dyktando', desc: 'Banki centralne pytają Cię o zdanie. Odpowiadasz komunikatem prasowym.' },
+];
+
+// ---------------------------------------------------------------------------
 // AUTOPILOT — moduły kupowane raz za udziały (💎), zostają na zawsze
 // ---------------------------------------------------------------------------
 export const AUTOPILOT = [
@@ -553,7 +574,7 @@ export const AUTOPILOT = [
   { id: 'offices', icon: '🌍', cost: 5, name: 'Dyrektor ekspansji',
     desc: 'Otwiera i rozbudowuje biura (w kosmosie kolonie), gdy kosztują najwyżej czwartą część gotówki.' },
   { id: 'acq', icon: '🧾', cost: 6, name: 'Bankier M&A',
-    desc: 'Kupuje dostępne przejęcia, gdy kosztują najwyżej połowę gotówki.' },
+    desc: 'Kupuje dostępne przejęcia i kolejne poziomy lobbingu, gdy kosztują najwyżej połowę gotówki.' },
   { id: 'decisions', icon: '🗳️', cost: 4, name: 'Rzecznik zarządu',
     desc: 'Po kilkunastu sekundach sam rozstrzyga decyzje, wybierając wariant wart więcej.' },
   { id: 'board', icon: '🕴️', cost: 8, name: 'Łowca głów',
@@ -565,24 +586,27 @@ export const AUTOPILOT = [
 ];
 
 // ---------------------------------------------------------------------------
-// WYZWANIA INWESTORÓW — rundy z ograniczeniem i trwałą nagrodą za każdy poziom
+// WYZWANIA — odblokowują się po transcendencji (po ukończeniu całej gry). Każdy etap ma własne.
+// Wyzwanie to runda etapu z jednym ograniczeniem; za każdy z 3 poziomów jest trwała, odczuwalna
+// nagroda dla całego imperium oraz +0,05 rzędu wielkości zasięgu rynku w etapie wyzwania.
+// Runda wyzwania to „spółka-córka”: kapitał etapu nie działa, a hamulca nie da się zdjąć.
+// Cel poziomu: tyle, ile etap zarabiał w szczycie (produkty + auto-kliknięcia, bez lobbingu i bąbelków)
+// przez s sekund, razy współczynnik trudności wyzwania (goal).
 // ---------------------------------------------------------------------------
-// Cel poziomu: rząd wielkości Twojej najlepszej rundy × współczynnik (ale nie mniej niż próg minimalny).
-export const CHALLENGE_GOALS = [1e7, 1e9, 1e11, 1e13, 1e15];
-export const CHALLENGE_FACTORS = [0.5, 0.65, 0.8, 0.9, 1];
+export const CHALLENGE_TIERS = [{ s: 600 }, { s: 2400 }, { s: 7200 }];
+export const CHALLENGE_REACH = 0.05;
+// Transcendencja: za każdą przychód ×3 i punkty badań ×2 we wszystkich etapach.
+export const TRANSCEND = { income: 3, rp: 2 };
+// Wyzwania Ziemi (identyfikatory zostają ze starszych zapisów, nagrody są nowe).
 export const CHALLENGES = [
   { id: 'noclick', icon: '🙅', rule: 'noclick', name: 'Bez klawiatury',
-    desc: 'Kodowanie i automatyczne kliknięcia nic nie dają.', fx: [{ t: 'all', x: 1.15 }] },
+    desc: 'Kodowanie i automatyczne kliknięcia nic nie dają.', goal: 1.5, fx: [{ t: 'autoMult', x: 2 }] },
   { id: 'focus', icon: '🎯', rule: 'maxProducts', v: 5, name: 'Pełne skupienie',
-    desc: 'Możesz wydać najwyżej 5 różnych produktów.', fx: [{ t: 'prodCost', x: 0.95 }] },
+    desc: 'Możesz wydać najwyżej 5 różnych produktów.', goal: 1.5, fx: [{ t: 'msAdd', v: 0.2 }] },
   { id: 'solo', icon: '🧑‍💻', rule: 'onlyDev', name: 'Jednoosobowa armia',
-    desc: 'Nie możesz otwierać działów poza programistami.', fx: [{ t: 'deptAll', x: 1.1 }] },
-  { id: 'bootstrap', icon: '🥾', rule: 'noInvestors', name: 'Bootstrapping',
-    desc: 'Kapitał inwestorów nie zwiększa przychodu.', fx: [{ t: 'investorPct', v: 0.002 }] },
-  { id: 'minimal', icon: '🪶', rule: 'noUpgrades', name: 'Minimalizm',
-    desc: 'Nie możesz kupować ulepszeń.', fx: [{ t: 'rp', x: 1.2 }] },
-  { id: 'crisis', icon: '📉', rule: 'noMilestones', name: 'Kryzys na rynkach',
-    desc: 'Kamienie milowe produktów nie podwajają przychodu.', fx: [{ t: 'prestige', x: 1.1 }] },
+    desc: 'Nie możesz otwierać działów poza pierwszym.', goal: 1.5, fx: [{ t: 'firstDept', x: 3 }] },
+  { id: 'crisis', icon: '📉', rule: 'halfCap', name: 'Kryzys na rynkach',
+    desc: 'Zasięg rynku jest ok. 3× mniejszy.', goal: 1.5, fx: [{ t: 'startLobby', v: 1 }] },
 ];
 
 // ---------------------------------------------------------------------------
@@ -606,7 +630,7 @@ export const OFFICES = [
     name: 'Bengaluru', desc: 'Indyjska Dolina Krzemowa. Ogromna pula talentów.' },
   { id: 'sao', icon: '🇧🇷', kind: 'earth', lat: -23.55, lon: -46.63, cost: 1e11, req: 'socialGraph', fx: [{ t: 'eventFreq', x: 1.05 }, { t: 'dept', id: 'marketing', x: 1.15 }],
     name: 'São Paulo', desc: 'Największy rynek Ameryki Południowej. Kampanie roznoszą się tu jak samba.' },
-  { id: 'lon', icon: '🇬🇧', kind: 'earth', lat: 51.51, lon: -0.13, cost: 5e11, req: 'payments', fx: [{ t: 'prod', id: 'fintech', x: 1.4 }, { t: 'contract', x: 1.1 }],
+  { id: 'lon', icon: '🇬🇧', kind: 'earth', lat: 51.51, lon: -0.13, cost: 5e11, req: 'payments', fx: [{ t: 'prod', id: 'fintech', x: 1.4 }, { t: 'contract', x: 1.05 }],
     name: 'Londyn', desc: 'Finansowe serce Europy. Herbata o piątej, przelewy natychmiast.' },
   { id: 'nyc', icon: '🗽', kind: 'earth', lat: 40.71, lon: -74.0, cost: 2e12, req: 'payments', fx: [{ t: 'valMult', v: 0.5 }, { t: 'acqCost', x: 0.9 }],
     name: 'Nowy Jork', desc: 'Wall Street wycenia Cię wyżej, kiedy masz biuro na Manhattanie.' },
@@ -620,7 +644,7 @@ export const OFFICES = [
     name: 'Singapur', desc: 'Węzeł chmury dla całej Azji.' },
   { id: 'rkv', icon: '🇮🇸', kind: 'earth', lat: 64.15, lon: -21.94, cost: 1.2e13, req: 'bigdata', fx: [{ t: 'cat', cat: 'infra', x: 1.15 }, { t: 'prodCost', x: 0.98 }],
     name: 'Reykjavik', desc: 'Darmowe chłodzenie serwerów i zorza polarna nad parkingiem.' },
-  { id: 'dxb', icon: '🇦🇪', kind: 'earth', lat: 25.2, lon: 55.27, cost: 2e13, req: 'serverless', fx: [{ t: 'contract', x: 1.15 }, { t: 'acqCost', x: 0.95 }],
+  { id: 'dxb', icon: '🇦🇪', kind: 'earth', lat: 25.2, lon: 55.27, cost: 2e13, req: 'serverless', fx: [{ t: 'contract', x: 1.05 }, { t: 'acqCost', x: 0.95 }],
     name: 'Dubaj', desc: 'Kontrakty podpisywane na 120. piętrze.' },
   { id: 'yyz', icon: '🇨🇦', kind: 'earth', lat: 43.65, lon: -79.38, cost: 4e13, req: 'dl', fx: [{ t: 'cat', cat: 'ai', x: 1.15 }, { t: 'rp', x: 1.05 }],
     name: 'Toronto', desc: 'Kolebka głębokiego uczenia. Badacze AI na każdym uniwersytecie.' },

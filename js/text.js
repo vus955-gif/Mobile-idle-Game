@@ -17,6 +17,10 @@ import {
   UNIVERSE_PRODUCTS, UNIVERSE_DEPTS, UNIVERSE_TECHS, UNIVERSE_REPEAT, UNIVERSE_CULTURE, UNIVERSE_CLICK, UNIVERSE_ACQUISITIONS,
   UNIVERSE_OFFICES, UNIVERSE_ERAS, UNIVERSE_CATEGORIES, UNIVERSE_CLIENTS, UNIVERSE_TASKS, UNIVERSE_NEWS,
 } from './universe.js';
+import { LOBBY } from './data.js';
+import { SPACE_LOBBY, SPACE_CHALLENGES } from './space.js';
+import { GALAXY_LOBBY, GALAXY_CHALLENGES } from './galaxy.js';
+import { UNIVERSE_LOBBY, UNIVERSE_CHALLENGES } from './universe.js';
 import { EN } from './lang/en.js';
 import { getLang, t, noun } from './i18n.js';
 import { fmt, fmtInt, money, num, fmtTime } from './format.js';
@@ -33,9 +37,10 @@ const CL = byId([...CLICK_UPGRADES, ...SPACE_CLICK, ...GALAXY_CLICK, ...UNIVERSE
 const A = byId([...ACQUISITIONS, ...SPACE_ACQUISITIONS, ...GALAXY_ACQUISITIONS, ...UNIVERSE_ACQUISITIONS]);
 const CATS = { ...CATEGORIES, ...SPACE_CATEGORIES, ...GALAXY_CATEGORIES, ...UNIVERSE_CATEGORIES };
 const ALL_ERAS = [...ERAS, ...SPACE_ERAS, ...GALAXY_ERAS, ...UNIVERSE_ERAS];
+const LB = byId([...LOBBY, ...SPACE_LOBBY, ...GALAXY_LOBBY, ...UNIVERSE_LOBBY]);
 const PK = byId(PERKS);
 const AP = byId(AUTOPILOT);
-const CH = byId(CHALLENGES);
+const CH = byId([...CHALLENGES, ...SPACE_CHALLENGES, ...GALAXY_CHALLENGES, ...UNIVERSE_CHALLENGES]);
 const OF = byId([...OFFICES, ...SPACE_OFFICES, ...GALAXY_OFFICES, ...UNIVERSE_OFFICES]);
 const CO = byId(COMPETITORS);
 const RO = byId(ROLES);
@@ -52,6 +57,8 @@ export const repeatName = (id) => (en() ? EN.repeat[id].name : R[id].name);
 export const repeatDesc = (id) => (en() ? EN.repeat[id].desc : R[id].desc);
 export const acqName = (id) => (en() ? EN.acquisitions[id].name : A[id].name);
 export const acqDesc = (id) => (en() ? EN.acquisitions[id].desc : A[id].desc);
+export const lobbyName = (id) => (en() ? EN.lobby[id].name : LB[id].name);
+export const lobbyDesc = (id) => (en() ? EN.lobby[id].desc : LB[id].desc);
 export const perkName = (id) => (en() ? EN.perks[id].name : PK[id].name);
 export const perkDesc = (id) => (en() ? EN.perks[id].desc : PK[id].desc);
 export const catName = (cat) => (en() ? EN.categories[cat] : CATS[cat].name);
@@ -227,6 +234,8 @@ export function achDesc(a) {
     case 'uacq': return t('ach.uacq', { n: v, noun: noun('companies', v) });
     case 'ctl': return t('ach.ctl', { n: v, noun: noun('companies', v) });
     case 'mkt': return t('ach.mktDesc')[a.i];
+    case 'lob': return t('ach.lobDesc')[a.i];
+    case 'trans': return t('ach.trans', { n: v });
     case 'exec': return a.i < 2 ? t('ach.exec', { n: v, noun: noun('seats', v) }) : t('ach.execDesc')[a.i - 2];
     case 'scale': return t('ach.scale', { name: scaleName(a.i) });
     default: return '';
@@ -261,6 +270,16 @@ export function describeFx(fx) {
       case 'acqCost': parts.push(t('dfx.acqCost', { n: Math.round((1 - e.x) * 100) })); break;
       case 'eventPower': parts.push(t('dfx.eventPower', { x })); break;
       case 'valMult': parts.push(t('dfx.valMult', { v: num(e.v) })); break;
+      case 'autoMult': parts.push(t('dfx.autoMult', { x })); break;
+      case 'msAdd': parts.push(t('dfx.msAdd', { v: num(2 + e.v) })); break;
+      case 'firstDept': parts.push(t('dfx.firstDept', { x })); break;
+      case 'startLobby': parts.push(t('dfx.startLobby', { n: e.v })); break;
+      case 'feedX': parts.push(t('dfx.feedX', { x })); break;
+      case 'upgradeCost': parts.push(t('dfx.upgradeCost', { n: Math.round((1 - e.x) * 100) })); break;
+      case 'brakeSec': parts.push(t('dfx.brakeSec', { t: fmtTime(e.v) })); break;
+      case 'startReach': parts.push(t('dfx.startReach', { t: fmtTime(e.v) })); break;
+      case 'startLevels': parts.push(t('dfx.startLevels', { n: e.v })); break;
+      case 'officeCost': parts.push(t('dfx.officeCost', { n: Math.round((1 - e.x) * 100) })); break;
       default: break;
     }
   }

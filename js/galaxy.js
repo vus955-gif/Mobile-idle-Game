@@ -72,7 +72,7 @@ export const GALAXY_DEPTS = [
     ups: ['Rdzeń kwantowy', 'Kopie zapasowe w każdej sondzie', 'SI z poczuciem humoru'], upIcons: ['🧠', '💾', '😏'] },
   { id: 'traders', name: 'Kupcy międzygwiezdni', icon: '💱', color: '#34d399', unlock: 2e29, base: 6e28, g: 1.2,
     desc: 'Otwierają zlecenia od cywilizacji i kolonii. Co 25 osób — kolejne miejsce na zlecenie.',
-    per: [{ t: 'income', v: 0.003 }, { t: 'contract', v: 0.01, cap: 2 }, { t: 'slotEvery', v: 25 }],
+    per: [{ t: 'income', v: 0.003 }, { t: 'contract', v: 0.01, cap: 0.5 }, { t: 'slotEvery', v: 25 }],
     ups: ['Giełda w każdym porcie', 'Waluta oparta na energii', 'Kontrakty na tysiąc lat'], upIcons: ['🏦', '🔋', '📜'] },
   { id: 'geneticists', name: 'Genetycy', icon: '🧬', color: '#38bdf8', unlock: 2.5e30, base: 1e30, g: 1.2,
     desc: 'Długowieczna załoga pracuje także wtedy, gdy Ciebie nie ma. Więcej zarobku offline.',
@@ -283,4 +283,26 @@ export const GALAXY_NEWS = [
   'Analitycy: „Andromeda to tylko kwestia czasu i napędu”',
   'Sagittarius A* zjadł dziś pół gwiazdy. Grawitolodzy bez komentarza',
   'Obłok Magellana zgłasza najlepszy widok na Drogę Mleczną',
+];
+
+// Lobbing w galaktyce: trasy, senat i patenty na gwiazdy (patrz LOBBY_RULES w data.js).
+export const GALAXY_LOBBY = [
+  { id: 'lg_routes', icon: '⛵', name: 'Prawa do tras', desc: 'Najkrótsze trasy między gwiazdami wpisane do Twojego rejestru.' },
+  { id: 'lg_senate', icon: '🏛️', name: 'Głosy w Senacie', desc: 'Kilka planet głosuje tak, jak sugerujesz. Z wdzięczności.' },
+  { id: 'lg_tariffs', icon: '💱', name: 'Zniesienie ceł międzygwiezdnych', desc: 'Towar leci tysiąc lat, ale przynajmniej bez kontroli celnej.' },
+  { id: 'lg_charter', icon: '📜', name: 'Karta Ramienia Oriona', desc: 'Prawa i obowiązki wszystkich cywilizacji ramienia. Przypisy pisałeś Ty.' },
+  { id: 'lg_patents', icon: '⭐', name: 'Patenty na gwiazdy', desc: 'Każda nowa gwiazda typu G jest objęta Twoim patentem.' },
+  { id: 'lg_veto', icon: '🛑', name: 'Prawo weta', desc: 'Senat może uchwalić wszystko. Ty możesz to zablokować.' },
+  { id: 'lg_core', icon: '🌑', name: 'Strefa wolnocłowa w jądrze', desc: 'Najgęstszy rynek galaktyki bez podatków. Prawie bez.' },
+  { id: 'lg_throne', icon: '👑', name: 'Tron galaktyczny', desc: 'Formalnie to tylko krzesło. Ale bardzo duże.' },
+];
+
+// Wyzwania Galaktyki (po transcendencji).
+export const GALAXY_CHALLENGES = [
+  { id: 'manual', icon: '🕹️', rule: 'noAutopilot', name: 'Ręczne sterowanie',
+    desc: 'Autopilot nie działa w galaktyce.', goal: 0.75, fx: [{ t: 'offlineEff', v: 0.15 }, { t: 'offlineCap', v: 4 * 3600 }] },
+  { id: 'nobudget', icon: '🔬', rule: 'noBudget', name: 'Bez budżetu',
+    desc: 'Budżet badawczy jest wyłączony.', goal: 0.75, fx: [{ t: 'rp', x: 1.5 }] },
+  { id: 'freemarket', icon: '🛑', rule: 'noLobby', name: 'Wolny rynek',
+    desc: 'Nie możesz lobbować.', goal: 0.6, fx: [{ t: 'brakeSec', v: 120 }] },
 ];
