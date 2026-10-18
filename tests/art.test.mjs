@@ -4,7 +4,8 @@ import assert from 'node:assert/strict';
 import { rng, perlin, fbm, ridged } from '../js/art/noise.js';
 import { makeCanvas, setCanvasFactory } from '../js/art/canvas.js';
 import { mockCanvas, hashPixels } from './helpers/mock-canvas.mjs';
-import { stars, milkyBand, nebula, cosmicWeb, aurora, auroraAnimator } from '../js/art/kit/sky.js';
+import { stars, milkyBand, nebula, cosmicWeb, aurora, auroraAnimator, brightStar } from '../js/art/kit/sky.js';
+import { GALAXY_RECIPES } from '../js/art/views/galaxy.js';
 import { planet, rings, sun, galaxy, cluster, lens, blackHole, blackHoleAnimator } from '../js/art/kit/bodies.js';
 import { horizon } from '../js/art/kit/surface.js';
 import { earthSky, sunMoon, cloudBank, cityPlanes, mountains, water, fogBank } from '../js/art/kit/earth.js';
@@ -291,4 +292,22 @@ test('backdrop: animation loop stops when inactive and never doubles', () => {
   bd.show('sgr', {}, { quality: 'eco' });
   r.run(1200);
   assert.equal(r.q.size, 0, 'tryb oszczędny — bez animacji');
+});
+
+test('kit/sky: jasna gwiazda z promieniami rysuje deterministycznie', () => {
+  callsDeterministic('brightStar', (c) => brightStar(c, KW, KH, { x: 0.4, y: 0.3, size: 14, color: [200, 220, 255], spikes: 1 }));
+  const c = mockCanvas(KW, KH).getContext('2d');
+  brightStar(c, KW, KH, { x: 0.4, y: 0.3, size: 14, color: [200, 220, 255], spikes: 0 });
+  assert.ok(!c.calls.includes('lineTo'), 'bez promieni');
+});
+
+test('views/galaxy: brak przepisów zastępczych, animowane są sol, crab, orion i sgr', () => {
+  const ids = Object.keys(GALAXY_RECIPES);
+  assert.equal(ids.length, 9);
+  for (const id of ids) assert.ok(!GALAXY_RECIPES[id].placeholder, `${id} ma właściwy przepis`);
+  for (const id of ['sol', 'crab', 'orion', 'sgr']) assert.equal(typeof GALAXY_RECIPES[id].animate, 'function', `${id} animowany`);
+  for (const id of ids) {
+    const c = mockCanvas(KW, KH).getContext('2d');
+    GALAXY_RECIPES[id].animate?.(c, KW, KH, 2.5);
+  }
 });

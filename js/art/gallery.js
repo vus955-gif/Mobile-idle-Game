@@ -8,12 +8,14 @@ import { officeName } from '../text.js';
 
 const BUDGET_MS = 125;
 const W = 600, H = 800;
+// ?stage=earth|space|galaxy|universe — tylko jeden etap (szybszy przegląd)
+const ONLY = new URLSearchParams(location.search).get('stage');
 const STAGES = [
-  ['🌍 Ziemia', EARTH_RECIPES, true],
-  ['🛰️ Kosmos', SPACE_RECIPES, false],
-  ['🌌 Galaktyka', GALAXY_RECIPES, false],
-  ['🕳️ Wszechświat', UNIVERSE_RECIPES, false],
-];
+  ['earth', '🌍 Ziemia', EARTH_RECIPES, true],
+  ['space', '🛰️ Kosmos', SPACE_RECIPES, false],
+  ['galaxy', '🌌 Galaktyka', GALAXY_RECIPES, false],
+  ['universe', '🕳️ Wszechświat', UNIVERSE_RECIPES, false],
+].filter(([key]) => !ONLY || key === ONLY);
 const $ = (id) => document.getElementById(id);
 const tiles = [];
 
@@ -23,7 +25,7 @@ function env() {
 
 function build() {
   const root = $('sections');
-  for (const [title, recipes, earth] of STAGES) {
+  for (const [, title, recipes, earth] of STAGES) {
     const h = document.createElement('h2');
     h.textContent = `${title} (${Object.keys(recipes).length})`;
     const grid = document.createElement('div');
@@ -49,7 +51,8 @@ function build() {
   }
 }
 
-const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
+// przerwa między kaflami (setTimeout, bo requestAnimationFrame staje, gdy karta jest w tle)
+const nextFrame = () => new Promise((r) => setTimeout(r, 0));
 
 async function renderAll(onlyEarth = false) {
   const times = [];
@@ -61,12 +64,18 @@ async function renderAll(onlyEarth = false) {
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
     ctx.clearRect(0, 0, W, H);
-    const t0 = performance.now();
     try {
-      t.recipe.draw(ctx, W, H, t.earth ? env() : {});
-      const ms = performance.now() - t0;
+      // trzy przebiegi, mediana — pojedynczy pomiar za bardzo zależy od obciążenia komputera
+      const runs = [];
+      for (let i = 0; i < 3; i++) {
+        ctx.clearRect(0, 0, W, H);
+        const t0 = performance.now();
+        t.recipe.draw(ctx, W, H, t.earth ? env() : {});
+        runs.push(performance.now() - t0);
+      }
+      const ms = runs.sort((a, b) => a - b)[1];
       t.time = ms;
-      t.ms.textContent = `${Math.round(ms)} ms`;
+      t.ms.textContent = `med. ${Math.round(ms)} ms`;
       t.ms.classList.toggle('slow', ms > BUDGET_MS);
     } catch (err) {
       t.ms.textContent = 'błąd';

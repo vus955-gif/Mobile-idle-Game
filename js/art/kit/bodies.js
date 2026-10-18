@@ -152,16 +152,16 @@ export function rings(ctx, { cx, cy, r1, r2, tilt, color, light, half = 'both', 
 }
 
 // Gwiazda (słońce): tarcza, korona i opcjonalna flara obiektywu. x, y — ułamki kadru, r — ułamek szerokości.
-export function sun(ctx, { x, y, r, color, corona = 1, flare = 0 }) {
+export function sun(ctx, { x, y, r, color, corona = 1, flare = 0, core = [255, 255, 250] }) {
   const [w, h] = dims(ctx);
   const X = x * w, Y = y * h, R = r * w, c = rgbStr(color);
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
   glow(ctx, X, Y, R * 7 * corona, c, 0.35);
-  glow(ctx, X, Y, R * 2.6, '255,250,235', 0.8);
+  glow(ctx, X, Y, R * 2.6, rgbStr(core.map((v, i) => mix(v, color[i], 0.5))), 0.8);
   const g = ctx.createRadialGradient(X, Y, 0, X, Y, R);
-  g.addColorStop(0, 'rgba(255,255,250,1)');
-  g.addColorStop(0.7, 'rgba(255,248,230,1)');
+  g.addColorStop(0, `rgba(${rgbStr(core)},1)`);
+  g.addColorStop(0.7, `rgba(${rgbStr(core.map((v, i) => mix(v, color[i], 0.35)))},1)`);
   g.addColorStop(1, `rgba(${c},0.9)`);
   ctx.fillStyle = g;
   ctx.beginPath(); ctx.arc(X, Y, R, 0, Math.PI * 2); ctx.fill();
@@ -189,7 +189,7 @@ export function galaxy(ctx, { cx, cy, r, tilt, rot, seed, type, arms = 2, core, 
   const reg = region(w, h, CX - R * 1.1, CY - R * 1.1, CX + R * 1.1, CY + R * 1.1, 0.5, (x, y, out) => {
     const dx = x - CX, dy = y - CY;
     const px = (dx * cr + dy * sr) / R, py = (-dx * sr + dy * cr) / (R * tilt);
-    const rho = Math.hypot(px, py);
+    const rho = Math.sqrt(px * px + py * py);
     if (rho > 1.15) return;
     let I, coreW, pink = 0;
     if (type === 'elliptical') {
@@ -237,15 +237,23 @@ export function cluster(ctx, { cx, cy, r, count, seed, color }) {
 export function lens(ctx, w, h, { cx, cy, shadow, thetaE }) {
   const CX = cx * w, CY = cy * h, SH = shadow * w, TE = thetaE * w, TE2 = TE * TE;
   const src = ctx.getImageData(0, 0, w, h).data, out = ctx.createImageData(w, h), o = out.data, k = unit(w);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const dx = x - CX, dy = y - CY, r = Math.hypot(dx, dy), q = (y * w + x) * 4;
-    o[q + 3] = 255;
-    if (r < SH) continue;
-    const beta = r - TE2 / r;
-    let sx = Math.round(CX + (dx / r) * beta), sy = Math.round(CY + (dy / r) * beta);
-    sx = ((sx % w) + w) % w; sy = Math.min(h - 1, Math.max(0, sy));
-    const j = (sy * w + sx) * 4, boost = 1 + 0.7 * Math.exp(-Math.pow((r - TE) / (4 * k), 2));
-    o[q] = src[j] * boost; o[q + 1] = src[j + 1] * boost; o[q + 2] = src[j + 2] * boost;
+  // piksel kopiujemy jedną liczbą 32-bitową (RGBA); rozjaśnienie liczymy tylko przy pierścieniu Einsteina
+  const src32 = new Uint32Array(src.buffer, src.byteOffset, w * h), out32 = new Uint32Array(o.buffer, o.byteOffset, w * h);
+  const OPAQUE = 0xff000000, ring = 12 * k, ringW = 4 * k;
+  for (let y = 0; y < h; y++) {
+    const dy = y - CY;
+    for (let x = 0; x < w; x++) {
+      const dx = x - CX, r = Math.sqrt(dx * dx + dy * dy), i = y * w + x;
+      if (r < SH) { out32[i] = OPAQUE; continue; }
+      const f = (r - TE2 / r) / r;
+      let sx = Math.round(CX + dx * f), sy = Math.round(CY + dy * f);
+      if (sx < 0 || sx >= w) sx = ((sx % w) + w) % w;
+      if (sy < 0) sy = 0; else if (sy >= h) sy = h - 1;
+      const j = sy * w + sx;
+      if (Math.abs(r - TE) > ring) { out32[i] = src32[j] | OPAQUE; continue; }
+      const boost = 1 + 0.7 * Math.exp(-Math.pow((r - TE) / ringW, 2)), q = i * 4, jq = j * 4;
+      o[q] = src[jq] * boost; o[q + 1] = src[jq + 1] * boost; o[q + 2] = src[jq + 2] * boost; o[q + 3] = 255;
+    }
   }
   ctx.putImageData(out, 0, 0);
 }
@@ -271,12 +279,12 @@ export function blackHole(ctx, w, h, opts) {
   const behind = region(w, h, CX - r2 - 2, CY - SH * 1.95, CX + r2 + 2, CY + Math.max(r2 * DISK_K, SH * 1.3) + 2, 1, (x, y, out) => {
     const dx = x - CX, dy = y - CY;
     let R = 0, G = 0, B = 0;
-    const rho = Math.hypot(dx, dy / DISK_K), t = (rho - r1) / (r2 - r1);
+    const dyk = dy / DISK_K, rho = Math.sqrt(dx * dx + dyk * dyk), t = (rho - r1) / (r2 - r1);
     if (dy < 0 && t >= 0 && t <= 1) {
       const phi = Math.atan2(dy / DISK_K, dx), grain = 0.75 + 0.25 * fbm(nD, rho / (4.5 * k), phi * 6, 3) * 2;
       [R, G, B] = heat(t, Math.min(1, prof(t) * dopp(phi) * grain * 1.9));
     }
-    const r = Math.hypot(dx, dy * 1.04), top = dy < 0, band = top ? SH * 0.8 : SH * 0.18, tl = (r - SH * 1.05) / band;
+    const dyl = dy * 1.04, r = Math.sqrt(dx * dx + dyl * dyl), top = dy < 0, band = top ? SH * 0.8 : SH * 0.18, tl = (r - SH * 1.05) / band;
     if (tl >= 0 && tl <= 1) {
       const phi = Math.atan2(dy, dx);
       const along = top ? Math.pow(Math.max(0, Math.sin(-phi)), 0.35) : 0.4 * Math.pow(Math.max(0, Math.sin(phi)), 0.8);
@@ -288,7 +296,7 @@ export function blackHole(ctx, w, h, opts) {
     out[0] = R; out[1] = G; out[2] = B; out[3] = 255;
   });
   const front = region(w, h, CX - r2 - 2, CY, CX + r2 + 2, CY + r2 * DISK_K + 2, 1, (x, y, out) => {
-    const dx = x - CX, dy = y - CY, rho = Math.hypot(dx, dy / DISK_K), t = (rho - r1) / (r2 - r1);
+    const dx = x - CX, dy = y - CY, dyk = dy / DISK_K, rho = Math.sqrt(dx * dx + dyk * dyk), t = (rho - r1) / (r2 - r1);
     if (dy < 0 || t < 0 || t > 1) return;
     const phi = Math.atan2(dy / DISK_K, dx), grain = 0.75 + 0.25 * fbm(nD, rho / (4.5 * k), phi * 6, 3) * 2;
     const [R, G, B] = heat(t, Math.min(1, prof(t) * dopp(phi) * grain * 1.9));

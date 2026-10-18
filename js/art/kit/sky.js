@@ -8,7 +8,7 @@ const unit = (w) => w / 300;
 const rgbStr = (c) => `${c[0] | 0},${c[1] | 0},${c[2] | 0}`;
 
 // Gwiazdy o różnych barwach i jasnościach; najjaśniejsze (ok. glowShare) dostają poświatę.
-export function stars(ctx, w, h, { seed, count, glowShare = 0.06, tint = null }) {
+export function stars(ctx, w, h, { seed, count, glowShare = 0.04, tint = null }) {
   const r = rng(seed), k = unit(w), glowFrom = Math.pow(1 - glowShare, 6);
   for (let i = 0; i < count; i++) {
     const x = r() * w, y = r() * h, m = Math.pow(r(), 6), t = r();
@@ -17,7 +17,7 @@ export function stars(ctx, w, h, { seed, count, glowShare = 0.06, tint = null })
     const rad = (0.4 + m * 2.2) * 0.6 * k;
     ctx.fillStyle = `rgba(${rgbStr(col)},${(0.18 + m * 0.8).toFixed(3)})`;
     ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
-    if (m > glowFrom) glow(ctx, x, y, rad * 7, rgbStr(col), 0.3);
+    if (m > glowFrom) glow(ctx, x, y, rad * 4.5, rgbStr(col), 0.22);
   }
 }
 
@@ -127,4 +127,27 @@ const mix3 = (a, b, t) => [mix(a[0], b[0], t), mix(a[1], b[1], t), mix(a[2], b[2
 // Animowana zorza: ta sama kurtyna, fale płyną powoli w czasie (t w sekundach).
 export function auroraAnimator(opts) {
   return (ctx, w, h, t) => aurora(ctx, w, h, { ...opts, phase: t * 0.25 });
+}
+
+// Jasna gwiazda z poświatą i (opcjonalnie) czterema promieniami dyfrakcyjnymi, jak na zdjęciach z teleskopu.
+// x, y — ułamki kadru; size — promień poświaty w pikselach projektu (kadr szeroki na 300); spikes — siła promieni.
+export function brightStar(ctx, w, h, { x, y, size, color, spikes = 1 }) {
+  const X = x * w, Y = y * h, k = unit(w), L = size * k, c = rgbStr(color);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  glow(ctx, X, Y, L, c, 0.5);
+  glow(ctx, X, Y, L * 0.25, '255,255,255', 0.9);
+  if (spikes > 0) {
+    for (const [ax, ay] of [[1, 0], [0, 1]]) {
+      const len = L * 1.7 * spikes;
+      const g = ctx.createLinearGradient(X - ax * len, Y - ay * len, X + ax * len, Y + ay * len);
+      g.addColorStop(0, `rgba(${c},0)`);
+      g.addColorStop(0.5, `rgba(255,255,255,${(0.85 * Math.min(1, spikes)).toFixed(3)})`);
+      g.addColorStop(1, `rgba(${c},0)`);
+      ctx.strokeStyle = g;
+      ctx.lineWidth = Math.max(0.6, 0.55 * k);
+      ctx.beginPath(); ctx.moveTo(X - ax * len, Y - ay * len); ctx.lineTo(X + ax * len, Y + ay * len); ctx.stroke();
+    }
+  }
+  ctx.restore();
 }
