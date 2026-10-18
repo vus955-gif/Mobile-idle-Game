@@ -7,12 +7,22 @@ import { makeCanvas } from './canvas.js';
 
 const FADE_MS = 400;
 const FRAME_MS = 33;
+// Strażnik workera: jeśli przez tyle czasu nie przyśle żadnej odpowiedzi, uznajemy go za martwego.
+const WORKER_TIMEOUT_MS = 5000;
 
 // Rozmiar w pikselach zaokrąglony w górę do wielokrotności 64 — drobne zmiany rozmiaru nie wymagają nowego obrazu.
 export const sizeBucket = (px) => Math.max(64, Math.ceil(px / 64) * 64);
 // Tylko widoki Ziemi zależą od pory dnia i pogody.
 export const envKey = (id, env = {}) => (EARTH_RECIPES[id] ? `${env.phase}|${env.weather}` : '');
 export const cacheKey = (id, env, w, h) => `${id}|${envKey(id, env)}|${sizeBucket(w)}x${sizeBucket(h)}`;
+// Limit pikseli obrazu tła: większe sceny (tryb zen na dużym telefonie) liczą się w mniejszej rozdzielczości
+// o tych samych proporcjach i są skalowane w górę — tło jest miękkie, a czas liczenia zostaje w budżecie.
+export const MAX_RENDER_PIXELS = 600000;
+export function renderSize(w, h) {
+  let W = sizeBucket(w), H = sizeBucket(h);
+  if (W * H > MAX_RENDER_PIXELS) { const f = Math.sqrt(MAX_RENDER_PIXELS / (W * H)); W = Math.floor(W * f); H = Math.floor(H * f); }
+  return [W, H];
+}
 
 // Pamięć podręczna LRU: przy przepełnieniu wyrzuca najdawniej używany obraz i go zamyka
 // (chyba że keep(v) każe go zostawić, bo jest właśnie na ekranie).
@@ -51,12 +61,14 @@ export function createWorker() {
 
 export class Backdrop {
   // host — element, od którego bierzemy rozmiar; deps — zależności (w testach podmieniane):
-  // canvases { main, anim }, createWorker, raf, caf, isActive, dpr, renderLocal, defer, now, recipeFor.
+  // canvases { main, anim }, createWorker, raf, caf, isActive, dpr, renderLocal, defer, now, recipeFor,
+  // timeout/clearTimeout (strażnik workera).
   constructor(host, deps = {}) {
     this.host = host;
     this.deps = {
       raf: (fn) => requestAnimationFrame(fn), caf: (i) => cancelAnimationFrame(i),
       isActive: () => true, dpr: () => 1, defer: (fn) => setTimeout(fn, 0), now: () => performance.now(),
+      timeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (id) => clearTimeout(id),
       recipeFor: defaultRecipeFor, createWorker, ...deps,
     };
     this.deps.renderLocal ||= (id, env, w, h) => renderLocal(id, env, w, h, this.deps.recipeFor);
@@ -76,8 +88,37 @@ export class Backdrop {
     this.env = {};
     this.quality = 'full';
     this.light = this.recipe.light({});
+    this.watchId = null;
+    this.animBroken = null;
     this.worker = this.deps.createWorker ? this.deps.createWorker() : null;
-    if (this.worker) this.worker.onmessage = (e) => this.onResult(e.data);
+    if (this.worker) {
+      this.worker.onmessage = (e) => { this.rearm(); this.onResult(e.data); };
+      // moduł workera się nie załadował, rzucił przy starcie albo system go zabił: dalej liczy główny wątek
+      this.worker.onerror = this.worker.onmessageerror = () => this.workerDied();
+    }
+  }
+
+  // Martwy worker: zamykamy go, a chciany render (jeśli czeka) liczy główny wątek.
+  workerDied() {
+    if (!this.worker) return;
+    try { this.worker.terminate(); } catch { /* już nie żyje */ }
+    this.worker = null;
+    this.disarm();
+    for (const [req, r] of [...this.reqKeys]) {
+      if (r.key === this.wantKey && !r.local) { r.local = true; this.local(req); } else if (!r.local) this.reqKeys.delete(req);
+    }
+  }
+
+  // Strażnik czasu: uzbrojony, dopóki chciany render czeka na workera; każda wiadomość od workera go odnawia.
+  rearm() {
+    this.disarm();
+    if (!this.worker || ![...this.reqKeys.values()].some((r) => r.key === this.wantKey && !r.local)) return;
+    this.watchId = this.deps.timeout(() => { this.watchId = null; this.workerDied(); }, WORKER_TIMEOUT_MS);
+  }
+
+  disarm() {
+    if (this.watchId !== null) this.deps.clearTimeout(this.watchId);
+    this.watchId = null;
   }
 
   pixelSize() {
@@ -85,8 +126,13 @@ export class Backdrop {
     return [Math.round(this.host.clientWidth * d), Math.round(this.host.clientHeight * d)];
   }
 
-  // Pokaż widok id (env: pora dnia, pogoda…; quality: 'full' | 'eco').
-  show(id, env = {}, { quality = 'full' } = {}) {
+  // Pokaż widok id (env: pora dnia, pogoda…; quality: 'full' | 'eco'). Nigdy nie rzuca: tło nie może
+  // zatrzymać pętli gry (np. gdy iOS przy braku pamięci odmówi płótna).
+  show(id, env = {}, opts = {}) {
+    try { this.showUnsafe(id, env, opts); } catch { /* zostaje to, co już jest na ekranie */ }
+  }
+
+  showUnsafe(id, env, { quality = 'full' } = {}) {
     this.recipe = this.deps.recipeFor(id);
     this.id = this.recipe.id;
     this.env = env;
@@ -99,7 +145,10 @@ export class Backdrop {
     if (key === this.shownKey && this.shown) { this.draw(1); this.tick(); return; }
     const hit = this.cache.get(key);
     if (hit) this.present(hit, key, this.id, false);
-    else { this.placeholder(w, h); this.request(this.id, env, w, h, key); }
+    else if ([...this.reqKeys.values()].some((r) => r.key === key)) {
+      // ten obraz już się liczy (np. szybkie A → B → A): nie zamawiamy drugi raz, tylko czekamy na wynik
+      if (this.wantKey !== key) { this.wantKey = key; this.placeholder(w, h); this.rearm(); }
+    } else { this.placeholder(w, h); this.request(this.id, env, w, h, key); }
     this.tick();
   }
 
@@ -119,6 +168,7 @@ export class Backdrop {
   // Gradient zastępczy: kolory przepisu (stops) albo przyciemniony kolor jego światła.
   placeholder(w, h) {
     const ctx = this.main.getContext('2d');
+    if (!ctx) return;
     const st = typeof this.recipe.stops === 'function' ? this.recipe.stops(this.env) : this.recipe.stops;
     const c = this.light.color, dark = (f) => `rgb(${(c[0] * f) | 0},${(c[1] * f) | 0},${(c[2] * f) | 0})`;
     const stops = st || [dark(0.04), dark(0.1), dark(0.22)];
@@ -135,10 +185,11 @@ export class Backdrop {
     const req = ++this.req;
     this.wantKey = key;
     this.reqKeys.set(req, { key, id, env, w, h });
-    const W = sizeBucket(w), H = sizeBucket(h);
+    const [W, H] = renderSize(w, h);
     if (this.worker) {
-      try { this.worker.postMessage({ req, id, env, w: W, h: H }); return; } catch { /* awaria workera → wariant lokalny */ }
+      try { this.worker.postMessage({ req, id, env, w: W, h: H }); this.rearm(); return; } catch { this.workerDied(); return; }
     }
+    this.reqKeys.get(req).local = true;
     this.local(req);
   }
 
@@ -146,9 +197,10 @@ export class Backdrop {
     const r = this.reqKeys.get(req);
     if (!r) return;
     this.deps.defer(() => {
-      if (req !== this.req) { this.reqKeys.delete(req); return; }
+      if (r.key !== this.wantKey) { this.reqKeys.delete(req); return; }
       try {
-        const c = this.deps.renderLocal(r.id, r.env, Math.round(sizeBucket(r.w) / 2), Math.round(sizeBucket(r.h) / 2));
+        const [W, H] = renderSize(r.w, r.h);
+        const c = this.deps.renderLocal(r.id, r.env, Math.floor(W / 2), Math.floor(H / 2));
         this.onResult({ req, bitmap: c, local: true });
       } catch { this.reqKeys.delete(req); }
     });
@@ -157,10 +209,17 @@ export class Backdrop {
   onResult({ req, bitmap, error }) {
     const r = this.reqKeys.get(req);
     if (!r) { bitmap?.close?.(); return; }
-    if (error || !bitmap) { if (req === this.req) this.local(req); else this.reqKeys.delete(req); return; }
+    if (error || !bitmap) {
+      if (r.key === this.wantKey && !r.local) { r.local = true; this.local(req); } else this.reqKeys.delete(req);
+      return;
+    }
     this.reqKeys.delete(req);
+    // ten sam obraz już jest na ekranie: drugi egzemplarz tylko by mignął przejściem
+    if (r.key === this.shownKey) { if (bitmap !== this.shown) bitmap.close?.(); return; }
     this.cache.set(r.key, bitmap);
-    if (req !== this.req) return;
+    // spóźniony wynik pokazujemy tylko wtedy, gdy to wciąż chciany widok (A → B → A)
+    if (r.key !== this.wantKey) return;
+    this.disarm();
     this.present(bitmap, r.key, r.id, true);
   }
 
@@ -177,6 +236,7 @@ export class Backdrop {
   draw(a) {
     if (!this.shown) return;
     const ctx = this.main.getContext('2d'), w = this.main.width, h = this.main.height;
+    if (!ctx) return;
     ctx.globalCompositeOperation = 'source-over';
     if (a < 1 && this.placeholderStops) {
       const g = ctx.createLinearGradient(0, 0, 0, h), s = this.placeholderStops;
@@ -193,16 +253,16 @@ export class Backdrop {
   // animateWhen(env) — opcjonalny warunek przepisu (np. zorza tylko nocą); bez niego animacja działa zawsze
   animates() {
     const r = this.recipe;
-    return !!r.animate && (!r.animateWhen || !!r.animateWhen(this.env)) && this.quality === 'full' && this.deps.isActive();
+    return !!r.animate && this.animBroken !== r && (!r.animateWhen || !!r.animateWhen(this.env)) && this.quality === 'full' && this.deps.isActive();
   }
   needsLoop() { return !!this.fade || (this.animates() && !!this.shown); }
 
   // Uruchamia pętlę, jeśli jest potrzebna i jeszcze nie działa (UI woła to w swojej pętli, np. po powrocie na Biuro).
   tick() {
-    if (this.loop !== null || !this.needsLoop()) return;
+    try { if (this.loop !== null || !this.needsLoop()) return; } catch { return; }
     const frame = (ts) => {
       this.loop = null;
-      this.frame(ts);
+      try { this.frame(ts); } catch { this.fade = null; }
       if (this.needsLoop() && this.loop === null) this.loop = this.deps.raf(frame);
     };
     this.loop = this.deps.raf(frame);
@@ -214,17 +274,26 @@ export class Backdrop {
       if (p >= 1) { this.fade = null; this.draw(1); } else this.draw(p);
     }
     const actx = this.anim.getContext('2d');
+    if (!actx) return;
     if (!this.animates()) { if (this.animDrawn) { actx.clearRect(0, 0, this.anim.width, this.anim.height); this.animDrawn = false; } return; }
     if (ts - this.lastAnim < FRAME_MS) return;
     this.lastAnim = ts;
     actx.clearRect(0, 0, this.anim.width, this.anim.height);
-    this.recipe.animate(actx, this.anim.width, this.anim.height, ts / 1000);
-    this.animDrawn = true;
+    try {
+      this.recipe.animate(actx, this.anim.width, this.anim.height, ts / 1000);
+      this.animDrawn = true;
+    } catch {
+      // zepsuta animacja: wyłączamy ją dla tego przepisu, zamiast rzucać co klatkę
+      this.animBroken = this.recipe;
+      actx.clearRect(0, 0, this.anim.width, this.anim.height);
+      this.animDrawn = false;
+    }
   }
 
   destroy() {
     if (this.loop !== null) this.deps.caf(this.loop);
     this.loop = null;
+    this.disarm();
     this.worker?.terminate?.();
     this.shown = null;
     this.cache.clear();

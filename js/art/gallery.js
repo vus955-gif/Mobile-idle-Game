@@ -7,7 +7,9 @@ import { UNIVERSE_RECIPES } from './views/universe.js';
 import { officeName } from '../text.js';
 
 const BUDGET_MS = 125;
-const W = 600, H = 800;
+// ?size=SZERxWYS — rozmiar kadru w pikselach (domyślnie 600×800); proporcje i czasy jak na telefonie, np.
+// 704x640 (iPhone SE), 832x1152 (iPhone 16 Pro Max), 896x1920 (tryb zen)
+const [W, H] = (new URLSearchParams(location.search).get('size') || '600x800').split('x').map((v) => Math.max(64, Number(v) || 0));
 // ?stage=earth|space|galaxy|universe — tylko jeden etap (szybszy przegląd)
 const ONLY = new URLSearchParams(location.search).get('stage');
 const STAGES = [
@@ -35,6 +37,7 @@ function build() {
       const fig = document.createElement('figure');
       const frame = document.createElement('div');
       frame.className = 'frame';
+      frame.style.height = `${Math.round((300 * H) / W)}px`;
       const main = document.createElement('canvas');
       main.width = W; main.height = H;
       const anim = document.createElement('canvas');

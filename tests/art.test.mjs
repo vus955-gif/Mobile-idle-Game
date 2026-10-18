@@ -14,7 +14,7 @@ import { horizon } from '../js/art/kit/surface.js';
 import { earthSky, sunMoon, cloudBank, cityPlanes, mountains, water, fogBank } from '../js/art/kit/earth.js';
 import { RECIPES, VIEW_IDS, recipeFor, validLight } from '../js/art/views/index.js';
 import { LAYERS, LAYER_ORDER } from '../js/layers.js';
-import { sizeBucket, envKey, cacheKey, Lru, Backdrop } from '../js/art/backdrop.js';
+import { sizeBucket, envKey, cacheKey, Lru, Backdrop, MAX_RENDER_PIXELS } from '../js/art/backdrop.js';
 
 setCanvasFactory(mockCanvas);
 
@@ -186,7 +186,7 @@ test('views: każdy przepis rysuje bez wyjątku i deterministycznie', () => {
 
 // ---------- zarządca tła: fałszywy worker, raf i host ----------
 function fakeWorker() {
-  const w = { sent: [], onmessage: null, postMessage(m) { w.sent.push(m); }, reply(req, data) { w.onmessage({ data: { req, ...data } }); }, terminate() {} };
+  const w = { sent: [], onmessage: null, onerror: null, terminated: false, postMessage(m) { if (w.terminated) throw new Error('martwy worker'); w.sent.push(m); }, reply(req, data) { w.onmessage({ data: { req, ...data } }); }, terminate() { w.terminated = true; } };
   return w;
 }
 function fakeRaf() {
@@ -197,7 +197,7 @@ function fakeRaf() {
 function makeBackdrop({ worker = fakeWorker(), active = { on: true }, local = [], size = { w: 150, h: 200 }, animated = false, deps = null } = {}) {
   const r = fakeRaf();
   const host = { get clientWidth() { return size.w; }, get clientHeight() { return size.h; } };
-  const deferred = [];
+  const deferred = [], timers = [];
   const bd = new Backdrop(host, {
     canvases: { main: mockCanvas(1, 1), anim: mockCanvas(1, 1) },
     createWorker: () => worker,
@@ -206,11 +206,12 @@ function makeBackdrop({ worker = fakeWorker(), active = { on: true }, local = []
     dpr: () => 2,
     defer: (fn) => deferred.push(fn),
     now: () => r.t,
+    timeout: (fn, ms) => timers.push({ fn, ms }), clearTimeout: (id) => { if (timers[id - 1]) timers[id - 1].fn = null; },
     renderLocal: (id, env, w, h) => { local.push({ id, w, h }); return mockCanvas(w, h); },
     recipeFor: animated ? (id) => ({ ...recipeFor(id), animate: () => {} }) : recipeFor,
     ...(deps || {}),
   });
-  return { bd, worker, r, active, local, size, deferred };
+  return { bd, worker, r, active, local, size, deferred, timers };
 }
 const bitmap = () => ({ width: 320, height: 448, closed: false, close() { this.closed = true; } });
 
@@ -383,4 +384,96 @@ test('sw.js: pamięć offline zawiera każdy moduł oprawy (poza galerią dewelo
   const files = walk('../js/art/').filter((f) => f.endsWith('.js') && !f.endsWith('/gallery.js')).map((f) => f.replace('../', './'));
   const missing = files.filter((f) => !sw.includes(`'${f}'`));
   assert.deepEqual(missing, []);
+});
+
+test('backdrop: worker, który pada bez odpowiedzi (zdarzenie error), oddaje render głównemu wątkowi', () => {
+  const { bd, worker, local, deferred } = makeBackdrop();
+  bd.show('sgr', {}, { quality: 'full' });
+  assert.equal(typeof worker.onerror, 'function', 'nasłuch błędu workera');
+  worker.onerror({ message: 'moduł się nie załadował' });
+  assert.ok(worker.terminated, 'martwy worker zamknięty');
+  deferred.splice(0).forEach((fn) => fn());
+  assert.equal(local.length, 1, 'render na głównym wątku');
+  assert.equal(bd.shownId, 'sgr');
+  bd.show('orion', {}, { quality: 'full' });
+  deferred.splice(0).forEach((fn) => fn());
+  assert.equal(worker.sent.length, 1, 'kolejne widoki nie idą do martwego workera');
+  assert.equal(bd.shownId, 'orion');
+});
+
+test('backdrop: milczący worker (strażnik czasu) też oddaje render głównemu wątkowi', () => {
+  const { bd, worker, local, deferred, timers } = makeBackdrop();
+  bd.show('sgr', {}, { quality: 'full' });
+  const t = timers.find((x) => x.fn);
+  assert.ok(t && t.ms >= 2000, 'strażnik czasu ustawiony');
+  t.fn();
+  deferred.splice(0).forEach((fn) => fn());
+  assert.equal(local.length, 1);
+  assert.equal(bd.shownId, 'sgr');
+  assert.ok(worker.terminated);
+});
+
+test('backdrop: ten sam widok zamówiony ponownie w trakcie liczenia nie liczy się drugi raz', () => {
+  const { bd, worker } = makeBackdrop();
+  bd.show('sgr', {}, { quality: 'full' });
+  bd.show('sgr', {}, { quality: 'full' });
+  bd.show('sgr', {}, { quality: 'full' });
+  assert.equal(worker.sent.length, 1);
+  worker.reply(worker.sent[0].req, { bitmap: bitmap(), ms: 5 });
+  assert.equal(bd.shownId, 'sgr');
+  assert.equal(bd.fade !== null, true, 'jedno przejście');
+});
+
+test('backdrop: A → B → A pokazuje A, gdy tylko pierwszy wynik A wróci (bez trzeciego renderu)', () => {
+  const { bd, worker } = makeBackdrop();
+  bd.show('sgr', {}, { quality: 'full' });
+  bd.show('orion', {}, { quality: 'full' });
+  bd.show('sgr', {}, { quality: 'full' });
+  assert.equal(worker.sent.length, 2, 'sgr nie jest zamawiany drugi raz');
+  worker.reply(worker.sent[0].req, { bitmap: bitmap(), ms: 5 });
+  assert.equal(bd.shownId, 'sgr', 'wynik sgr jest chciany, więc się pokazuje');
+  worker.reply(worker.sent[1].req, { bitmap: bitmap(), ms: 5 });
+  assert.equal(bd.shownId, 'sgr', 'spóźniony orion tylko trafia do pamięci');
+});
+
+test('backdrop: brak kontekstu płótna albo wyjątek animacji nie wychodzi do pętli gry', () => {
+  const dead = { width: 1, height: 1, getContext: () => null };
+  const { bd, worker, r } = makeBackdrop({ animated: true, deps: { canvases: { main: dead, anim: dead } } });
+  assert.doesNotThrow(() => bd.show('sgr', {}, { quality: 'full' }));
+  assert.doesNotThrow(() => worker.reply(worker.sent[0]?.req ?? 1, { bitmap: bitmap(), ms: 5 }));
+  assert.doesNotThrow(() => { bd.tick(); r.run(1000); r.run(2000); });
+  let calls = 0;
+  const rec = { ...recipeFor('sgr'), animate: () => { calls++; throw new Error('zły animator'); } };
+  const b2 = makeBackdrop({ deps: { recipeFor: () => rec } });
+  b2.bd.show('sgr', {}, { quality: 'full' });
+  b2.worker.reply(b2.worker.sent[0].req, { bitmap: bitmap(), ms: 5 });
+  assert.doesNotThrow(() => { b2.r.run(1000); b2.r.run(2000); b2.bd.tick(); b2.r.run(3000); });
+  assert.equal(calls, 1, 'zepsuty animator wyłączony po pierwszym błędzie');
+});
+
+test('views/space: leo ma krawędź Ziemi w tym samym miejscu przy każdych proporcjach sceny (SE, 16 Pro Max, zen)', () => {
+  for (const [w, h] of [[176, 160], [146, 200], [92, 200]]) {
+    const c = mockCanvas(w, h), ctx = c.getContext('2d');
+    SPACE_RECIPES.leo.draw(ctx, w, h, {});
+    const d = ctx.getImageData(0, 0, w, h).data;
+    const rowHit = (y) => { for (let x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] > 0) return true; return false; };
+    let top = false;
+    for (let y = 0; y < Math.floor(0.3 * h); y++) top ||= rowHit(y);
+    assert.equal(top, false, `${w}×${h}: górna część to kosmos`);
+    assert.equal(rowHit(Math.floor(0.85 * h)), true, `${w}×${h}: na dole widać Ziemię`);
+  }
+});
+
+test('backdrop: render ma limit pikseli (tryb zen na dużym telefonie), proporcje zostają', () => {
+  const { bd, worker, local, deferred } = makeBackdrop({ size: { w: 448, h: 960 } });
+  bd.show('sgr', {}, { quality: 'full' });
+  const { w, h } = worker.sent[0];
+  assert.ok(w * h <= MAX_RENDER_PIXELS, `${w}×${h} mieści się w limicie`);
+  assert.ok(Math.abs(w / h - 896 / 1920) < 0.02, 'proporcje sceny');
+  const small = makeBackdrop({ size: { w: 150, h: 200 } });
+  small.bd.show('sgr', {}, { quality: 'full' });
+  assert.deepEqual([small.worker.sent[0].w, small.worker.sent[0].h], [320, 448], 'mała scena bez zmian');
+  worker.onerror({});
+  deferred.splice(0).forEach((fn) => fn());
+  assert.ok(local[0].w * local[0].h <= MAX_RENDER_PIXELS / 4 + 1, 'wariant lokalny: połowa limitu na bok');
 });

@@ -47,9 +47,11 @@ export function nebula(ctx, w, h, { seed, palette, core, dust = 0.85, scale = 95
     const u = x / s, v = y / s;
     const wx = fbm(n2, u + 1.7, v + 9.2, 4), wy = fbm(n2, u + 8.3, v + 2.8, 4);
     const gas = fbm(n1, u + 1.6 * wx, v + 1.6 * wy, 6);
-    const tint = sstep(-0.25, 0.3, fbm(n3, u * 0.6 + 4, v * 0.6, 3));
     const c = Math.exp(-(Math.pow((x - cx) / cr, 2) + Math.pow((y - cy) / (cr * 1.15), 2)));
     let I = Math.pow(sstep(-0.15, 0.55, gas + c * 0.35), 1.6) * (0.35 + c * 0.9);
+    // tam, gdzie gazu nie ma, barwa i pył niczego nie zmienią — pomijamy ich szum (ten sam obraz, szybciej)
+    if (I <= 0) return;
+    const tint = sstep(-0.25, 0.3, fbm(n3, u * 0.6 + 4, v * 0.6, 3));
     I *= 1 - sstep(0.05, 0.32, fbm(n3, u * 1.4 + 7, v * 1.4 + 3 + wx * 0.8, 5)) * dust;
     const hot = Math.pow(clamp(I), 3);
     out[0] = mix(mix(A[0], B[0], tint), HOT[0], hot);
@@ -68,7 +70,8 @@ export function cosmicWeb(ctx, w, h, { seed, scale = 135, color, node, galaxies 
   const layer = pixelLayer(w, h, 0.5, (x, y, out) => {
     const u = x / s, v = y / s;
     const wx = fbm(n3, u + 3, v, 3) * 0.6, wy = fbm(n3, u, v + 5, 3) * 0.6;
-    const f = ridged(n1, u + wx, v + wy, 5), f2 = ridged(n2, u * 2.2 + 1, v * 2.2 + 4, 4);
+    // węzeł wymaga f·f2·1,25 > 0,62, a f2 ≤ 1 — przy słabszej nici drugi szum nic nie zmieni
+    const f = ridged(n1, u + wx, v + wy, 5), f2 = f * 1.25 > 0.62 ? ridged(n2, u * 2.2 + 1, v * 2.2 + 4, 4) : 0;
     const fil = Math.pow(sstep(0.62, 0.98, f), 3);
     const nod = Math.pow(sstep(0.62, 1, f * f2 * 1.25), 4);
     const halo = Math.pow(sstep(0.4, 0.95, f), 4) * 0.4;

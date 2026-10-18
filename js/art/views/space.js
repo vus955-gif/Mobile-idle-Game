@@ -85,7 +85,8 @@ const RECIPES = {
     focus: { x: 0.5, y: 0.45 }, stops: STOPS.leo, light: LIGHT.leo,
     draw(ctx, w, h) {
       spaceBase(ctx, w, h, { stops: BLACK, seed: 2101, count: 700 });
-      planet(ctx, { cx: 0.5, cy: 1.75, r: 1.733, seed: 71, kind: 'earth', light: [-0.92, 0.12, 0.05], atmosphere: [70, 150, 255], cityLights: true, clouds: 0.5, res: 0.6 });
+      // krawędź Ziemi zawsze na 0,45 wysokości: promień liczy się w szerokościach, więc środek zależy od proporcji
+      planet(ctx, { cx: 0.5, cy: 0.45 + (1.733 * w) / h, r: 1.733, seed: 71, kind: 'earth', light: [-0.92, 0.12, 0.05], atmosphere: [70, 150, 255], cityLights: true, clouds: 0.5, res: 0.6 });
       sun(ctx, { x: 0.1, y: 0.32, r: 0.03, color: [255, 220, 170], corona: 1.2, flare: 1 });
     },
     animate: satellite,
