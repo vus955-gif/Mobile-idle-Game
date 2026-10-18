@@ -190,7 +190,11 @@ export class Backdrop {
     ctx.globalAlpha = 1;
   }
 
-  animates() { return !!this.recipe.animate && this.quality === 'full' && this.deps.isActive(); }
+  // animateWhen(env) — opcjonalny warunek przepisu (np. zorza tylko nocą); bez niego animacja działa zawsze
+  animates() {
+    const r = this.recipe;
+    return !!r.animate && (!r.animateWhen || !!r.animateWhen(this.env)) && this.quality === 'full' && this.deps.isActive();
+  }
   needsLoop() { return !!this.fade || (this.animates() && !!this.shown); }
 
   // Uruchamia pętlę, jeśli jest potrzebna i jeszcze nie działa (UI woła to w swojej pętli, np. po powrocie na Biuro).

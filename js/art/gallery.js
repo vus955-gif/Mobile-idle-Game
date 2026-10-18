@@ -98,6 +98,7 @@ function animate() {
     last = ts;
     for (const t of tiles) {
       if (!t.recipe.animate) continue;
+      if (t.recipe.animateWhen && !t.recipe.animateWhen(t.earth ? env() : {})) { t.anim.getContext('2d').clearRect(0, 0, W, H); continue; }
       const ctx = t.anim.getContext('2d');
       ctx.clearRect(0, 0, W, H);
       t.recipe.animate(ctx, W, H, ts / 1000);

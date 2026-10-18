@@ -8,6 +8,7 @@ import { stars, milkyBand, nebula, cosmicWeb, aurora, auroraAnimator, brightStar
 import { GALAXY_RECIPES } from '../js/art/views/galaxy.js';
 import { UNIVERSE_RECIPES } from '../js/art/views/universe.js';
 import { SPACE_RECIPES } from '../js/art/views/space.js';
+import { EARTH_RECIPES } from '../js/art/views/earth.js';
 import { planet, rings, sun, galaxy, cluster, lens, blackHole, blackHoleAnimator } from '../js/art/kit/bodies.js';
 import { horizon } from '../js/art/kit/surface.js';
 import { earthSky, sunMoon, cloudBank, cityPlanes, mountains, water, fogBank } from '../js/art/kit/earth.js';
@@ -193,7 +194,7 @@ function fakeRaf() {
   const r = { q, t: 0, raf: (fn) => { q.set(++id, fn); return id; }, caf: (i) => q.delete(i), run(ts) { r.t = ts; const fns = [...q.values()]; q.clear(); for (const f of fns) f(ts); } };
   return r;
 }
-function makeBackdrop({ worker = fakeWorker(), active = { on: true }, local = [], size = { w: 150, h: 200 }, animated = false } = {}) {
+function makeBackdrop({ worker = fakeWorker(), active = { on: true }, local = [], size = { w: 150, h: 200 }, animated = false, deps = null } = {}) {
   const r = fakeRaf();
   const host = { get clientWidth() { return size.w; }, get clientHeight() { return size.h; } };
   const deferred = [];
@@ -207,6 +208,7 @@ function makeBackdrop({ worker = fakeWorker(), active = { on: true }, local = []
     now: () => r.t,
     renderLocal: (id, env, w, h) => { local.push({ id, w, h }); return mockCanvas(w, h); },
     recipeFor: animated ? (id) => ({ ...recipeFor(id), animate: () => {} }) : recipeFor,
+    ...(deps || {}),
   });
   return { bd, worker, r, active, local, size, deferred };
 }
@@ -330,4 +332,40 @@ test('views/space: brak przepisów zastępczych, animowane są leo i venus, Mars
   for (const id of ['leo', 'venus']) assert.equal(typeof SPACE_RECIPES[id].animate, 'function', `${id} animowany`);
   for (const id of ['mars', 'europa']) { const f = SPACE_RECIPES[id].focus; assert.ok(f.y <= 0.45 && f.x >= 0.15 && f.x <= 0.85, id); }
   for (const id of ids) SPACE_RECIPES[id].animate?.(mockCanvas(KW, KH).getContext('2d'), KW, KH, 4.1);
+});
+
+test('backdrop: animacja zależna od warunków (animateWhen) nie kręci pętli, gdy warunek nie zachodzi', () => {
+  let frames = 0;
+  const rec = { ...recipeFor('rkv'), animate: () => { frames++; }, animateWhen: (env) => env.phase === 'night' };
+  const { bd, worker, r } = makeBackdrop({ deps: { recipeFor: () => rec } });
+  bd.show('rkv', { phase: 'day', weather: 'clear' }, { quality: 'full' });
+  worker.reply(worker.sent[0].req, { bitmap: bitmap(), ms: 5 });
+  r.run(1000); r.run(2000);
+  assert.equal(r.q.size, 0, 'za dnia pętla staje po zanikaniu');
+  assert.equal(frames, 0, 'za dnia zorza się nie rysuje');
+  bd.show('rkv', { phase: 'night', weather: 'clear' }, { quality: 'full' });
+  worker.reply(worker.sent[1].req, { bitmap: bitmap(), ms: 5 });
+  r.run(3000); r.run(4000);
+  assert.ok(frames > 0, 'nocą zorza się rusza');
+  assert.equal(r.q.size, 1, 'nocą pętla trwa');
+});
+
+test('views/earth: brak przepisów zastępczych, zorza w Reykjavíku tylko nocą, noc ciemniejsza niż dzień', () => {
+  const ids = Object.keys(EARTH_RECIPES);
+  assert.equal(ids.length, 18);
+  for (const id of ids) assert.ok(!EARTH_RECIPES[id].placeholder, `${id} ma właściwy przepis`);
+  const rkv = EARTH_RECIPES.rkv;
+  assert.equal(typeof rkv.animate, 'function', 'rkv ma animację');
+  assert.equal(rkv.animateWhen({ phase: 'night', weather: 'clear' }), true, 'zorza nocą');
+  for (const phase of ['dawn', 'day', 'dusk']) assert.equal(rkv.animateWhen({ phase, weather: 'clear' }), false, `bez zorzy: ${phase}`);
+  const c = rkv.light({ phase: 'night', weather: 'clear' }).color;
+  assert.ok(c[1] > c[0], 'nocne światło w Reykjavíku niebiesko-zielone (G > R)');
+  for (const id of ids) {
+    const night = EARTH_RECIPES[id].light({ phase: 'night', weather: 'clear' }), day = EARTH_RECIPES[id].light({ phase: 'day', weather: 'clear' });
+    assert.ok(night.ambient < day.ambient && night.ambient <= 0.35, id);
+  }
+  for (const id of ids) for (const phase of ['night', 'dawn', 'day', 'dusk']) for (const weather of ['clear', 'cloudy', 'rain', 'snow', 'fog']) {
+    EARTH_RECIPES[id].draw(mockCanvas(KW, KH).getContext('2d'), KW, KH, { phase, weather });
+  }
+  rkv.animate(mockCanvas(KW, KH).getContext('2d'), KW, KH, 4.1);
 });

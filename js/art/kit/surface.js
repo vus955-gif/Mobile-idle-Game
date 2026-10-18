@@ -63,9 +63,9 @@ export function horizon(ctx, w, h, { seed, y, kind, haze = undefined, light = [-
     const H = fbm(nt, u, v, 3), e = 0.18;
     const hx = (fbm(nt, u + e, v, 3) - H) / e, hv = (fbm(nt, u, v + e, 3) - H) / e;
     let lit = 0.72 + clamp((-hx * Lx - hv * Ly * 0.7) * 0.38 * K.relief, -0.5, 0.55);
-    // duże stoki tuż pod grzbietem: strona zwrócona do światła jaśniejsza
+    // duże stoki tuż pod grzbietem: grzbiet opadający w prawo to ściana zwrócona w prawo (jaśniejsza przy świetle z prawej)
     const face = Math.exp(-below / (9 * s));
-    lit *= mix(1, clamp(1 - slopes[li][c] * lx * 3, 0.45, 1.5), face);
+    lit *= mix(1, clamp(1 + slopes[li][c] * lx * 3, 0.45, 1.5), face);
     // jasna krawędź grzbietu i cień u podnóża (dalej od grzbietu ciemniej)
     lit *= 1 + 0.35 * Math.exp(-below / (1.6 * s));
     lit *= 1 - 0.28 * sstep(0, 0.12 * h, below);
