@@ -6,6 +6,7 @@ import { makeCanvas, setCanvasFactory } from '../js/art/canvas.js';
 import { mockCanvas, hashPixels } from './helpers/mock-canvas.mjs';
 import { stars, milkyBand, nebula, cosmicWeb, aurora, auroraAnimator, brightStar } from '../js/art/kit/sky.js';
 import { GALAXY_RECIPES } from '../js/art/views/galaxy.js';
+import { UNIVERSE_RECIPES } from '../js/art/views/universe.js';
 import { planet, rings, sun, galaxy, cluster, lens, blackHole, blackHoleAnimator } from '../js/art/kit/bodies.js';
 import { horizon } from '../js/art/kit/surface.js';
 import { earthSky, sunMoon, cloudBank, cityPlanes, mountains, water, fogBank } from '../js/art/kit/earth.js';
@@ -310,4 +311,13 @@ test('views/galaxy: brak przepisów zastępczych, animowane są sol, crab, orion
     const c = mockCanvas(KW, KH).getContext('2d');
     GALAXY_RECIPES[id].animate?.(c, KW, KH, 2.5);
   }
+});
+
+test('views/universe: brak przepisów zastępczych, animowane są virgo i attractor, Pustka Wolarza przygaszona', () => {
+  const ids = Object.keys(UNIVERSE_RECIPES);
+  assert.equal(ids.length, 9);
+  for (const id of ids) assert.ok(!UNIVERSE_RECIPES[id].placeholder, `${id} ma właściwy przepis`);
+  for (const id of ['virgo', 'attractor']) assert.equal(typeof UNIVERSE_RECIPES[id].animate, 'function', `${id} animowany`);
+  assert.ok(UNIVERSE_RECIPES.bootes.light({}).ambient <= 0.2);
+  for (const id of ids) UNIVERSE_RECIPES[id].animate?.(mockCanvas(KW, KH).getContext('2d'), KW, KH, 3.2);
 });

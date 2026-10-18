@@ -182,7 +182,7 @@ export function sun(ctx, { x, y, r, color, corona = 1, flare = 0, core = [255, 2
 
 // Galaktyka spiralna albo eliptyczna. r — ułamek szerokości, tilt — spłaszczenie (oś krótka / długa),
 // rot — obrót w radianach, arms — liczba ramion, dust — siła pasm pyłu.
-export function galaxy(ctx, { cx, cy, r, tilt, rot, seed, type, arms = 2, core, arm, dust = 0.6 }) {
+export function galaxy(ctx, { cx, cy, r, tilt, rot, seed, type, arms = 2, core, arm, dust = 0.6, bright = 1 }) {
   const [w, h] = dims(ctx);
   const CX = cx * w, CY = cy * h, R = r * w, cr = Math.cos(rot), sr = Math.sin(rot);
   const n = perlin(seed), nd = perlin(seed + 9);
@@ -207,7 +207,7 @@ export function galaxy(ctx, { cx, cy, r, tilt, rot, seed, type, arms = 2, core, 
     }
     let rC = mix(arm[0], core[0], coreW), gC = mix(arm[1], core[1], coreW), bC = mix(arm[2], core[2], coreW);
     rC = mix(rC, 255, pink); gC = mix(gC, 120, pink); bC = mix(bC, 170, pink);
-    out[0] = rC; out[1] = gC; out[2] = bC; out[3] = clamp(I) * 255;
+    out[0] = rC; out[1] = gC; out[2] = bC; out[3] = clamp(I * bright) * 255;
   });
   paint(ctx, reg, 'lighter');
 }
