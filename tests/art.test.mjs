@@ -5,6 +5,7 @@ import { rng, perlin, fbm, ridged } from '../js/art/noise.js';
 import { makeCanvas, setCanvasFactory } from '../js/art/canvas.js';
 import { mockCanvas, hashPixels } from './helpers/mock-canvas.mjs';
 import { stars, milkyBand, nebula, cosmicWeb, aurora, auroraAnimator } from '../js/art/kit/sky.js';
+import { planet, rings, sun, galaxy, cluster, lens, blackHole, blackHoleAnimator } from '../js/art/kit/bodies.js';
 
 setCanvasFactory(mockCanvas);
 
@@ -84,4 +85,33 @@ test('kit/sky: każdy klocek rysuje bez wyjątku, deterministycznie i zmienia pi
   const c = mockCanvas(KW, KH).getContext('2d');
   anim(c, KW, KH, 1.5);
   assert.ok(c.calls.length > 0, 'animator zorzy rysuje');
+});
+
+test('kit/bodies: klocki rysują bez wyjątku i deterministycznie', () => {
+  const L = [-0.8, 0.2, 0.4];
+  for (const kind of ['earth', 'rocky', 'gas', 'ice', 'lava']) {
+    pixelsDeterministic(`planet ${kind}`, (c) => planet(c, {
+      cx: 0.5, cy: 0.9, r: 0.8, seed: 9, kind, light: L, atmosphere: kind === 'earth' ? [70, 150, 255] : null,
+      cityLights: kind === 'earth', bands: kind === 'gas' ? [[200, 160, 120], [240, 220, 190], [170, 110, 80]] : null,
+      spot: kind === 'gas' ? { lat: -0.35, lon: 0.4, r: 0.18, color: [200, 90, 60] } : null,
+    }));
+  }
+  pixelsDeterministic('galaxy spiral', (c) => galaxy(c, { cx: 0.5, cy: 0.3, r: 0.4, tilt: 0.4, rot: 0.3, seed: 2, type: 'spiral', core: [255, 230, 190], arm: [180, 200, 255] }));
+  pixelsDeterministic('galaxy elliptical', (c) => galaxy(c, { cx: 0.5, cy: 0.3, r: 0.3, tilt: 0.7, rot: 0.1, seed: 3, type: 'elliptical', core: [255, 220, 170], arm: [255, 210, 160] }));
+  callsDeterministic('rings', (c) => rings(c, { cx: 0.5, cy: 0.4, r1: 0.3, r2: 0.5, tilt: 0.2, color: [220, 200, 170], light: L }));
+  callsDeterministic('sun', (c) => sun(c, { x: 0.2, y: 0.2, r: 0.05, color: [255, 220, 170], corona: 1, flare: 1 }));
+  callsDeterministic('cluster', (c) => cluster(c, { cx: 0.5, cy: 0.35, r: 0.3, count: 400, seed: 4, color: [255, 220, 170] }));
+  pixelsDeterministic('lens', (c) => {
+    const img = c.createImageData(KW, KH);
+    for (let i = 0; i < img.data.length; i += 4) { img.data[i] = (i / 4) % 251; img.data[i + 3] = 255; }
+    c.putImageData(img, 0, 0);
+    lens(c, KW, KH, { cx: 0.5, cy: 0.45, shadow: 0.11, thetaE: 0.2 });
+  });
+  pixelsDeterministic('blackHole', (c) => blackHole(c, KW, KH, { cx: 0.5, cy: 0.42, shadow: 0.11, seed: 5 }));
+  const anim = blackHole(mockCanvas(KW, KH).getContext('2d'), KW, KH, { cx: 0.5, cy: 0.42, shadow: 0.11, seed: 5 });
+  assert.equal(typeof anim, 'function');
+  const c = mockCanvas(KW, KH).getContext('2d');
+  anim(c, KW, KH, 1.5);
+  assert.ok(c.calls.includes('ellipse'), 'smugi dysku');
+  assert.equal(typeof blackHoleAnimator({ cx: 0.5, cy: 0.42, shadow: 0.11, seed: 5 }), 'function');
 });
