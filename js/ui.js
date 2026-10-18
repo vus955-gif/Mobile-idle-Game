@@ -2156,7 +2156,8 @@ export class UI {
       <div class="setting"><div>${t('set.devMult')}<p>${t('set.devMultHint')}</p></div>
         <div class="seg">${DEV_MULTS.map((x) => `<button data-act="dev-mult" data-v="${x}" class="${x === st.devMult ? 'on' : ''}">×${x}</button>`).join('')}</div></div>
       <div class="setting"><div>${t('set.devSkip')}<p>${t('set.devSkipHint')}</p></div>
-        <div class="seg">${skips.map(([sec, label]) => `<button data-act="dev-skip" data-v="${sec}">${label}</button>`).join('')}</div></div>` : ''}`;
+        <div class="seg">${skips.map(([sec, label]) => `<button data-act="dev-skip" data-v="${sec}">${label}</button>`).join('')}</div></div>
+      <div class="setting"><div>${t('set.devGallery')}<p>${t('set.devGalleryHint')}</p></div><a class="btn btn-small ghost" href="tools/gallery.html" target="_blank" rel="noopener">${t('set.show')}</a></div>` : ''}`;
   }
 
   rename() {

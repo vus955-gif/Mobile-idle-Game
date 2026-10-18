@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Galeria widoków — Krzemowe Imperium</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #0c0b14; color: #e8e6f5; font-family: ui-rounded, "SF Pro Rounded", system-ui, "Segoe UI", sans-serif; }
+    header { position: sticky; top: 0; z-index: 2; background: rgba(12, 11, 20, .92); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(255, 255, 255, .08); padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+    h1 { font-size: 18px; margin: 0; }
+    label { font-size: 13px; color: #a7a3c4; }
+    select { margin-left: 6px; background: #1b1930; color: #fff; border: 1px solid #3a3660; border-radius: 8px; padding: 4px 8px; font: inherit; }
+    #summary { font-size: 13px; color: #7dffb6; font-family: ui-monospace, monospace; }
+    h2 { font-size: 16px; margin: 22px 16px 4px; }
+    .grid { display: flex; flex-wrap: wrap; gap: 16px; padding: 10px 16px 8px; }
+    figure { margin: 0; width: 300px; }
+    .frame { position: relative; width: 300px; height: 400px; border-radius: 18px; overflow: hidden; background: #000; box-shadow: 0 10px 26px rgba(0, 0, 0, .5); }
+    .frame canvas { position: absolute; inset: 0; width: 300px; height: 400px; display: block; }
+    figcaption { margin-top: 6px; font-size: 13px; color: #a7a3c4; display: flex; justify-content: space-between; gap: 8px; }
+    figcaption b { color: #fff; }
+    .ms { font-family: ui-monospace, monospace; color: #7dffb6; }
+    .ms.slow { color: #ff7a7a; }
+    .tag { font-size: 11px; color: #ffd36e; margin-left: 4px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Galeria widoków zza okna</h1>
+    <label>Pora dnia (Ziemia)<select id="phase"><option value="night">noc</option><option value="dawn">świt</option><option value="day" selected>dzień</option><option value="dusk">zmierzch</option></select></label>
+    <label>Pogoda (Ziemia)<select id="weather"><option value="clear" selected>bezchmurnie</option><option value="cloudy">pochmurno</option><option value="rain">deszcz</option><option value="snow">śnieg</option><option value="fog">mgła</option></select></label>
+    <span id="summary">liczę…</span>
+  </header>
+  <main id="sections"></main>
+  <script type="module" src="../js/art/gallery.js"></script>
+</body>
+</html>
