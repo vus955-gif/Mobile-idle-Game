@@ -10,6 +10,7 @@ import { horizon } from '../js/art/kit/surface.js';
 import { earthSky, sunMoon, cloudBank, cityPlanes, mountains, water, fogBank } from '../js/art/kit/earth.js';
 import { RECIPES, VIEW_IDS, recipeFor, validLight } from '../js/art/views/index.js';
 import { LAYERS, LAYER_ORDER } from '../js/layers.js';
+import { sizeBucket, envKey, cacheKey, Lru, Backdrop } from '../js/art/backdrop.js';
 
 setCanvasFactory(mockCanvas);
 
@@ -177,4 +178,117 @@ test('views: każdy przepis rysuje bez wyjątku i deterministycznie', () => {
     assert.equal(hashPixels(a), hashPixels(b), id);
     assert.ok(a.getContext('2d').calls.length > 0, `${id} coś rysuje`);
   }
+});
+
+// ---------- zarządca tła: fałszywy worker, raf i host ----------
+function fakeWorker() {
+  const w = { sent: [], onmessage: null, postMessage(m) { w.sent.push(m); }, reply(req, data) { w.onmessage({ data: { req, ...data } }); }, terminate() {} };
+  return w;
+}
+function fakeRaf() {
+  const q = new Map(); let id = 0;
+  const r = { q, t: 0, raf: (fn) => { q.set(++id, fn); return id; }, caf: (i) => q.delete(i), run(ts) { r.t = ts; const fns = [...q.values()]; q.clear(); for (const f of fns) f(ts); } };
+  return r;
+}
+function makeBackdrop({ worker = fakeWorker(), active = { on: true }, local = [], size = { w: 150, h: 200 }, animated = false } = {}) {
+  const r = fakeRaf();
+  const host = { get clientWidth() { return size.w; }, get clientHeight() { return size.h; } };
+  const deferred = [];
+  const bd = new Backdrop(host, {
+    canvases: { main: mockCanvas(1, 1), anim: mockCanvas(1, 1) },
+    createWorker: () => worker,
+    raf: r.raf, caf: r.caf,
+    isActive: () => active.on,
+    dpr: () => 2,
+    defer: (fn) => deferred.push(fn),
+    now: () => r.t,
+    renderLocal: (id, env, w, h) => { local.push({ id, w, h }); return mockCanvas(w, h); },
+    recipeFor: animated ? (id) => ({ ...recipeFor(id), animate: () => {} }) : recipeFor,
+  });
+  return { bd, worker, r, active, local, size, deferred };
+}
+const bitmap = () => ({ width: 320, height: 448, closed: false, close() { this.closed = true; } });
+
+test('backdrop: cacheKey i sizeBucket', () => {
+  assert.equal(sizeBucket(1), 64);
+  assert.equal(sizeBucket(640), 640);
+  assert.equal(sizeBucket(641), 704);
+  const env = { phase: 'dusk', weather: 'rain' };
+  assert.equal(envKey('waw', env), 'dusk|rain');
+  assert.equal(envKey('sgr', env), '');
+  assert.ok(cacheKey('waw', env, 300, 400).includes('dusk|rain'));
+  assert.equal(cacheKey('sgr', env, 300, 400), 'sgr||320x448');
+});
+
+test('backdrop: lru closes evicted bitmaps', () => {
+  const lru = new Lru(2), a = bitmap(), b = bitmap(), c = bitmap();
+  lru.set('a', a); lru.set('b', b);
+  lru.get('a');
+  lru.set('c', c);
+  assert.equal(b.closed, true, 'najdawniej używany wyrzucony i zamknięty');
+  assert.equal(a.closed, false);
+  assert.equal(lru.get('b'), undefined);
+});
+
+test('backdrop: ignores stale worker results', () => {
+  const { bd, worker } = makeBackdrop();
+  bd.show('sgr', {}, { quality: 'full' });
+  bd.show('orion', {}, { quality: 'full' });
+  const [first, second] = worker.sent;
+  assert.equal(first.id, 'sgr'); assert.equal(second.id, 'orion');
+  worker.reply(second.req, { bitmap: bitmap(), ms: 5 });
+  assert.equal(bd.shownId, 'orion');
+  worker.reply(first.req, { bitmap: bitmap(), ms: 5 });
+  assert.equal(bd.shownId, 'orion', 'spóźniony wynik nie nadpisuje nowszego');
+  bd.show('sgr', {}, { quality: 'full' });
+  assert.equal(worker.sent.length, 2, 'spóźniony wynik trafił do pamięci podręcznej');
+  assert.equal(bd.shownId, 'sgr');
+});
+
+test('backdrop: re-renders when size bucket changes', () => {
+  const { bd, worker, size } = makeBackdrop();
+  bd.show('orion', {}, { quality: 'full' });
+  assert.deepEqual([worker.sent[0].w, worker.sent[0].h], [320, 448]);
+  size.w = 152; bd.resize();
+  assert.equal(worker.sent.length, 1, 'ten sam kubełek — bez nowego renderu');
+  size.w = 200; size.h = 300; bd.resize();
+  assert.equal(worker.sent.length, 2);
+  assert.deepEqual([worker.sent[1].w, worker.sent[1].h], [448, 640]);
+});
+
+test('backdrop: falls back to main thread when worker fails', () => {
+  const none = makeBackdrop({ worker: null });
+  none.bd.show('orion', {}, { quality: 'full' });
+  none.deferred.forEach((f) => f());
+  assert.equal(none.local.length, 1, 'brak workera → render na głównym wątku');
+  assert.deepEqual([none.local[0].w, none.local[0].h], [160, 224], 'w połowie rozdzielczości');
+  assert.equal(none.bd.shownId, 'orion');
+  const bad = makeBackdrop();
+  bad.bd.show('sgr', {}, { quality: 'full' });
+  bad.worker.reply(bad.worker.sent[0].req, { error: 'boom' });
+  bad.deferred.forEach((f) => f());
+  assert.equal(bad.local.length, 1, 'błąd workera → render na głównym wątku');
+  assert.equal(bad.bd.shownId, 'sgr');
+});
+
+test('backdrop: animation loop stops when inactive and never doubles', () => {
+  const { bd, worker, r, active } = makeBackdrop({ animated: true });
+  bd.show('sgr', {}, { quality: 'full' });
+  worker.reply(worker.sent[0].req, { bitmap: bitmap(), ms: 5 });
+  bd.show('sgr', {}, { quality: 'full' });
+  bd.tick();
+  assert.equal(r.q.size, 1, 'jedna pętla naraz');
+  r.run(1000);
+  assert.equal(r.q.size, 1, 'pętla trwa, gdy widok jest aktywny i ma animację');
+  active.on = false;
+  r.run(1100);
+  assert.equal(r.q.size, 0, 'nieaktywny — pętla staje');
+  bd.tick();
+  assert.equal(r.q.size, 0, 'tick przy nieaktywnym widoku nie wznawia');
+  active.on = true;
+  bd.tick();
+  assert.equal(r.q.size, 1, 'po powrocie pętla wraca');
+  bd.show('sgr', {}, { quality: 'eco' });
+  r.run(1200);
+  assert.equal(r.q.size, 0, 'tryb oszczędny — bez animacji');
 });
