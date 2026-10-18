@@ -46,13 +46,13 @@ const PALETTES = {
 // Kula oświetlona z kierunku light (x w prawo, y w górę, z do widza). kind: earth | rocky | gas | ice | lava.
 // bands — kolory pasów (gaz), spot — plama na gazowym olbrzymie { lat, lon, r, color },
 // palette — [ciemny, jasny] dla rocky/ice/lava, clouds — ile chmur na planecie typu earth (0–1).
-export function planet(ctx, { cx, cy, r, seed, kind, light, atmosphere = null, cityLights = false, bands = null, spot = null, clouds = 0.5, palette = null }) {
+export function planet(ctx, { cx, cy, r, seed, kind, light, atmosphere = null, cityLights = false, bands = null, spot = null, clouds = 0.5, palette = null, res = 1 }) {
   const [w, h] = dims(ctx);
   const CX = cx * w, CY = cy * h, R = r * w, halo = atmosphere ? R * 0.06 : 0;
   const L = norm3(light), pal = palette || PALETTES[kind] || PALETTES.rocky;
   const nL = perlin(seed), nC = perlin(seed + 11), nT = perlin(seed + 23);
   const cloudAmt = clamp(clouds * 2);
-  const reg = region(w, h, CX - R - halo, CY - R - halo, CX + R + halo, CY + R + halo, 1, (x, y, out) => {
+  const reg = region(w, h, CX - R - halo, CY - R - halo, CX + R + halo, CY + R + halo, res, (x, y, out) => {
     const nx = (x - CX) / R, ny = (y - CY) / R, rr = nx * nx + ny * ny;
     if (rr > 1) {
       if (!atmosphere) return;

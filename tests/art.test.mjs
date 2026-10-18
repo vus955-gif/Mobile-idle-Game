@@ -7,6 +7,7 @@ import { mockCanvas, hashPixels } from './helpers/mock-canvas.mjs';
 import { stars, milkyBand, nebula, cosmicWeb, aurora, auroraAnimator, brightStar } from '../js/art/kit/sky.js';
 import { GALAXY_RECIPES } from '../js/art/views/galaxy.js';
 import { UNIVERSE_RECIPES } from '../js/art/views/universe.js';
+import { SPACE_RECIPES } from '../js/art/views/space.js';
 import { planet, rings, sun, galaxy, cluster, lens, blackHole, blackHoleAnimator } from '../js/art/kit/bodies.js';
 import { horizon } from '../js/art/kit/surface.js';
 import { earthSky, sunMoon, cloudBank, cityPlanes, mountains, water, fogBank } from '../js/art/kit/earth.js';
@@ -320,4 +321,13 @@ test('views/universe: brak przepisów zastępczych, animowane są virgo i attrac
   for (const id of ['virgo', 'attractor']) assert.equal(typeof UNIVERSE_RECIPES[id].animate, 'function', `${id} animowany`);
   assert.ok(UNIVERSE_RECIPES.bootes.light({}).ambient <= 0.2);
   for (const id of ids) UNIVERSE_RECIPES[id].animate?.(mockCanvas(KW, KH).getContext('2d'), KW, KH, 3.2);
+});
+
+test('views/space: brak przepisów zastępczych, animowane są leo i venus, Mars i Europa w górnej części kadru', () => {
+  const ids = Object.keys(SPACE_RECIPES);
+  assert.equal(ids.length, 9);
+  for (const id of ids) assert.ok(!SPACE_RECIPES[id].placeholder, `${id} ma właściwy przepis`);
+  for (const id of ['leo', 'venus']) assert.equal(typeof SPACE_RECIPES[id].animate, 'function', `${id} animowany`);
+  for (const id of ['mars', 'europa']) { const f = SPACE_RECIPES[id].focus; assert.ok(f.y <= 0.45 && f.x >= 0.15 && f.x <= 0.85, id); }
+  for (const id of ids) SPACE_RECIPES[id].animate?.(mockCanvas(KW, KH).getContext('2d'), KW, KH, 4.1);
 });
