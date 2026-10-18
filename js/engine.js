@@ -145,7 +145,7 @@ export function createMeta(now = Date.now()) {
     // ile razy firma przeszła całą grę i zaczęła od zera (transcendencja)
     transcend: 0,
     stats: { zenTime: 0, musicTime: 0 },
-    settings: { sound: false, music: false, buyAmount: 1, lang: getLang(), layer: 'earth', cap: true, dev: false, devMult: 1 },
+    settings: { sound: false, music: false, buyAmount: 1, lang: getLang(), layer: 'earth', cap: true, dev: false, devMult: 1, gfx: 'full' },
     // przesunięcie zegara gry (ms) po „przewinięciu czasu” w trybie deweloperskim; zostaje w zapisie,
     // bo znaczniki czasu w stanie są już przesunięte
     clockOffset: 0,
@@ -230,6 +230,8 @@ export function sanitizeMeta(raw, now = Date.now()) {
   m.settings.cap = m.settings.cap !== false;
   m.settings.dev = m.settings.dev === true;
   if (!DEV_MULTS.includes(m.settings.devMult)) m.settings.devMult = 1;
+  // jakość grafiki: pełna (animowane tła) albo oszczędna
+  if (m.settings.gfx !== 'eco') m.settings.gfx = 'full';
   m.clockOffset = Math.max(0, fix(raw.clockOffset, 0));
   const ap = isObj(raw.autopilot) ? raw.autopilot : {};
   m.autopilot = { owned: isObj(ap.owned) ? { ...ap.owned } : {}, off: isObj(ap.off) ? { ...ap.off } : {} };

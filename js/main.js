@@ -80,9 +80,9 @@ const ui = new UI(co, {
   reset: () => {
     try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(BACKUP_KEY); } catch { /* ignoruj */ }
     // ustawienia (język, dźwięk, limit rynku, tryb deweloperski) przechodzą do nowej gry; zegar wraca do zwykłego
-    const { sound, music, lang, cap, buyAmount, dev, devMult } = co.meta.settings;
+    const { sound, music, lang, cap, buyAmount, dev, devMult, gfx } = co.meta.settings;
     co.load(null, Date.now());
-    Object.assign(co.meta.settings, { sound, music, lang, cap, buyAmount, dev, devMult });
+    Object.assign(co.meta.settings, { sound, music, lang, cap, buyAmount, dev, devMult, gfx });
     co.recalc();
     lastSaveJson = '';
     ui.fullRender();

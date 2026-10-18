@@ -1,5 +1,7 @@
 // Ilustracja biura w SVG: garaż → biurowiec → wieżowiec, a w kosmosie: kapsuła → stacja z modułami.
 // Pora dnia zgodna z zegarem urządzenia. Działy (piętra/moduły) bierze z danych aktywnej warstwy.
+// Tło (widok zza okna) rysuje Canvas pod warstwami SVG — zob. js/art/backdrop.js.
+import { Backdrop } from './art/backdrop.js';
 
 const W = 360;
 const GROUND = 52;
@@ -705,6 +707,28 @@ export class Scene {
   constructor(root) {
     this.root = root;
     this.layers = {};
+    // Tło na Canvas: obraz i warstwa animowana w opakowaniu z powolnym ruchem kamery (pod warstwami SVG).
+    this.backdrop = null;
+    try {
+      const wrap = document.createElement('div');
+      wrap.className = 'backdrop-wrap';
+      const main = document.createElement('canvas');
+      main.className = 'backdrop';
+      const anim = document.createElement('canvas');
+      anim.className = 'backdrop-anim';
+      wrap.append(main, anim);
+      root.appendChild(wrap);
+      this.backdropWrap = wrap;
+      const sceneWrap = root.closest('.scene-wrap');
+      this.backdrop = new Backdrop(root, {
+        canvases: { main, anim },
+        isActive: () => !(sceneWrap && sceneWrap.classList.contains('paused')) && !document.hidden,
+        dpr: () => Math.min(window.devicePixelRatio || 1, 2),
+      });
+      if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => this.backdrop.resize()).observe(root);
+    } catch {
+      this.backdrop = null;
+    }
     for (const name of LAYERS) {
       const el = document.createElementNS(NS, 'svg');
       el.setAttribute('class', name.endsWith('Anim') ? 'anim' : 'static');
@@ -725,7 +749,7 @@ export class Scene {
       return d.id + SEATS.filter((t) => n >= t).length;
     }).join(',');
     const e = this.env || {};
-    return `${game.D.id}|${phase}|${floors}|${Math.min(s.prestigeCount, 8)}|${s.meta.companyName}|${(s.products[game.D.PRODUCTS[0].id] || 0) > 0 ? 1 : 0}|${e.season}|${e.weather}|${e.holiday}|${e.newYear}|${s.view}`;
+    return `${game.D.id}|${phase}|${floors}|${Math.min(s.prestigeCount, 8)}|${s.meta.companyName}|${(s.products[game.D.PRODUCTS[0].id] || 0) > 0 ? 1 : 0}|${e.season}|${e.weather}|${e.holiday}|${e.newYear}|${s.view}|${s.meta.settings.gfx}`;
   }
 
   render(game, force = false) {
@@ -745,6 +769,13 @@ export class Scene {
     if (!force && sig === this.sig) return;
     this.sig = sig;
     const s = game.s;
+    // Tło Canvas: widok zza okna (na Ziemi zależny od pory dnia i pogody). Gdy działa, SVG nie rysuje nieba.
+    const bd = this.backdrop;
+    if (bd) {
+      const quality = s.meta.settings.gfx === 'eco' ? 'eco' : 'full';
+      bd.show(view, th ? {} : { phase, weather: env.weather, season: env.season, holiday: env.holiday }, { quality });
+      this.backdropWrap.classList.toggle('kb', quality === 'full');
+    }
     const sky = th
       ? { ...SKIES[th.dark ? 'night' : 'dusk'], stops: th.stops, far: th.far, farWin: th.farWin, ground: th.ground, grass: th.edge, cloud: 0 }
       : SKIES[phase];
@@ -783,8 +814,8 @@ export class Scene {
     ANIM.push(`<defs>${glow('glowA')}</defs>`);
 
     // --- niebo ---
-    back.push(`<rect x="-700" y="-400" width="${W + 1400}" height="${groundY + 400}" fill="url(#skyG)"/>`);
-    if (overcast) back.push(`<rect x="-700" y="-400" width="${W + 1400}" height="${groundY + 400}" fill="${night ? '#1a1d33' : '#7d869f'}" opacity="${env.weather === 'cloudy' ? 0.22 : 0.38}"/>`);
+    if (!bd) back.push(`<rect x="-700" y="-400" width="${W + 1400}" height="${groundY + 400}" fill="url(#skyG)"/>`);
+    if (overcast && !bd) back.push(`<rect x="-700" y="-400" width="${W + 1400}" height="${groundY + 400}" fill="${night ? '#1a1d33' : '#7d869f'}" opacity="${env.weather === 'cloudy' ? 0.22 : 0.38}"/>`);
     if (th ? th.stars : (night || phase === 'dusk') && !overcast) {
       const sr = seeded(7);
       for (let i = 0; i < (night ? 70 : 25); i++) {
@@ -793,14 +824,17 @@ export class Scene {
         const r = 0.5 + sr() * 1.1;
         const delay = (sr() * 3).toFixed(2);
         const dot = `cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}" fill="#fff"`;
+        // przy tle Canvas zostają tylko migające gwiazdy (ruch nad statycznym obrazem)
         if (i % 3 === 0) backAnim.push(`<circle class="star" style="animation-delay:${delay}s" ${dot}/>`);
-        else back.push(`<circle opacity=".6" ${dot}/>`);
+        else if (!bd) back.push(`<circle opacity=".6" ${dot}/>`);
       }
     }
     // słońce / księżyc
     const now = new Date();
     const hour = now.getHours() + now.getMinutes() / 60;
-    if (th) {
+    if (bd) {
+      // słońce, księżyc i ciała niebieskie są w tle Canvas
+    } else if (th) {
       // w galaktyce i wszechświecie statek rośnie w górę, więc tło schodzi niżej, żeby nie chowało się pod paskiem etapów
       const drop = galaxy || universe ? Math.max(0, (groundY - 240) * 0.4) : 0;
       const bodies = universe ? universeBodies(view) : galaxy ? galaxyBodies(view) : spaceBodies(view, groundY);
@@ -835,10 +869,11 @@ export class Scene {
       backAnim.push(bat(groundY * 0.25, 16, -2), bat(groundY * 0.4, 22, -11));
     }
     // panorama miasta w tle
-    if (cityView && cityView.back) parts.push(BACKDROPS[cityView.back](groundY, night));
+    if (cityView && cityView.back && !bd) parts.push(BACKDROPS[cityView.back](groundY, night));
     if (th && !orbit) parts.push(spaceSkyline(view, groundY, th));
     const fr = seeded(5);
-    let fx = th ? W + 700 : -700;
+    // dalekie bloki miasta rysuje tło Canvas (plany z perspektywą powietrzną)
+    let fx = th || bd ? W + 700 : -700;
     while (fx < W + 700) {
       const w = 22 + fr() * 34;
       const h = 30 + fr() * 120;

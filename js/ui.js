@@ -394,6 +394,12 @@ export class UI {
         this.updateAll(true);
         break;
       }
+      case 'set-gfx': {
+        s.meta.settings.gfx = el.dataset.v === 'eco' ? 'eco' : 'full';
+        this.scene.render(this.g, true);
+        this.updateAll(true);
+        break;
+      }
       case 'toggle-dev': {
         s.meta.settings.dev = !s.meta.settings.dev;
         this.co.recalc();
@@ -562,6 +568,8 @@ export class UI {
   // Pętla UI
   // ---------------------------------------------------------------------
   frame(now) {
+    // tło Canvas: wznawia animację po powrocie na Biuro albo z tła aplikacji (gdy nic nie trzeba — nic nie robi)
+    this.scene.backdrop?.tick();
     if (now - this.lastHud > 60) { this.lastHud = now; this.updateHud(); }
     if (now - this.lastSlow > 250) { this.lastSlow = now; this.updateAll(); }
     if (now - this.lastSec >= 1000) {
@@ -2121,6 +2129,7 @@ export class UI {
       <div class="setting"><div>${t('set.sound')}<p>${t('set.soundHint')}</p></div><button class="switch ${s.meta.settings.sound ? 'on' : ''}" data-act="toggle-sound" aria-label="${t('set.sound')}"></button></div>
       <div class="setting"><div>${t('set.music')}<p>${t('set.musicHint')}</p></div><button class="switch ${s.meta.settings.music ? 'on' : ''}" data-act="toggle-music" aria-label="${t('set.music')}"></button></div>
       <div class="setting"><div>${t('set.cap')}<p>${t('set.capHint')}</p></div><button class="switch ${this.g.capOn() ? '' : 'on'}" data-act="toggle-cap" aria-label="${t('set.cap')}"></button></div>
+      <div class="setting"><div>${t('set.gfx')}<p>${t('set.gfxHint')}</p></div><div class="seg">${['full', 'eco'].map((v) => `<button data-act="set-gfx" data-v="${v}" class="${(s.meta.settings.gfx === 'eco' ? 'eco' : 'full') === v ? 'on' : ''}">${t(v === 'eco' ? 'set.gfxEco' : 'set.gfxFull')}</button>`).join('')}</div></div>
       <div class="setting"><div>${t('set.install')}<p>${t('set.installHint')}</p></div><button class="btn btn-small ghost" data-act="install-help">${t('set.show')}</button></div>
       <div class="section-title">${t('set.saveTitle')}</div>
       <div class="setting"><div>${t('set.export')}<p>${t('set.exportHint')}</p></div><button class="btn btn-small ghost" data-act="export">${t('set.exportBtn')}</button></div>
@@ -2129,7 +2138,7 @@ export class UI {
       ${this.devSettings()}
       <p class="card-sub" style="text-align:center;margin-top:18px">${esc(t('appName'))} · ${t('set.footer', { v: esc(this.hooks.version || '1.0') })}</p>`;
     const st = s.meta.settings;
-    this.setBody(`settings|${st.sound}|${st.music}|${this.g.capOn()}|${getLang()}|${st.dev}|${st.devMult}`, html);
+    this.setBody(`settings|${st.sound}|${st.music}|${this.g.capOn()}|${getLang()}|${st.dev}|${st.devMult}|${st.gfx}`, html);
   }
 
   // Zegar gry: czas rzeczywisty plus przesunięcie po przewinięciu czasu w trybie deweloperskim.
