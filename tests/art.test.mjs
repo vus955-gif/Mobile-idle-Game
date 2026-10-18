@@ -8,6 +8,8 @@ import { stars, milkyBand, nebula, cosmicWeb, aurora, auroraAnimator } from '../
 import { planet, rings, sun, galaxy, cluster, lens, blackHole, blackHoleAnimator } from '../js/art/kit/bodies.js';
 import { horizon } from '../js/art/kit/surface.js';
 import { earthSky, sunMoon, cloudBank, cityPlanes, mountains, water, fogBank } from '../js/art/kit/earth.js';
+import { RECIPES, VIEW_IDS, recipeFor, validLight } from '../js/art/views/index.js';
+import { LAYERS, LAYER_ORDER } from '../js/layers.js';
 
 setCanvasFactory(mockCanvas);
 
@@ -140,5 +142,39 @@ test('kit/surface i kit/earth: rysują bez wyjątku dla wszystkich pór dnia i p
     callsDeterministic(`mountains alps ${phase}`, (c) => mountains(c, KW, KH, { seed: 7, kind: 'alps', phase }));
     callsDeterministic(`water ${phase}`, (c) => water(c, KW, KH, { y: 0.8, phase }));
     callsDeterministic(`fogBank ${phase}`, (c) => fogBank(c, KW, KH, { y: 0.75, phase }));
+  }
+});
+
+const ENV_DAY = { phase: 'day', weather: 'clear', season: 'summer', holiday: null };
+
+test('views: każde biuro, kolonia, układ i galaktyka ma przepis', () => {
+  const ids = LAYER_ORDER.flatMap((l) => LAYERS[l].OFFICES.map((o) => o.id));
+  assert.equal(ids.length, 45);
+  for (const id of ids) assert.ok(RECIPES[id], id);
+  assert.deepEqual([...VIEW_IDS].sort(), [...ids].sort());
+  assert.equal(RECIPES.proxima, undefined);
+  assert.equal(recipeFor('nie-ma-takiego').id, 'waw', 'nieznane id → przepis siedziby na Ziemi');
+});
+
+test('views: klucz światła jest poprawny dla każdej pory dnia i pogody', () => {
+  for (const id of VIEW_IDS) for (const phase of ['night', 'dawn', 'day', 'dusk']) for (const weather of ['clear', 'rain', 'fog']) {
+    assert.ok(validLight(RECIPES[id].light({ phase, weather, season: 'summer', holiday: null })), `${id} ${phase} ${weather}`);
+  }
+  assert.ok(!validLight({ color: [255, 255, 255], dir: [2, 0], ambient: 0.5, rim: [0, 0, 0] }), 'dir musi być jednostkowy');
+  assert.ok(!validLight({ color: [256, 0, 0], dir: [1, 0], ambient: 0.5, rim: [0, 0, 0] }), 'kolor 0–255');
+});
+
+test('views: główny obiekt widoków spoza Ziemi jest w górnej części kadru', () => {
+  for (const L of ['space', 'galaxy', 'universe']) for (const o of LAYERS[L].OFFICES) {
+    const f = RECIPES[o.id].focus; assert.ok(f.y <= 0.45 && f.x >= 0.15 && f.x <= 0.85, o.id);
+  }
+});
+
+test('views: każdy przepis rysuje bez wyjątku i deterministycznie', () => {
+  for (const id of VIEW_IDS) {
+    const a = mockCanvas(90, 120), b = mockCanvas(90, 120);
+    RECIPES[id].draw(a.getContext('2d'), 90, 120, ENV_DAY); RECIPES[id].draw(b.getContext('2d'), 90, 120, ENV_DAY);
+    assert.equal(hashPixels(a), hashPixels(b), id);
+    assert.ok(a.getContext('2d').calls.length > 0, `${id} coś rysuje`);
   }
 });
