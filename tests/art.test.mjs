@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { rng, perlin, fbm, ridged } from '../js/art/noise.js';
 import { makeCanvas, setCanvasFactory } from '../js/art/canvas.js';
 import { mockCanvas, hashPixels } from './helpers/mock-canvas.mjs';
+import { stars, milkyBand, nebula, cosmicWeb, aurora, auroraAnimator } from '../js/art/kit/sky.js';
 
 setCanvasFactory(mockCanvas);
 
@@ -51,4 +52,36 @@ test('canvas: drawImage z płótna testowego kopiuje piksele ze skalowaniem', ()
   assert.equal(d[0], 255);
   assert.equal(d[(1 * 4 + 1) * 4], 255, 'piksel (1,1) pochodzi z (0,0) źródła');
   assert.equal(d[(2 * 4 + 2) * 4], 0, 'piksel (2,2) pochodzi z (1,1) źródła');
+});
+
+// Dwa rendery tego samego klocka na świeżych płótnach testowych.
+const KW = 120, KH = 160;
+const EMPTY = hashPixels(mockCanvas(KW, KH));
+function twice(fn) {
+  const a = mockCanvas(KW, KH), b = mockCanvas(KW, KH);
+  fn(a.getContext('2d')); fn(b.getContext('2d'));
+  return [a, b];
+}
+function pixelsDeterministic(name, fn) {
+  const [a, b] = twice(fn);
+  assert.equal(hashPixels(a), hashPixels(b), `${name}: deterministycznie`);
+  assert.notEqual(hashPixels(a), EMPTY, `${name}: zmienia piksele`);
+}
+function callsDeterministic(name, fn) {
+  const [a, b] = twice(fn);
+  const ca = a.getContext('2d').calls, cb = b.getContext('2d').calls;
+  assert.ok(ca.length > 0, `${name}: coś rysuje`);
+  assert.deepEqual(ca, cb, `${name}: deterministycznie`);
+}
+
+test('kit/sky: każdy klocek rysuje bez wyjątku, deterministycznie i zmienia piksele', () => {
+  pixelsDeterministic('milkyBand', (c) => milkyBand(c, KW, KH, { seed: 2, angle: 0.4, width: 0.25, color: [180, 160, 220] }));
+  pixelsDeterministic('nebula', (c) => nebula(c, KW, KH, { seed: 3, palette: [[70, 200, 215], [255, 70, 160], [255, 226, 200]], core: { x: 0.55, y: 0.4, r: 0.45 } }));
+  pixelsDeterministic('cosmicWeb', (c) => cosmicWeb(c, KW, KH, { seed: 4, color: [110, 90, 230], node: [255, 210, 150] }));
+  callsDeterministic('stars', (c) => stars(c, KW, KH, { seed: 1, count: 300 }));
+  callsDeterministic('aurora', (c) => aurora(c, KW, KH, { seed: 5, colors: [[60, 255, 170], [140, 120, 255]], y: 0.3, height: 0.25 }));
+  const anim = auroraAnimator({ seed: 5, colors: [[60, 255, 170], [140, 120, 255]], y: 0.3, height: 0.25 });
+  const c = mockCanvas(KW, KH).getContext('2d');
+  anim(c, KW, KH, 1.5);
+  assert.ok(c.calls.length > 0, 'animator zorzy rysuje');
 });
