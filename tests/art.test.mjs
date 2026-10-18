@@ -6,6 +6,8 @@ import { makeCanvas, setCanvasFactory } from '../js/art/canvas.js';
 import { mockCanvas, hashPixels } from './helpers/mock-canvas.mjs';
 import { stars, milkyBand, nebula, cosmicWeb, aurora, auroraAnimator } from '../js/art/kit/sky.js';
 import { planet, rings, sun, galaxy, cluster, lens, blackHole, blackHoleAnimator } from '../js/art/kit/bodies.js';
+import { horizon } from '../js/art/kit/surface.js';
+import { earthSky, sunMoon, cloudBank, cityPlanes, mountains, water, fogBank } from '../js/art/kit/earth.js';
 
 setCanvasFactory(mockCanvas);
 
@@ -114,4 +116,29 @@ test('kit/bodies: klocki rysują bez wyjątku i deterministycznie', () => {
   anim(c, KW, KH, 1.5);
   assert.ok(c.calls.includes('ellipse'), 'smugi dysku');
   assert.equal(typeof blackHoleAnimator({ cx: 0.5, cy: 0.42, shadow: 0.11, seed: 5 }), 'function');
+});
+
+const PHASES = ['night', 'dawn', 'day', 'dusk'];
+const WEATHERS = ['clear', 'cloudy', 'rain', 'snow', 'fog'];
+
+test('kit/surface i kit/earth: rysują bez wyjątku dla wszystkich pór dnia i pogód', () => {
+  for (const phase of PHASES) for (const weather of WEATHERS) {
+    const env = { phase, weather };
+    callsDeterministic(`earthSky ${phase} ${weather}`, (c) => earthSky(c, KW, KH, env));
+    const sm = mockCanvas(KW, KH).getContext('2d');
+    sunMoon(sm, KW, KH, env);
+    if (weather === 'rain' || weather === 'snow' || weather === 'fog') assert.ok(!sm.calls.includes('arc'), `bez słońca i księżyca: ${phase} ${weather}`);
+    else assert.ok(sm.calls.includes('arc'), `słońce albo księżyc: ${phase} ${weather}`);
+    callsDeterministic(`cloudBank ${phase} ${weather}`, (c) => cloudBank(c, KW, KH, { seed: 3, ...env }));
+    callsDeterministic(`cityPlanes ${phase} ${weather}`, (c) => cityPlanes(c, KW, KH, { seed: 4, ...env, density: 1 }));
+  }
+  for (const kind of ['regolith', 'rust', 'ice', 'dunes', 'rock']) {
+    pixelsDeterministic(`horizon ${kind}`, (c) => horizon(c, KW, KH, { seed: 6, y: 0.7, kind, haze: kind === 'rust' ? [210, 150, 110] : null, light: [-0.7, -0.5] }));
+  }
+  for (const phase of PHASES) {
+    callsDeterministic(`mountains fuji ${phase}`, (c) => mountains(c, KW, KH, { seed: 7, kind: 'fuji', phase }));
+    callsDeterministic(`mountains alps ${phase}`, (c) => mountains(c, KW, KH, { seed: 7, kind: 'alps', phase }));
+    callsDeterministic(`water ${phase}`, (c) => water(c, KW, KH, { y: 0.8, phase }));
+    callsDeterministic(`fogBank ${phase}`, (c) => fogBank(c, KW, KH, { y: 0.75, phase }));
+  }
 });
