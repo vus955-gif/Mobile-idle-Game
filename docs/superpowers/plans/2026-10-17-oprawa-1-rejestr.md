@@ -1,0 +1,98 @@
+# Rejestr wykonania: oprawa, część 1 (decyzje, wyniki zadań, przegląd)
+
+Kopia rejestru wykonawcy (`.superpowers/sdd/…/progress.md`) zachowana po zakończeniu planu. Linie `Ruling:` to decyzje podjęte w trakcie, z kosztem, jeśli były złe; `minor (deferred)` to drobne uwagi z przeglądu odłożone na później.
+
+- Spec: docs/superpowers/specs/2026-10-17-oprawa-wizualna-design.md (read). Branch: claude/oprawa-wizualna. Plan+spec commit: bcefb6a.
+- 
+- ## Pre-flight
+- | Tasks | Produces vs consumes | Finding |
+- |---|---|---|
+- | T1 → T3,T4,T5 | rng/perlin/fbm/ridged/clamp/sstep/mix | consistent |
+- | T2 → T3,T4,T5,T6 | makeCanvas/glow; mockCanvas/hashPixels | CONFLICT: T2 says mock drawImage copies nothing, but T3 expects nebula/cosmicWeb (rendered at half-res into a temp canvas then drawImage'd) to change the target hash |
+- | T6 → T7,T9,T10–T14 | RECIPES/VIEW_IDS/recipeFor/validLight, placeholder flag | consistent |
+- | T3/T4 → T10–T13 | auroraAnimator/blackHole return (ctx,w,h,t) animators = Recipe.animate | consistent |
+- | T7 → T8 | Backdrop(host, deps).show(id, env, {quality}) | AMBIGUOUS: T8 creates the two canvases in Scene, T7 doesn't say how Backdrop gets them |
+- 
+- Pre-flight: Ruling: mock drawImage copies pixels (nearest-neighbour, scaled) when the source is a mock canvas — keeps the half-res path honestly tested — cost if wrong: slightly slower tests.
+- Pre-flight: Ruling: Backdrop receives its canvases via deps.canvases = { main, anim }; host is used only for size (clientWidth/clientHeight) — Scene creates both canvases as in T8 — cost if wrong: one constructor change.
+- Task 1: complete (commits bcefb6a..08873dd, tests: node --test tests/art.test.mjs → ℹ duration_ms 106.4679)
+- Task 2: Ruling: mock drawImage copies pixels from mock sources (pre-flight ruling applied; plan text said it copies nothing) — needed for half-res klocki tests — cost if wrong: none for production code
+- Task 2: complete (commits 08873dd..3494d73, tests: node --test tests/art.test.mjs → ℹ duration_ms 104.7118)
+- Task 3: Ruling: positions/radii are fractions of the frame (x of w, y of h, radii of w) and noise scales are 'design px' of a 300-wide frame (actual = scale*w/300) — brief left units open; keeps every view resolution-independent — cost if wrong: retune numbers
+- Task 3: Ruling: milkyBand is per-pixel (noise band, like the sketch) so it is tested by pixel hash, not by calls as the brief grouped it — better quality — cost if wrong: none
+- Task 3: Ruling: added pixelLayer/addLayer helpers to canvas.js (shared by all per-pixel klocki) — not in the plan's interface list — cost if wrong: none
+- Task 3: complete (commits 3494d73..f9746cd, tests: node --test tests/art.test.mjs → ℹ duration_ms 155.5007)
+- Task 4: Ruling: blackHole animator draws only streaks on the transparent overlay (back/lens streaks clipped outside the shadow, front streaks on top) instead of redrawing static layers each frame like the sketch — static layers are computed in the worker and are not available on the main thread — cost if wrong: back streaks may overlap the lensed arc slightly
+- Task 4: Ruling: planet/rings/sun/galaxy/cluster take fractions and read canvas size from ctx.canvas (their signatures have no w,h) ; planet gets an optional palette param for rocky/ice/lava; rings gets optional half ('back'|'front'|'both') so recipes can put the planet between ring halves — cost if wrong: none
+- Task 4: complete (commits f9746cd..f5fcdeb, tests: node --test tests/art.test.mjs → ℹ duration_ms 295.1353)
+- Task 5: Ruling: SKIES colours copied into js/art/kit/earth.js (SKY) instead of importing scene.js — scene.js depends on DOM and js/art must run in a worker — cost if wrong: two copies to keep in sync until part 2 removes the SVG sky
+- Task 5: Ruling: cityPlanes gets optional haze/base, water gets optional seed — needed by Dubai/Bengaluru recipes and determinism — cost if wrong: none
+- Task 5: complete (commits f5fcdeb..156132d, tests: node --test tests/art.test.mjs → ℹ duration_ms 352.4698)
+- Task 6: Ruling: VIEW_IDS come from the recipe maps, not from game data (js/art must not import layers.js to stay worker-safe); the test still compares them with all office ids — cost if wrong: none
+- Task 6: complete (commits 156132d..89e2af4, tests: npm test → ℹ duration_ms 1385.5226)
+- Task 7: Ruling: Backdrop renders at the size bucket (multiple of 64) and draws scaled to the canvas; deps also take defer/now/recipeFor/canvases for testability; LRU never closes the bitmap on screen (keep hook); tick() restarts the loop and is meant to be called from the UI frame loop — brief left these open — cost if wrong: small refactor
+- Task 7: Ruling: fixed a test bug (frozen fake clock kept the fade running) by advancing the fake clock with each frame — code behaviour unchanged — cost if wrong: none
+- Task 7: complete (commits 89e2af4..f14c95c, tests: npm test → ℹ duration_ms 1259.7823)
+- Task 8: Ruling: kept the coloured .scene-wrap backgrounds instead of making them transparent — the canvas is opaque above them, so they only show for a moment before the first paint (useful fallback) — cost if wrong: none visible
+- Task 8: Ruling: camera drift (kb) applied to a wrapper holding both canvases, so the animated layer stays aligned with the static image — the brief put it on canvas.backdrop only — cost if wrong: none
+- Task 8: Ruling: browser checks 'eco stops the animated layer' and 'Products tab stops raf' deferred to Task 10 — no recipe has animate yet (placeholders); unit tests cover the loop logic — cost if wrong: none if T10 verifies
+- Task 8: Browser check — 4 stages paint the canvas (opaque pixels, no SVG sky rect), worker returns a 320x448 bitmap in 1 ms, gfx toggle switches camera drift; console clean apart from a connection reset from an interrupted reload
+- Task 8: complete (commits f14c95c..2d01197, tests: npm test → ℹ duration_ms 1135.7169)
+- Task 9: Ruling: gallery texts live in js/i18n.js (both languages) — UI strings are there, js/lang/en.js holds content names — cost if wrong: none
+- Task 9: Browser check — 45 tiles grouped by stage, times shown (all placeholders, 0 ms), phase/weather selectors re-render Earth; no failed resources
+- Task 9: complete (commits 2d01197..4904033, tests: npm test → ℹ duration_ms 1048.7135)
+- Task 10: Ruling: added brightStar klocek (sky.js) with a test, optional core colour for sun(), and views/common.js (recipe + spaceBase) — needed by the Galaxy recipes — cost if wrong: none
+- Task 10: Ruling: gallery measures each view 3x and shows the median, uses setTimeout between tiles, and accepts ?stage= — single cold timings varied +-50% and rAF stalls in a hidden pane — cost if wrong: none
+- Task 10: perf — lens() now copies pixels as Uint32 and boosts only near the Einstein ring (48 ms -> 11 ms warm); Math.hypot replaced by Math.sqrt in per-pixel loops. Gallery medians: sol 24, alpha 19, trappist 13, pleiades 74, crab 48, orion 69, omega 11, lmc 45, sgr 108 ms (budget 125)
+- Task 10: Browser check (deferred from T8) — in game, sgr disk animates (~21k changing px); Products tab stops it; eco clears and stops it; return to Office resumes it. Resume took ~1.5 s only because the hidden Browser pane throttled the whole page's rAF to ~1/s (measured 1016 ms rAF gap) — not a code issue; unit test covers immediate restart
+- Task 10: complete (commits 4904033..efa32e5, tests: npm test → ℹ duration_ms 1094.9424)
+- Checkpoint after Task 10: Piotr approved the Galaxy style ('Styl widoków Galaktyki mi pasuje. Kontynuuj…').
+- Task 11: Ruling: galaxy() gets an optional bright multiplier and views/common.js gets distantGalaxies — needed for a striking Andromeda/M87 and galaxy-filled backdrops — cost if wrong: none
+- Task 11: gallery medians — milkyway 63, andromeda 29, triangulum 28, virgo 17, bullet 39, attractor 4-7, bootes 5, hercules 104, edge 53 ms; reviewed twice (fixed pale Andromeda, tiny Virgo galaxies, empty Bootes, overpowering CMB, 'explosion' look of the Attractor)
+- Task 11: complete (commits efa32e5..a3ef54c, tests: npm test → ℹ duration_ms 1418.8366)
+- Task 12: Ruling: planet() dostał opcję res (rozdzielczość warstwy pikselowej) — wielkie tarcze (Ziemia z LEO, Jowisz) mieściły się w budżecie 125 ms dopiero przy res 0,6–0,7 — koszt, jeśli źle: lekko miększa tekstura tarczy.
+- Task 12: Ruling: horizon() przepisany: rzeźba z pola wysokości 2D (różnice skończone), kratery w komórkach siatki, lineae dla lodu, zmarszczki wydm; grzbiety liczone raz na kolumnę — oświetlenie stoku per kolumna dawało pionowe pasy („blacha”), a po zmianie Księżyc liczy się 47 ms zamiast 79 ms — koszt, jeśli źle: inny charakter terenu niż w makiecie (bardziej realistyczny, mniej płaski).
+- Task 12: Ruling: tools/serve.mjs (serwer bez cache, no-store) i launch.json przełączony z python http.server na node; galeria oglądana z 127.0.0.1 — heurystyczny cache przeglądarki podawał stare moduły (kafelki „0 ms”) — koszt, jeśli źle: jeden dodatkowy plik narzędziowy w repo.
+- Task 12: Ruling: L2 — Ziemia i Księżyc powiększone (r .065/.018), ognisko .35/.29 — w pierwszej wersji były kropkami bez czytelnej sylwetki — koszt, jeśli źle: kosmetyka.
+- Task 12: complete (commits a3ef54c..e661796, tests: npm test → ℹ duration_ms 1808.9245)
+- Task 13: Ruling: zorza „tylko nocą” przez opcjonalne pole przepisu animateWhen(env) sprawdzane w Backdrop.animates() i w galerii (zamiast no-op w animate) — za dnia pętla animacji w ogóle nie rusza, więc nie zużywa baterii — koszt, jeśli źle: jedno dodatkowe pole w interfejsie przepisu.
+- Task 13: Ruling: kit/earth przepisany na poziom Galaktyki/Kosmosu (chmury z szumu oświetlone od słońca, rozpraszanie i gwiazdy na niebie, łuna miasta, śródmieście w panoramie, Alpy z graniami i żlebami, woda z odbiciem nieba i ścieżką światła, mgła z pasmami) — klocki z T7 były płaskie, a użytkownik prosił o ten sam styl co Galaktyka — koszt, jeśli źle: czas; sygnatury klocków bez zmian (doszły opcjonalne tall i weather).
+- Task 13: Ruling: Seul dostał wzgórza, a Zurych przedgórze przed Alpami — tabela 6.3 projektu wymienia góry w Seulu, brief ich nie wymienił; projekt jest nadrzędny — koszt, jeśli źle: jeden parametr w PLACES.
+- Task 13: Ruling: zorza w obrazie bazowym przygaszona (alpha 0,45), pełna na nakładce animacji — w trybie oszczędnym zostaje statyczna poświata, w pełnym ruch nie dubluje jasności — koszt, jeśli źle: lekko jaśniejsza zorza w trybie pełnym.
+- Task 13: Ruling: poprawiony znak światła ściany pod grzbietem w horizon() (kit/surface z T12) — ściana opadająca w prawo była ciemna przy świetle z prawej — koszt, jeśli źle: drobna zmiana cieniowania horyzontów Kosmosu.
+- Task 13: complete (commits e661796..c47be0f, tests: npm test → ℹ duration_ms 2318.7274)
+- Task 14: Ruling: czasy teł w README z pomiaru bezpośredniego (rozgrzewka + mediana z 5) zamiast mediany z 3 w galerii — panel przeglądarki był ukryty (karta w tle), a galeria pokazywała wtedy skoki 127–161 ms dla sgr przy 97–104 ms w powtórzeniach — koszt, jeśli źle: README zaniża czasy na wolniejszym sprzęcie; budżet i tak trzeba potwierdzić na iPhonie.
+- Task 14: Ruling: pomiar na iPhonie (czas do gotowego tła, płynność listy przy sgr) nie wykonany — wymaga urządzenia użytkownika; w README opisany jako „do sprawdzenia” z instrukcją przez Wi-Fi — koszt, jeśli źle: nieznany realny czas na telefonie do czasu testu.
+- Task 14: Ruling: dodany test pokrycia sw.js (każdy moduł js/art poza galerią) — brak common.js w pamięci offline był realnym błędem: po pierwszej wizycie online zainstalowana gra bez sieci nie wystartowałaby wcale (scene.js → backdrop → views → common.js to statyczne importy; przy pierwszej wizycie service worker jeszcze nie przechwytuje żądań, więc nie dopisałby pliku w locie) — koszt, jeśli źle: brak.
+- Task 14: complete (commits c47be0f..d4d6b44, tests: npm test → ℹ duration_ms 3334.019)
+- Final review: fresh reviewer (opus), range b4a3171..d4d6b44 — 0 Critical, 4 Important, 9 Minor; verdict "With fixes".
+- Final: Ruling: re-grade Minor 8 (wyjątek w pętli gry) → Important — skutek dla gracza: gdy iOS przy braku pamięci odmówi płótna (getContext → null), bd.show rzuca w ui.frame i cała gra zamarza; focus #3 planu wprost tego zabrania — koszt, jeśli źle: kilka linii try/catch.
+- Final: minor (deferred): nierówne rozciągnięcie w kubełku 64 px (SE ~5,5% w pionie) i rozjazd nakładki sgr o 4–5 px — do „cover” z jednolitą skalą w części 3.
+- Final: minor (deferred): Lru.set przy podmianie klucza i obraz wyrzucony pod keep nie są zamykane (close) — polegają na GC.
+- Final: minor (deferred): mignięcie gradientem przy zmianie pory dnia/pogody/zen zamiast przenikania ze starego obrazu; resize w trakcie przełączania; brak debounce przy ciągłym zmienianiu okna — do części 3 (efekty i przejścia).
+- Final: minor (deferred): swarmGlints buduje 2600 obiektów na klatkę — memoizacja po w×h.
+- Final: minor (deferred): tools/serve.mjs — startsWith bez separatora ścieżki, URIError przy złym %, serwuje .git na wszystkich interfejsach (narzędzie deweloperskie, repo publiczne).
+- Final: minor (deferred): README nie wymienia orion, attractor, leo i venus wśród animowanych widoków.
+- Final: minor (deferred): tymczasowe płótna pixelLayer/region w workerze zostawione GC (pamięć płócien w WebKit) — zerować rozmiar po użyciu.
+- Final: minor (deferred): luki w testach: powrót do wyrzuconego widoku przez Backdrop, zamykanie podmienionej wartości LRU (pozostałe luki pokrywa ten przebieg poprawek).
+- Final: Ruling: kolory, skale szumu i kierunek graficzny poza oceną recenzenta — ocenia je Piotr w galerii; tak ma być — koszt, jeśli źle: brak.
+- Final: Ruling: prefers-reduced-motion dla warstwy animacji — plan przypisuje go części 3; do tego czasu jest tryb Oszczędna — koszt, jeśli źle: osoby wrażliwe na ruch do części 3 muszą włączyć Oszczędną.
+- Final: Ruling: rozmyta kopia tła na innych zakładkach i szklany UI — część 3 — koszt, jeśli źle: brak.
+- Final: Ruling: użycie klucza światła przez dioramy — część 2; tu sprawdzona tylko poprawność klucza — koszt, jeśli źle: drobne korekty kluczy w części 2.
+- Final: Ruling: stale-while-revalidate w sw.js może przez jedno uruchomienie mieszać wersje modułów — istniejący projekt PWA, nie zmieniany w tej części — koszt, jeśli źle: jedno uruchomienie ze starą wersją po aktualizacji.
+- Final: Ruling: rejestracja service workera nie działa w panelu przeglądarki aplikacji (sw.js zwraca 200) — artefakt panelu, nie kodu — koszt, jeśli źle: potwierdzić instalację offline na iPhonie.
+- Final: Ruling: migające gwiazdy i chmury SVG animują się także w trybie Oszczędna — zachowanie sprzed zmian; zakres części 1 to tło Canvas — koszt, jeśli źle: trochę baterii w trybie Oszczędna do części 3.
+- Final: Ruling: ruch kamery (6% zoom) przesuwa tło względem gruntu SVG — kosmetyka, grunt SVG znika w części 2 — koszt, jeśli źle: brak.
+- Final: Ruling: realne czasy na iPhonie i czy SW obsługuje moduł workera offline — wymaga urządzenia; w README jako „do sprawdzenia”, z testem w trybie samolotowym — koszt, jeśli źle: nieznane do testu na telefonie.
+- Final: Ruling: galeria przy szybkiej zmianie selektorów może liczyć równolegle — narzędzie deweloperskie — koszt, jeśli źle: brak dla gracza.
+- Final: Ruling: pora roku i święto poza kluczem cache — przepisy Ziemi ich nie czytają (sprawdzone) — koszt, jeśli źle: gdy przepis zacznie je czytać, trzeba dopisać je do envKey.
+- Final: Ruling: zdublowana paleta SKY (ruling z Zadania 5) — akceptowany koszt przejściowy — koszt, jeśli źle: rozjazd kolorów przy zmianie palety w jednym miejscu.
+- Final: fixed Important 1 (worker pada bez wiadomości) — onerror/onmessageerror + strażnik czasu 5 s → render na głównym wątku, martwy worker zamknięty; testy „worker, który pada bez odpowiedzi…” i „milczący worker (strażnik czasu)…” RED→GREEN, suite 104/104 w tym kroku.
+- Final: fixed Important 2 (kolejka zamówień) — ten sam klucz w trakcie liczenia nie jest zamawiany drugi raz, spóźniony wynik pokazuje się, gdy to wciąż chciany widok (A → B → A), duplikat pokazanego obrazu jest zamykany bez ponownego przejścia; testy „ten sam widok zamówiony ponownie…” i „A → B → A…” RED→GREEN.
+- Final: fixed Important (dawniej Minor 8, wyjątek w pętli gry) — show/tick/frame nigdy nie rzucają, brak kontekstu płótna jest pomijany, zepsuty animator wyłączany po pierwszym błędzie; test „brak kontekstu płótna albo wyjątek animacji…” RED→GREEN, suite 107/107.
+- Final: fixed Important 3 (leo zależny od proporcji) — krawędź Ziemi zakotwiczona na 0,45 h niezależnie od proporcji; galeria dostała ?size=; test „leo ma krawędź Ziemi w tym samym miejscu przy każdych proporcjach” RED→GREEN, suite 108/108. Przegląd 45 widoków przy proporcjach SE (704×640) i zen (448×960): kompozycja poprawna.
+- Final: fixed Important 4 (budżet przy prawdziwym rozmiarze) — limit renderu MAX_RENDER_PIXELS z zachowaniem proporcji (wariant lokalny: połowa na bok), README z pomiarami przy rozmiarach telefonów; test „render ma limit pikseli…” RED→GREEN, suite 109/109.
+- Final: Ruling: limit renderu 0,6 Mpx (nie 0,7) — przy 0,7 Mpx Sagittarius A*, Herkules i Zurych nocą przekraczały 125 ms w pomiarze Node; 0,6 Mpx daje na iPhonie 16 Pro Max efektywnie ok. 1,6 zamiast 2 piksela na punkt, a tło i tak jest miękkie — koszt, jeśli źle: odrobinę mniej ostre gwiazdy i okna na dużych ekranach; łatwo podnieść jedną stałą.
+- Final: Ruling: Sagittarius A* przy rozmiarze telefonu zostaje na granicy budżetu (ok. 115–125 ms w przeglądarce, 139–155 ms w Node z płótnem testowym) — główny koszt to soczewkowanie całego kadru i dysk w pełnej rozdzielczości, a obniżenie ich rozdzielczości zmiękczyłoby najbardziej dopracowany widok; render idzie w workerze, więc skutkiem jest tylko dłużej widoczny gradient — koszt, jeśli źle: na starszych iPhone'ach ok. 0,5 s do pojawienia się tego jednego widoku.
+- Final: Ruling: dwie optymalizacje bez zmiany obrazu (nebula pomija szum barwy i pyłu tam, gdzie I = 0; cosmicWeb liczy drugi szum tylko przy możliwym węźle) — odciski pikseli 9 widoków identyczne przed i po — koszt, jeśli źle: brak.
+- Final: Ruling: pomiary czasu przy rozmiarach telefonów w Node zamiast w galerii — okno aplikacji było niewidoczne, a karta w tle dawała rozrzut ±80% między identycznymi rundami — koszt, jeśli źle: liczby w README to oszacowanie; potwierdzić w widocznej galerii (?size=658x911) i na iPhonie.
