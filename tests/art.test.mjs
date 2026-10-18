@@ -2,6 +2,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { rng, perlin, fbm, ridged } from '../js/art/noise.js';
+import { makeCanvas, setCanvasFactory } from '../js/art/canvas.js';
+import { mockCanvas, hashPixels } from './helpers/mock-canvas.mjs';
+
+setCanvasFactory(mockCanvas);
 
 test('noise: rng jest deterministyczny i w [0,1)', () => {
   const a = rng(42), b = rng(42);
@@ -21,4 +25,30 @@ test('noise: perlin, fbm i ridged mieszczą się w zakresach i zależą od ziarn
     const r = ridged(n, u, v, 5); assert.ok(r >= 0 && r <= 1);
   }
   assert.ok(diff > 1, 'inne ziarno, inny szum');
+});
+
+test('canvas: fabryka testowa działa i hash zależy od pikseli', () => {
+  const c = makeCanvas(4, 4);
+  assert.equal(c.width, 4);
+  const ctx = c.getContext('2d');
+  const empty = hashPixels(c);
+  const img = ctx.createImageData(1, 1);
+  img.data.set([255, 255, 255, 255]);
+  ctx.putImageData(img, 2, 1);
+  assert.notEqual(hashPixels(c), empty);
+  ctx.fillRect(0, 0, 4, 4);
+  assert.ok(ctx.calls.includes('fillRect'));
+});
+
+test('canvas: drawImage z płótna testowego kopiuje piksele ze skalowaniem', () => {
+  const src = mockCanvas(2, 2), sctx = src.getContext('2d');
+  const img = sctx.createImageData(2, 2);
+  img.data.set([255, 0, 0, 255], 0);
+  sctx.putImageData(img, 0, 0);
+  const dst = mockCanvas(4, 4), dctx = dst.getContext('2d');
+  dctx.drawImage(src, 0, 0, 4, 4);
+  const d = dctx.getImageData(0, 0, 4, 4).data;
+  assert.equal(d[0], 255);
+  assert.equal(d[(1 * 4 + 1) * 4], 255, 'piksel (1,1) pochodzi z (0,0) źródła');
+  assert.equal(d[(2 * 4 + 2) * 4], 0, 'piksel (2,2) pochodzi z (1,1) źródła');
 });
