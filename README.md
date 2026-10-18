@@ -78,9 +78,21 @@ W późnej grze punkty badań dają głównie budżet badawczy. Bez niego (`--no
 
 Bot korzysta też z biur i kolonii, giełdy, zarządu, decyzji i budżetu badawczego. Symulator ma przełączniki (`--no=offices,market,board,decisions,budget,cap`, a dla modułów autopilota `--no=ap-market,ap-offices…`), żeby sprawdzić wpływ każdego systemu; rundy zamyka według własnej reguły, chyba że dostanie `--aprounds`, `--only=earth` (bez otwierania Kosmosu) oraz `--chal[=etap]`, który próbuje po kolei poziomów wszystkich wyzwań (najwyżej `CHAL_HOURS` h na poziom). `TRANSCEND=1` każe botowi po finale zacząć od nowa, `SAVE_STATE`, `SAVE_TIMES="5.5,6.2"` i `LOAD_STATE` zapisują i wczytują stan (np. wyzwania od chwili w drugim przejściu), `LOBBY="krok:wzrost"`, `BRAKE_CEIL` i `SEED` stroją resztę. `node tools/ladder.mjs [etap] [poziom] [--era=N]` pokazuje drabinkę produktów: zarobek z poziomu każdego produktu i podział przychodu u racjonalnego gracza. Parametry da się sprawdzić bez edycji danych: `RDK`/`RDP` (budżet badań Ziemi), `SPACE_RDK`/`SPACE_RDP` (budżet w kosmosie), `TECHMUL="6:2,9:3"` (mnożniki kosztów er) `SPACE_TECH="2000:2.4"`, `GALAXY_TECH="2000:2.4"` i `UNIVERSE_TECH="2000:2.9"` (krzywe kosztów technologii kolejnych etapów).
 
+## 🌌 Tła (widoki zza okna)
+
+Za budynkiem, stacją, statkiem i cytadelą jest malowane proceduralnie tło na Canvas: 45 widoków (18 miast, 9 kolonii, 9 układów gwiezdnych, 9 galaktyk i gromad). Każdy widok to przepis w `js/art/views/` złożony z klocków w `js/art/kit/` (szum Perlina i fBm, gwiazdy, mgławice, planety z atmosferą, czarna dziura z soczewkowaniem, horyzonty z kraterami, chmury, panoramy miast, góry, woda). Na Ziemi tło zależy od pory dnia i pogody.
+
+- Obraz liczy się raz w Web Workerze (`OffscreenCanvas`) i trafia do pamięci podręcznej (6 ostatnich obrazów); bez workera liczy się w połowie rozdzielczości w głównym wątku. Do czasu policzenia widać gradient w kolorach widoku, potem obraz pojawia się płynnie.
+- Kilka widoków ma lekką animację na osobnej warstwie (≤ 30 kl./s): rój Dysona, pulsar, czarna dziura, dżet M87, zorza w Reykjavíku (tylko nocą). Animacja staje, gdy Biuro jest niewidoczne, a w *Ustawienia → Jakość grafiki → Oszczędna* nie działa wcale.
+- Każdy przepis eksportuje klucz światła (kolor, kierunek, jasność otoczenia), z którego skorzystają dioramy w kolejnej części oprawy.
+
+**Galeria** (tylko w trybie deweloperskim, link w *Firma → Ustawienia*): `tools/gallery.html` pokazuje wszystkie widoki z czasem liczenia (mediana z 3 prób, na czerwono powyżej 125 ms), z wyborem pory dnia i pogody dla Ziemi. `?stage=earth|space|galaxy|universe` zawęża do jednego etapu. Do pracy nad tłami uruchamiaj `node tools/serve.mjs 8090` — ten serwer wyłącza pamięć podręczną przeglądarki, więc po każdej zmianie widać świeży kod.
+
 ## 🔋 Wydajność
 
 Ruchome elementy sceny (chmury, auta, część pracowników) są w osobnych warstwach SVG, więc budynek rysuje się tylko raz. Animacje sceny zatrzymują się, gdy nie patrzysz na Biuro, a logika gry chodzi z częstotliwością 20 Hz. Gra zostawiona otwarta mniej obciąża baterię.
+
+Pomiar teł (PC deweloperski, Chromium, kadr 600×800, mediana z 5 prób po rozgrzewce, 18.10.2026): wszystkie 45 widoków poniżej budżetu 125 ms. Najdłużej liczą się Sagittarius A* (104 ms), Gromada w Herkulesie (87 ms), Mgławica Oriona (85 ms) i Plejady (83 ms); miasta najwyżej 59 ms w dzień i 93 ms nocą (Zurych). Pojedyncze pomiary w karcie w tle potrafią wyjść o 30–60% wyżej, bo przeglądarka zwalnia wtedy stronę. Kod teł (`js/art/`) ma 119 kB, w tym 5 kB galerii. **Do sprawdzenia na iPhonie** (przez Wi-Fi: `node tools/serve.mjs 8090` na PC i adres PC w Safari): czas od otwarcia Biura do gotowego tła i płynność przewijania listy Produktów przy animowanym widoku Sagittarius A*.
 
 ## 🛠️ Rozwój
 
@@ -99,7 +111,10 @@ js/i18n.js            teksty interfejsu PL/EN, wybór języka, odmiana liczebnik
 js/text.js            nazwy i opisy w bieżącym języku
 js/engine.js          logika gry (bez DOM): Game (jeden etap) i Company (całe imperium, zasilanie, zapis v3)
 js/ui.js              interfejs, zakładki, modale
-js/scene.js           ilustracja w SVG: budynek na Ziemi (pory roku, pogoda, panoramy miast), stacja w kosmosie, statek-matka w galaktyce i cytadela we wszechświecie
+js/scene.js           ilustracja w SVG: budynek na Ziemi (pory roku, pogoda, budowle miast), stacja w kosmosie, statek-matka w galaktyce i cytadela we wszechświecie
+js/art/               tła na Canvas: szum i płótna, klocki (kit/), 45 przepisów widoków (views/), zarządca tła i worker
+tools/gallery.html    galeria wszystkich teł z czasem liczenia (tryb deweloperski)
+tools/serve.mjs       serwer deweloperski bez pamięci podręcznej
 js/worldmap.js        kropkowa mapa świata (generowana z Natural Earth)
 js/avatar.js          awatary członków zarządu
 js/audio.js           dźwięki syntezowane w WebAudio

@@ -369,3 +369,18 @@ test('views/earth: brak przepisów zastępczych, zorza w Reykjavíku tylko nocą
   }
   rkv.animate(mockCanvas(KW, KH).getContext('2d'), KW, KH, 4.1);
 });
+
+test('views: nie ma już przepisów zastępczych', () => {
+  const left = VIEW_IDS.filter((id) => RECIPES[id].placeholder);
+  assert.deepEqual(left, []);
+});
+
+test('sw.js: pamięć offline zawiera każdy moduł oprawy (poza galerią deweloperską)', async () => {
+  const { readFileSync, readdirSync } = await import('node:fs');
+  const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+  const walk = (dir) => readdirSync(new URL(dir, import.meta.url), { withFileTypes: true })
+    .flatMap((e) => (e.isDirectory() ? walk(`${dir}${e.name}/`) : [`${dir}${e.name}`]));
+  const files = walk('../js/art/').filter((f) => f.endsWith('.js') && !f.endsWith('/gallery.js')).map((f) => f.replace('../', './'));
+  const missing = files.filter((f) => !sw.includes(`'${f}'`));
+  assert.deepEqual(missing, []);
+});

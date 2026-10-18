@@ -388,33 +388,10 @@ const LANDMARKS = {
   },
 };
 
-// Tło za miastem (góry, zorza) — rysowane zaraz za niebem.
-const BACKDROPS = {
-  fuji(groundY, night) {
-    const m = night ? '#2b3366' : '#8796c4';
-    return `<path d="M20 ${groundY} L150 ${groundY - 104} Q180 ${groundY - 114} 210 ${groundY - 104} L340 ${groundY} Z" fill="${m}" opacity=".85"/>
-      <path d="M150 ${groundY - 104} Q180 ${groundY - 114} 210 ${groundY - 104} L196 ${groundY - 84} L186 ${groundY - 92} L176 ${groundY - 82} L166 ${groundY - 92} Z" fill="#f4f7ff" opacity="${night ? 0.6 : 0.95}"/>`;
-  },
-  alps(groundY, night) {
-    const m = night ? '#273058' : '#90a0c8';
-    let d = `M-60 ${groundY}`;
-    const peaks = [[-20, 70], [30, 110], [80, 76], [130, 120], [190, 88], [240, 126], [300, 82], [350, 112], [410, 70]];
-    peaks.forEach(([x, h]) => { d += ` L${x} ${groundY - h}`; });
-    d += ` L420 ${groundY} Z`;
-    const caps = peaks.map(([x, h]) => `<path d="M${x - 12} ${groundY - h + 18} L${x} ${groundY - h} L${x + 12} ${groundY - h + 18} L${x + 4} ${groundY - h + 14} L${x} ${groundY - h + 20} L${x - 5} ${groundY - h + 14} Z" fill="#f4f7ff" opacity="${night ? 0.55 : 0.9}"/>`).join('');
-    return `<path d="${d}" fill="${m}" opacity=".85"/>${caps}`;
-  },
-  aurora(groundY, night) {
-    if (!night) return '';
-    return `<defs><linearGradient id="aurG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#4ade80" stop-opacity="0"/><stop offset=".55" stop-color="#4ade80" stop-opacity=".45"/><stop offset="1" stop-color="#22d3ee" stop-opacity="0"/></linearGradient></defs>
-      <path class="aurora" d="M-40 ${groundY * 0.18} C 60 ${groundY * 0.05}, 140 ${groundY * 0.4}, 220 ${groundY * 0.2} S 360 ${groundY * 0.12}, 420 ${groundY * 0.3} L420 ${groundY * 0.55} C 300 ${groundY * 0.4}, 200 ${groundY * 0.62}, 100 ${groundY * 0.45} S -20 ${groundY * 0.5}, -40 ${groundY * 0.5} Z" fill="url(#aurG)"/>`;
-  },
-};
-
 export const CITY_VIEWS = {
   waw: { left: 'palace', right: 'varso' },
   ber: { left: 'fernsehturm', right: 'towers' },
-  tyo: { left: 'tokyoTower', right: 'towers', back: 'fuji' },
+  tyo: { left: 'tokyoTower', right: 'towers' },
   sfo: { left: 'goldenGate', right: 'transamerica' },
   sel: { left: 'seoulTower', right: 'lotte' },
   blr: { left: 'palms', right: 'towers' },
@@ -425,10 +402,10 @@ export const CITY_VIEWS = {
   syd: { left: 'opera', right: 'harbour' },
   sto: { left: 'spires', right: 'towers' },
   sin: { left: 'supertrees', right: 'marinaBay' },
-  rkv: { left: 'hallgrim', right: 'towers', back: 'aurora' },
+  rkv: { left: 'hallgrim', right: 'towers' },
   dxb: { left: 'burjAlArab', right: 'burjKhalifa' },
   yyz: { left: 'cnTower', right: 'towers' },
-  zrh: { left: 'grossmunster', right: 'towers', back: 'alps' },
+  zrh: { left: 'grossmunster', right: 'towers' },
   tlv: { left: 'palms', right: 'towers' },
 };
 
@@ -443,7 +420,6 @@ export const SPACE_VIEWS = {
   ceres: { dark: true, stops: ['#000004', '#05050e', '#0f0f22'], ground: '#57514b', edge: '#70675f', far: '#3c3733', farWin: '#ffd88a', stars: true },
   europa: { dark: true, stops: ['#000006', '#050818', '#0e1330'], ground: '#c4dbe8', edge: '#e6f2f9', far: '#86a9bd', farWin: '#fff4c2', stars: true },
   titan: { dark: false, stops: ['#55340f', '#a8692a', '#dda057'], ground: '#73491f', edge: '#8e6234', far: '#55361a', farWin: '#ffe1a0', stars: false },
-  proxima: { dark: true, stops: ['#10021c', '#360b3c', '#742848'], ground: '#381532', edge: '#5a2350', far: '#290e29', farWin: '#ff9ecb', stars: true },
 };
 
 // Widoki z mostka statku-matki w układach gwiezdnych (statek zawsze dryfuje w przestrzeni).
@@ -474,164 +450,6 @@ export const UNIVERSE_VIEWS = {
 };
 for (const v of Object.values(UNIVERSE_VIEWS)) Object.assign(v, { dark: true, orbit: true, stars: true, ground: '#241a33', edge: '#3d2d55', far: '#1a1228', farWin: '#fde68a' });
 
-// Galaktyka spiralna w kadrze (cx, cy, rozmiar, nachylenie, kolory).
-function spiral(cx, cy, r, tilt, rot, arm = '#c7d2fe', core = '#fde68a') {
-  let out = `<g transform="rotate(${rot} ${cx} ${cy})"><ellipse cx="${cx}" cy="${cy}" rx="${r}" ry="${r * tilt}" fill="${arm}" opacity=".1"/>`;
-  for (let a = 0; a < 2; a++) {
-    let d = '';
-    for (let k = 0; k <= 24; k++) {
-      const th = (k / 24) * 3.2 + a * Math.PI;
-      const rr = r * (0.12 + (k / 24) * 0.88);
-      d += `${k ? 'L' : 'M'}${(cx + rr * Math.cos(th)).toFixed(1)} ${(cy + rr * tilt * Math.sin(th)).toFixed(1)} `;
-    }
-    out += `<path d="${d}" stroke="${arm}" stroke-width="${(r / 9).toFixed(1)}" fill="none" opacity=".28" stroke-linecap="round"/>`;
-  }
-  return `${out}<ellipse cx="${cx}" cy="${cy}" rx="${r * 0.2}" ry="${r * 0.2 * tilt}" fill="${core}" opacity=".8"/></g>`;
-}
-function elliptical(cx, cy, r, c = '#fde6c0') {
-  return `<ellipse cx="${cx}" cy="${cy}" rx="${r * 1.3}" ry="${r}" fill="${c}" opacity=".12"/><ellipse cx="${cx}" cy="${cy}" rx="${r * 0.6}" ry="${r * 0.46}" fill="${c}" opacity=".35"/><ellipse cx="${cx}" cy="${cy}" rx="${r * 0.2}" ry="${r * 0.16}" fill="#fff8e7"/>`;
-}
-
-function universeBodies(view) {
-  switch (view) {
-    case 'milkyway':
-      return spiral(270, 66, 64, 0.38, -14) + spiral(70, 40, 12, 0.5, 30, '#bfdbfe');
-    case 'andromeda':
-      return spiral(240, 70, 110, 0.32, -28, '#bfdbfe', '#fef3c7') + spiral(60, 36, 16, 0.6, 20);
-    case 'triangulum':
-      return spiral(270, 64, 52, 0.7, 10, '#a5f3fc', '#e0f2fe') + spiral(80, 44, 22, 0.35, -20);
-    case 'virgo':
-      return [[260, 60, 22], [300, 92, 12], [220, 96, 9], [190, 46, 7], [320, 40, 8], [90, 70, 6]].map(([x, y, r]) => elliptical(x, y, r)).join('') + spiral(140, 30, 10, 0.4, 15);
-    case 'bullet':
-      return `<ellipse cx="230" cy="70" rx="56" ry="34" fill="#f472b6" opacity=".22"/><ellipse cx="300" cy="74" rx="40" ry="26" fill="#f472b6" opacity=".22"/>
-        <ellipse cx="200" cy="66" rx="44" ry="30" fill="#60a5fa" opacity=".2"/><ellipse cx="320" cy="76" rx="34" ry="24" fill="#60a5fa" opacity=".2"/>
-        ${[[200, 66, 8], [214, 76, 5], [320, 76, 7], [308, 66, 4]].map(([x, y, r]) => elliptical(x, y, r)).join('')}`;
-    case 'attractor': {
-      let out = '<circle cx="270" cy="70" r="40" fill="#93c5fd" opacity=".12"/>';
-      for (let i = 0; i < 9; i++) {
-        const a = (i / 9) * Math.PI * 2;
-        out += `<path d="M${(270 + Math.cos(a) * 160).toFixed(0)} ${(70 + Math.sin(a) * 90).toFixed(0)} Q${(270 + Math.cos(a + 0.4) * 70).toFixed(0)} ${(70 + Math.sin(a + 0.4) * 40).toFixed(0)} 270 70" stroke="#bfdbfe" stroke-width="2" fill="none" opacity=".3"/>`;
-      }
-      return out + elliptical(270, 70, 10, '#dbeafe');
-    }
-    case 'bootes':
-      return elliptical(310, 40, 4) + spiral(60, 110, 6, 0.5, 10) + `<circle cx="200" cy="80" r="1.4" fill="#fff" opacity=".6"/>`;
-    case 'hercules': {
-      let out = '<path d="M-40 120 Q 120 40 420 30" stroke="#c4b5fd" stroke-width="40" fill="none" opacity=".08"/>';
-      for (let i = 0; i < 26; i++) {
-        const x = -20 + i * 17;
-        const y = 116 - i * 3.4 + Math.sin(i * 1.7) * 8;
-        out += `<ellipse cx="${x}" cy="${y.toFixed(0)}" rx="${(2 + (i % 4)).toFixed(0)}" ry="${(1.2 + (i % 3) * 0.6).toFixed(1)}" fill="#e9d5ff" opacity=".7"/>`;
-      }
-      return out;
-    }
-    case 'edge': {
-      // poświata Wielkiego Wybuchu: plamy promieniowania tła
-      let out = '';
-      for (let i = 0; i < 40; i++) {
-        const x = (i * 97) % 420 - 30;
-        const y = (i * 53) % 160 + 10;
-        out += `<ellipse cx="${x}" cy="${y}" rx="${18 + (i % 5) * 6}" ry="${10 + (i % 4) * 5}" fill="${i % 3 ? '#f59e0b' : '#38bdf8'}" opacity=".12"/>`;
-      }
-      return out;
-    }
-    default: return '';
-  }
-}
-
-function galaxyBodies(view) {
-  const star = (x, y, r, c, glow = 2.6) => `<circle cx="${x}" cy="${y}" r="${r * glow}" fill="${c}" opacity=".18"/><circle cx="${x}" cy="${y}" r="${r * 1.6}" fill="${c}" opacity=".35"/><circle cx="${x}" cy="${y}" r="${r}" fill="#fffbe8"/>`;
-  switch (view) {
-    case 'sol':
-      return `${star(286, 64, 12, '#ffd166')}<ellipse cx="286" cy="64" rx="34" ry="12" fill="none" stroke="#ffe08a" stroke-width="1.5" stroke-dasharray="1.5 3" opacity=".8" transform="rotate(-18 286 64)"/>
-        <circle cx="236" cy="88" r="2.2" fill="#60a5fa"/>`;
-    case 'alpha':
-      return `${star(270, 60, 10, '#ffd166')}${star(300, 76, 7, '#ffb347')}${star(64, 36, 2, '#ff6a3d', 3)}`;
-    case 'trappist':
-      return `<circle cx="290" cy="70" r="70" fill="#ff3b1f" opacity=".1"/><circle cx="290" cy="70" r="34" fill="#ff5a36" opacity=".35"/><circle cx="290" cy="70" r="22" fill="#ff7a4f"/>
-        ${[0, 1, 2, 3, 4, 5, 6].map((i) => `<circle cx="${40 + i * 30}" cy="${118 - i * 7}" r="${2.2 + (i % 3) * 0.9}" fill="${['#a16207', '#b45309', '#2563eb', '#16a34a', '#0ea5e9', '#7c3aed', '#94a3b8'][i]}"/>`).join('')}`;
-    case 'pleiades':
-      return `<ellipse cx="250" cy="70" rx="110" ry="60" fill="#60a5fa" opacity=".08"/>${[[230, 50, 4], [262, 44, 5], [284, 66, 4.5], [248, 80, 3.5], [212, 72, 3], [300, 40, 3], [270, 92, 3.5]].map(([x, y, r]) => star(x, y, r, '#93c5fd', 3)).join('')}`;
-    case 'crab':
-      return `<g opacity=".75">${[[0, '#f97316'], [40, '#38bdf8'], [80, '#f97316'], [120, '#a78bfa'], [160, '#38bdf8']].map(([a, c]) => `<path d="M270 70 q${30 * Math.cos((a * Math.PI) / 180)} ${-34 * Math.sin((a * Math.PI) / 180)} ${60 * Math.cos(((a + 30) * Math.PI) / 180)} ${30 * Math.sin(((a + 30) * Math.PI) / 180)}" stroke="${c}" stroke-width="3" fill="none"/>`).join('')}</g>
-        <ellipse cx="270" cy="70" rx="64" ry="40" fill="#f97316" opacity=".1"/>${star(270, 70, 3, '#e0f2fe', 4)}`;
-    case 'orion':
-      return `<ellipse cx="230" cy="70" rx="140" ry="70" fill="#f472b6" opacity=".14"/><ellipse cx="260" cy="60" rx="80" ry="40" fill="#fb7185" opacity=".18"/><ellipse cx="200" cy="90" rx="60" ry="26" fill="#a78bfa" opacity=".2"/>
-        ${[[250, 58, 3], [262, 64, 2.6], [244, 68, 2.4], [256, 72, 2.2]].map(([x, y, r]) => star(x, y, r, '#e0e7ff', 3)).join('')}`;
-    case 'omega': {
-      let out = '<circle cx="270" cy="66" r="62" fill="#fde68a" opacity=".1"/><circle cx="270" cy="66" r="34" fill="#fde68a" opacity=".16"/>';
-      for (let i = 0; i < 90; i++) {
-        const a = i * 2.39996;
-        const d = Math.sqrt(i / 90) * 56;
-        out += `<circle cx="${(270 + d * Math.cos(a)).toFixed(1)}" cy="${(66 + d * Math.sin(a)).toFixed(1)}" r="${(1.6 - d / 60).toFixed(2)}" fill="#fff4d6"/>`;
-      }
-      return out;
-    }
-    case 'lmc': {
-      // Droga Mleczna widziana z zewnątrz
-      let out = '<ellipse cx="240" cy="78" rx="130" ry="44" fill="#8b5cf6" opacity=".12" transform="rotate(-12 240 78)"/><ellipse cx="240" cy="78" rx="26" ry="12" fill="#fde68a" opacity=".65" transform="rotate(-12 240 78)"/>';
-      for (let arm = 0; arm < 2; arm++) {
-        let d = '';
-        for (let k = 0; k <= 30; k++) {
-          const th = (k / 30) * 3.4 + arm * Math.PI;
-          const r = 10 + k * 3.6;
-          d += `${k ? 'L' : 'M'}${(240 + r * Math.cos(th)).toFixed(1)} ${(78 + r * 0.34 * Math.sin(th)).toFixed(1)} `;
-        }
-        out += `<path d="${d}" stroke="#c7d2fe" stroke-width="7" fill="none" opacity=".22" stroke-linecap="round" transform="rotate(-12 240 78)"/>`;
-      }
-      return out;
-    }
-    case 'sgr':
-      return `<ellipse cx="270" cy="70" rx="72" ry="20" fill="none" stroke="#fb923c" stroke-width="9" opacity=".45" transform="rotate(-10 270 70)"/>
-        <ellipse cx="270" cy="70" rx="58" ry="14" fill="none" stroke="#fde68a" stroke-width="4" opacity=".7" transform="rotate(-10 270 70)"/>
-        <circle cx="270" cy="70" r="30" fill="#fb923c" opacity=".25"/><circle cx="270" cy="70" r="22" fill="#000"/>
-        <path d="M244 64 a28 18 0 0 1 52 0" stroke="#fde68a" stroke-width="3" fill="none" opacity=".8"/>`;
-    default: return '';
-  }
-}
-
-function spaceBodies(view, groundY) {
-  switch (view) {
-    case 'leo':
-      return `<defs><radialGradient id="earthG" cx=".5" cy=".3" r=".7"><stop offset="0" stop-color="#5fb4ff"/><stop offset=".7" stop-color="#1d4ed8"/><stop offset="1" stop-color="#0b2a6b"/></radialGradient></defs>
-        <circle cx="180" cy="${groundY + 360}" r="440" fill="none" stroke="#7dd3fc" stroke-width="10" opacity=".25"/>
-        <circle cx="180" cy="${groundY + 360}" r="434" fill="url(#earthG)"/>
-        <path d="M-40 ${groundY - 50} q60 -20 120 -8 t110 -6 t140 2" stroke="#fff" stroke-width="7" fill="none" opacity=".35" stroke-linecap="round"/>
-        <path d="M40 ${groundY - 30} q50 -14 100 -2 t90 -8" stroke="#4ade80" stroke-width="9" fill="none" opacity=".35" stroke-linecap="round"/>`;
-    case 'moon':
-      return `<circle cx="292" cy="66" r="30" fill="#93c5fd" opacity=".15"/><circle cx="292" cy="66" r="20" fill="#2563eb"/>
-        <path d="M280 58 q6 -6 12 0 q4 6 -2 10 q-8 2 -10 -10z M296 70 q6 -2 8 4 q-4 6 -10 2z" fill="#4ade80"/><path d="M278 72 q10 -4 22 2" stroke="#fff" stroke-width="2.5" fill="none" opacity=".8"/>`;
-    case 'mars':
-      return `<circle cx="84" cy="58" r="6" fill="#8b7d73"/><circle cx="82" cy="56" r="1.4" fill="#6b5f57"/><circle cx="268" cy="40" r="3.4" fill="#9c8f84"/>
-        <rect x="-700" y="${groundY - 60}" width="1760" height="60" fill="#e9b48a" opacity=".18"/>`;
-    case 'ceres':
-      return [[60, 50, 9], [250, 80, 6], [310, 36, 4], [150, 30, 3], [200, 110, 5]].map(([x, y, r]) => `<path d="M${x - r} ${y} q${r * 0.4} ${-r * 1.1} ${r} ${-r * 0.9} q${r * 1.1} ${r * 0.1} ${r} ${r} q${-r * 0.3} ${r} ${-r} ${r * 0.8} q${-r * 1.1} 0 ${-r} ${-r * 0.9}z" fill="#7b746c"/>`).join('');
-    case 'europa':
-      return `<defs><clipPath id="jupC"><circle cx="276" cy="96" r="70"/></clipPath></defs>
-        <g clip-path="url(#jupC)"><rect x="200" y="20" width="160" height="160" fill="#d9b48a"/>
-        ${[[40, 8, '#b5794a'], [56, 6, '#ead2b0'], [70, 10, '#a86b3e'], [92, 7, '#e8cfa9'], [108, 12, '#b98250'], [128, 8, '#d9b48a'], [144, 9, '#a86b3e']].map(([y, h, col]) => `<rect x="200" y="${y}" width="160" height="${h}" fill="${col}"/>`).join('')}
-        <ellipse cx="300" cy="112" rx="11" ry="6" fill="#c0562f"/></g><circle cx="276" cy="96" r="70" fill="none" stroke="#fff" stroke-opacity=".08" stroke-width="6"/>`;
-    case 'titan':
-      return `<ellipse cx="96" cy="74" rx="66" ry="13" fill="none" stroke="#f1dcae" stroke-width="5" opacity=".7" transform="rotate(-12 96 74)"/>
-        <circle cx="96" cy="74" r="30" fill="#ecd29a" opacity=".9"/><path d="M68 70 h56 M70 80 h52" stroke="#d2b177" stroke-width="3" opacity=".7"/>
-        <path d="M30 74 A66 13 0 0 0 162 74" fill="none" stroke="#f1dcae" stroke-width="5" opacity=".8" transform="rotate(-12 96 74)"/>
-        <rect x="-700" y="-400" width="1760" height="${groundY + 400}" fill="#e7a24d" opacity=".18"/>`;
-    case 'l2':
-      return `<circle cx="70" cy="70" r="11" fill="#2563eb"/><path d="M64 66 q4 -4 8 0 q3 4 -1 7z" fill="#4ade80"/><circle cx="70" cy="70" r="16" fill="#60a5fa" opacity=".12"/>
-        <circle cx="98" cy="60" r="3.4" fill="#d1d5db"/><path d="M-700 ${groundY + 60} h1760" stroke="#fff" stroke-opacity=".05"/>`;
-    case 'venus':
-      return `<circle cx="70" cy="58" r="40" fill="#fff6d0" opacity=".35"/><circle cx="70" cy="58" r="20" fill="#fff8dc"/>
-        ${[[groundY - 70, 0.35], [groundY - 40, 0.5], [groundY - 14, 0.7]].map(([y, o]) => `<path d="M-700 ${y} q 120 -16 240 0 t240 0 t240 0 t240 0 t240 0 t240 0 t240 0 t240 0 V ${groundY + 400} H -700 Z" fill="#f3dca0" opacity="${o}"/>`).join('')}`;
-    case 'mercury':
-      return `<circle cx="300" cy="44" r="80" fill="#ffd166" opacity=".16"/><circle cx="300" cy="44" r="52" fill="#ffe08a" opacity=".35"/><circle cx="300" cy="44" r="36" fill="#fff3b0"/>
-        ${[40, 120, 200].map((x, i) => `<rect x="${x}" y="${30 + i * 14}" width="18" height="8" fill="#9fb3d9" opacity=".7" transform="rotate(-20 ${x + 9} ${34 + i * 14})"/>`).join('')}`;
-    case 'proxima':
-      return `<circle cx="278" cy="70" r="60" fill="#ff6a3d" opacity=".12"/><circle cx="278" cy="70" r="36" fill="#ff7a4f" opacity=".35"/><circle cx="278" cy="70" r="26" fill="#ff8a5b"/>
-        <circle cx="60" cy="40" r="3" fill="#fff6d6"/><circle cx="60" cy="40" r="8" fill="#fff6d6" opacity=".25"/>`;
-    default: return '';
-  }
-}
-
 function spaceSkyline(view, groundY, th) {
   // kopuły, anteny i panele słoneczne zamiast wieżowców
   let out = '';
@@ -647,14 +465,6 @@ function spaceSkyline(view, groundY, th) {
       if (r() < 0.35) out += `<rect x="${(x + w + 2).toFixed(1)}" y="${groundY - 12}" width="14" height="8" fill="#2b4a8a" stroke="#7fa3e0" stroke-width=".6" transform="rotate(-18 ${(x + w + 9).toFixed(1)} ${groundY - 8})"/>`;
     }
     x += w + 8 + r() * 26;
-  }
-  if (view === 'proxima') {
-    for (let i = 0; i < 8; i++) {
-      const px = -40 + i * 60 + r() * 20;
-      if (px > BX - 8 && px < BX + BW + 8) continue;
-      const h = 14 + r() * 20;
-      out += `<path d="M${px.toFixed(1)} ${groundY} q4 ${-h / 2} 0 ${-h}" stroke="#7c3aed" stroke-width="2" fill="none"/><circle cx="${px.toFixed(1)}" cy="${(groundY - h).toFixed(1)}" r="3" fill="#f0abfc" filter="url(#glow)"/>`;
-    }
   }
   return out;
 }
@@ -832,13 +642,8 @@ export class Scene {
     // słońce / księżyc
     const now = new Date();
     const hour = now.getHours() + now.getMinutes() / 60;
-    if (bd) {
-      // słońce, księżyc i ciała niebieskie są w tle Canvas
-    } else if (th) {
-      // w galaktyce i wszechświecie statek rośnie w górę, więc tło schodzi niżej, żeby nie chowało się pod paskiem etapów
-      const drop = galaxy || universe ? Math.max(0, (groundY - 240) * 0.4) : 0;
-      const bodies = universe ? universeBodies(view) : galaxy ? galaxyBodies(view) : spaceBodies(view, groundY);
-      back.push(drop ? `<g transform="translate(0 ${drop.toFixed(0)})">${bodies}</g>` : bodies);
+    if (bd || th) {
+      // słońce, księżyc i ciała niebieskie są w tle Canvas (bez niego kosmos ma samo niebo SVG)
     } else if (overcast && env.weather !== 'cloudy') {
       // przy deszczu, śniegu i mgle nie widać ani słońca, ani księżyca
     } else if (night) {
@@ -869,7 +674,6 @@ export class Scene {
       backAnim.push(bat(groundY * 0.25, 16, -2), bat(groundY * 0.4, 22, -11));
     }
     // panorama miasta w tle
-    if (cityView && cityView.back && !bd) parts.push(BACKDROPS[cityView.back](groundY, night));
     if (th && !orbit) parts.push(spaceSkyline(view, groundY, th));
     const fr = seeded(5);
     // dalekie bloki miasta rysuje tło Canvas (plany z perspektywą powietrzną)
