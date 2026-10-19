@@ -6,6 +6,7 @@ import { TW, TH, LV, iso, n, RX, poly, tones, box, shadowOffset, windows, NIGHT_
 import { RECIPES, VIEW_IDS } from '../js/art/views/index.js';
 import { PALETTES, assemble, emblem, emblemCenter, ER, SEATS, tierFor, CREW, MAX_ANIM, budget, drive, person, tree, pumpkin, xmasTree, stringLights, SIDE_ART, seeded, shade, esc } from '../js/diorama/parts.js';
 import { PLACES, island, groundTone, SNOW } from '../js/diorama/island.js';
+import { SE, SE_INSETS, frameFor } from '../js/diorama/frame.js';
 import { EARTH_RECIPES } from '../js/art/views/earth.js';
 import { SPACE_RECIPES } from '../js/art/views/space.js';
 import { GALAXY_RECIPES } from '../js/art/views/galaxy.js';
@@ -447,4 +448,24 @@ test('island: cała geometria (kreski, światła, dysze, balustrada) mieści si�
     const r = island({ view, size, light: DAY, env: ENV, seed: size + 5 }), [x0, y0, x1, y1] = extent(r.svg), [bx0, by0, bx1, by1] = r.bbox;
     assert.ok(x0 >= bx0 && y0 >= by0 && x1 <= bx1 && y1 <= by1, `${view} ${size}: geometria [${x0}, ${y0}, ${x1}, ${y1}] poza bbox [${r.bbox}]`);
   }
+});
+
+test('frame: diorama mieści się w pasie między górnymi i dolnymi nakładkami, podstawa przy dolnej krawędzi', () => {
+  const views = [[SE, SE_INSETS], [{ w: 406, h: 465 }, SE_INSETS], [{ w: 440, h: 956 }, { top: 176, bottom: 6 }]];
+  for (const [view, ins] of views) for (const bbox of [[-60, -80, 60, 20], [-200, -260, 200, 60], [-300, -60, 300, 40]]) {
+    const f = frameFor(bbox, view, ins);
+    assert.ok(Math.abs(f.viewBox[2] / f.viewBox[3] - view.w / view.h) < 1e-6, 'proporcje widoku');
+    const sx = (x) => (x - f.viewBox[0]) * f.scale, sy = (y) => (y - f.viewBox[1]) * f.scale;
+    assert.ok(sx(bbox[0]) >= -0.5 && sx(bbox[2]) <= view.w + 0.5, 'w poziomie w kadrze');
+    assert.ok(sy(bbox[1]) >= ins.top - 0.5 && sy(bbox[3]) <= view.h - ins.bottom + 0.5, 'w pionie w pasie');
+    assert.ok(view.h - ins.bottom - sy(bbox[3]) < 0.1 * (view.h - ins.top - ins.bottom), 'podstawa przy dolnej krawędzi pasa');
+  }
+});
+
+test('frame: większa diorama oddala kamerę, mała nie jest powiększana ponad minSpan, zerowy rozmiar → null', () => {
+  const small = frameFor([-40, -60, 40, 10], SE, SE_INSETS), big = frameFor([-200, -260, 200, 60], SE, SE_INSETS);
+  assert.ok(big.scale < small.scale);
+  assert.ok(small.scale <= SE.w / 300 + 1e-9);
+  assert.equal(frameFor([-40, -60, 40, 10], { w: 0, h: 0 }, SE_INSETS), null);
+  assert.equal(frameFor([-40, -60, 40, 10], { w: 300, h: 40 }, SE_INSETS), null);
 });
