@@ -6,7 +6,7 @@ import { TW, TH, LV, iso, n, RX, poly, tones, box, shadowOffset, windows, NIGHT_
 import { RECIPES, VIEW_IDS, recipeFor } from '../js/art/views/index.js';
 import { PALETTES, assemble, emblem, emblemCenter, ER, SEATS, tierFor, CREW, MAX_ANIM, budget, drive, person, tree, pumpkin, xmasTree, stringLights, SIDE_ART, seeded, shade, esc } from '../js/diorama/parts.js';
 import { PLACES, island, groundTone, SNOW } from '../js/diorama/island.js';
-import { SE, SE_INSETS, frameFor, MIN_EMBLEM_PX, MIN_LOT_PX } from '../js/diorama/frame.js';
+import { SE, SE_INSETS, frameFor, viewBoxAttr, MIN_EMBLEM_PX, MIN_LOT_PX } from '../js/diorama/frame.js';
 import { SLOTS, layout } from '../js/diorama/layout.js';
 import { modelFor, newIds, buildDiorama, STAGE_ART } from '../js/diorama/index.js';
 import { Company } from '../js/engine.js';
@@ -17,6 +17,7 @@ import { GALAXY_RECIPES } from '../js/art/views/galaxy.js';
 import { UNIVERSE_RECIPES } from '../js/art/views/universe.js';
 import { readFileSync, readdirSync } from 'node:fs';
 import { skyline } from '../js/diorama/skyline.js';
+import { Scene } from '../js/scene.js';
 
 const PHASES = ['night', 'dawn', 'day', 'dusk'];
 const WEATHERS = ['clear', 'cloudy', 'rain', 'snow', 'fog'];
@@ -641,4 +642,57 @@ test('sw.js: pamięć offline zawiera każdy moduł dioram (poza galerią)', () 
   const files = walk('../js/diorama/').filter((f) => f.endsWith('.js') && !f.endsWith('/gallery.js')).map((f) => f.replace('../', './'));
   const missing = files.filter((f) => !sw.includes(`'${f}'`));
   assert.deepEqual(missing, []);
+});
+
+// Scena bez przeglądarki: najmniejszy DOM (elementy z atrybutami i innerHTML), bez Canvas (createElement('canvas') rzuca).
+function fakeScene(w, h) {
+  const el = () => ({ attrs: {}, innerHTML: '', clientWidth: 0, clientHeight: 0, setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return this.attrs[k] ?? null; }, appendChild: (c) => c, closest: () => null });
+  const prev = globalThis.document;
+  globalThis.document = { createElement: (t) => { if (t === 'canvas') throw new Error('bez Canvas'); return el(); }, createElementNS: () => el() };
+  try {
+    const root = Object.assign(el(), { clientWidth: w, clientHeight: h });
+    return { root, sc: new Scene(root, { insets: () => SE_INSETS }) };
+  } finally {
+    globalThis.document = prev;
+  }
+}
+
+test('scena: po powrocie z zerowego rozmiaru (także do tego samego) warstwy i kadr liczą się na nowo dla nowej dioramy', () => {
+  const { root, sc } = fakeScene(SE.w, SE.h), g = new Company(null, { now: 1_700_000_000_000, rng: () => 0.5 }).layers.earth;
+  const vb = () => sc.layers.front.getAttribute('viewBox');
+  sc.render(g, true);
+  const vb0 = vb();
+  assert.equal(vb0, viewBoxAttr(frameFor(sc.bbox, SE, SE_INSETS)));
+  for (const k of ['skyline', 'back', 'backAnim', 'weather']) assert.equal(sc.layers[k].getAttribute('viewBox'), `0 0 ${SE.w} ${SE.h}`, k);
+  // Ukrycie: zerowy rozmiar, a w tym czasie render z nowym podpisem (wszystkie działy) — viewBox zostaje.
+  Object.assign(root, { clientWidth: 0, clientHeight: 0 }); sc.resize();
+  for (const d of g.D.DEPTS) g.s.deptUnlocked[d.id] = true;
+  sc.render(g);
+  assert.equal(vb(), vb0, 'przy zerowym rozmiarze bez nowego viewBox');
+  // Powrót do tego samego rozmiaru: kadr nowej (większej) dioramy.
+  Object.assign(root, { clientWidth: SE.w, clientHeight: SE.h }); sc.resize();
+  assert.notEqual(vb(), vb0);
+  assert.equal(vb(), viewBoxAttr(frameFor(sc.bbox, SE, SE_INSETS)));
+  assert.ok(!/NaN/.test(Object.values(sc.layers).map((l) => l.getAttribute('viewBox')).join()));
+});
+
+test('scena: bez tła Canvas niebo leży pod budowlami miasta, a nieudana budowa dioramy nie zjada animacji nowego działu', () => {
+  const { sc } = fakeScene(SE.w, SE.h), g = new Company(null, { now: 1_700_000_000_000, rng: () => 0.5 }).layers.earth;
+  sc.render(g, true);
+  const sk = sc.layers.skyline.innerHTML;
+  assert.ok(sk.startsWith('<defs><linearGradient id="skyG"') && sk.includes('url(#d-lm)'), 'gradient przed budowlami w jednej warstwie');
+  assert.equal(sc.layers.back.innerHTML, '', 'back nie zasłania budowli');
+  const art = STAGE_ART.earth, before = sc.layers.front.innerHTML;
+  g.s.deptUnlocked.rnd = true;
+  STAGE_ART.earth = { ...art, core: () => { throw new Error('zepsuta oprawa'); } };
+  try {
+    sc.render(g, true);
+    assert.equal(sc.layers.front.innerHTML, before, 'błąd zostawia poprzednią dioramę');
+  } finally {
+    STAGE_ART.earth = art;
+  }
+  sc.render(g, true);
+  assert.ok(sc.layers.front.innerHTML.includes('class="floor-new"'), 'nowy dział wyrasta po udanej budowie');
+  sc.render(g, true);
+  assert.ok(!sc.layers.front.innerHTML.includes('class="floor-new"'), 'i tylko raz');
 });

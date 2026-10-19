@@ -133,7 +133,7 @@ function overlayInsets(root) {
 export class Scene {
   // insets() → { top, bottom }: wcięcia pasa dioramy w px (domyślnie z nakładek nad sceną).
   constructor(root, { insets } = {}) {
-    Object.assign(this, { root, layers: {}, known: new Map(), sig: '', sw: 0, sh: 0, bbox: null, sky: null, lastMs: 0, raf: 0 });
+    Object.assign(this, { root, layers: {}, known: new Map(), sig: '', sw: 0, sh: 0, bbox: null, sky: null, lastMs: 0 });
     this.insets = insets || (() => overlayInsets(root));
     // Tło Canvas (obraz i animacja) z budowlami miasta w opakowaniu z powolnym najazdem kamery.
     const wrap = this.backdropWrap = document.createElement('div');
@@ -159,9 +159,8 @@ export class Scene {
       (name === 'skyline' ? wrap : root).appendChild(el);
       this.layers[name] = el;
     }
-    if (typeof ResizeObserver !== 'undefined') {
-      new ResizeObserver(() => { this.raf ||= requestAnimationFrame(() => this.resize()); }).observe(root);
-    }
+    // ResizeObserver woła najwyżej raz na klatkę, przed malowaniem: kadr zmienia się w tej samej klatce co rozmiar.
+    if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => this.resize()).observe(root);
   }
 
   // Zwraca podpis stanu — scena przerysowuje się tylko, gdy coś istotnego się zmieni.
@@ -194,27 +193,30 @@ export class Scene {
     const light = bd?.light ?? recipeFor(view).light(bdEnv);
     this.sky = { earth, view, env, phase, light, flat: !bd };
     try {
-      const fresh = newIds(this.known, game.D.id, game.D.DEPTS.filter((d) => s.deptUnlocked[d.id]).map((d) => d.id));
+      // Znane działy zapisujemy dopiero po udanej budowie, żeby błąd nie zjadł animacji nowego działu.
+      const known = new Map(this.known), fresh = newIds(known, game.D.id, game.D.DEPTS.filter((d) => s.deptUnlocked[d.id]).map((d) => d.id));
       const d = buildDiorama(modelFor(game, { view, env: { ...env, phase }, light, isNew: (id) => fresh.has(id) }));
       this.layers.front.innerHTML = d.front;
       this.layers.frontAnim.innerHTML = d.frontAnim;
       this.bbox = d.bbox;
+      this.known = known;
     } catch { /* zostaje poprzednia diorama */ }
     this.paint();
     this.lastMs = performance.now() - t0;
   }
 
-  // Raz na klatkę po zmianie rozmiaru: tło, a przy zmianie o ≥ 2 px warstwy sceny i kadr (bez przebudowy dioramy).
+  // Po zmianie rozmiaru: tło, a przy zmianie o ≥ 2 px warstwy sceny i kadr (bez przebudowy dioramy).
   resize() {
-    this.raf = 0;
     this.backdrop?.resize();
     const { clientWidth: w, clientHeight: h } = this.root;
     if (Math.abs(w - this.sw) >= 2 || Math.abs(h - this.sh) >= 2) this.paint();
   }
 
-  // Warstwy w układzie sceny i viewBox dioramy. Przy zerowym rozmiarze nic (dokończy resize); błąd zostawia poprzednie.
+  // Warstwy w układzie sceny i viewBox dioramy. Przy zerowym rozmiarze nic, a sw = sh = 0, więc powrót do dowolnego
+  // rozmiaru (także tego samego) przemaluje warstwy w resize(); błąd zostawia poprzednie i też wymusza ponowienie.
   paint() {
     const { clientWidth: w, clientHeight: h } = this.root;
+    this.sw = this.sh = 0;
     if (!(w > 0 && h > 0) || !this.sky) return;
     try {
       const L = this.layers, c = this.skyLayers(w, h), f = this.bbox && frameFor(this.bbox, { w, h }, this.insets());
@@ -224,13 +226,14 @@ export class Scene {
     } catch { /* zostają poprzednie warstwy */ }
   }
 
-  // Niebo i pogoda w px sceny: gradient (tylko bez tła Canvas), gwiazdy, chmury, ruch na niebie, święta, opady.
+  // Niebo i pogoda w px sceny: gradient (tylko bez tła Canvas), budowle, gwiazdy, chmury, ruch na niebie, święta, opady.
   skyLayers(w, h) {
     const { earth, view, env, phase, light, flat } = this.sky, rec = recipeFor(view), hz = rec.horizon || 0.86;
     const sky = (PLACES[view] ?? PLACES.waw).sky, overcast = env.weather !== 'clear', dark = earth ? phase === 'night' : sky.stars;
-    let back = '', anim = '', weather = '';
+    let flatSky = '', anim = '', weather = '';
+    // Bez tła Canvas gradient nieba idzie pod budowle miasta (na początek warstwy skyline).
     const st = flat && (typeof rec.stops === 'function' ? rec.stops({ ...env, phase }) : rec.stops);
-    if (st) back = `<defs><linearGradient id="skyG" x2="0" y2="1">${st.map((c, i) => `<stop offset="${[0, 0.6, 1][i]}" stop-color="${c}"/>`).join('')}</linearGradient></defs><rect width="${w}" height="${h}" fill="url(#skyG)"/>`;
+    if (st) flatSky = `<defs><linearGradient id="skyG" x2="0" y2="1">${st.map((c, i) => `<stop offset="${[0, 0.6, 1][i]}" stop-color="${c}"/>`).join('')}</linearGradient></defs><rect width="${w}" height="${h}" fill="url(#skyG)"/>`;
     if (earth ? (dark || phase === 'dusk') && !overcast : sky.stars) {
       const r = seeded(7);
       for (let i = 0, k = Math.round((dark ? 14 : 5) * w / 341); i < k; i++) {
@@ -245,10 +248,11 @@ export class Scene {
           + '<ellipse rx="26" ry="11"/><ellipse cx="18" cy="-6" rx="17" ry="12"/><ellipse cx="-14" cy="-4" rx="13" ry="9"/><ellipse cx="34" cy="2" rx="14" ry="8"/></g></g>';
       }
     }
-    if (sky.traffic === 'satellites') anim += satellite(h * 0.42, 34, -6) + satellite(h * 0.24, 52, -31, true);
-    if (sky.traffic === 'comets') anim += comet(h * 0.4, 46, -9) + comet(h * 0.22, 70, -40, true);
+    const py = (k) => Math.round(h * k); // całe px: satelita, kometa i nietoperz odejmują od y przesunięcia
+    if (sky.traffic === 'satellites') anim += satellite(py(0.42), 34, -6) + satellite(py(0.24), 52, -31, true);
+    if (sky.traffic === 'comets') anim += comet(py(0.4), 46, -9) + comet(py(0.22), 70, -40, true);
     if (env.newYear && dark) anim += fireworks(w, h);
-    if (env.holiday === 'halloween' && (dark || (earth && phase === 'dusk'))) anim += bat(h * 0.25, 16, -2) + bat(h * 0.4, 22, -11);
+    if (env.holiday === 'halloween' && (dark || (earth && phase === 'dusk'))) anim += bat(py(0.25), 16, -2) + bat(py(0.4), 22, -11);
     if (env.weather === 'rain' || env.weather === 'snow') weather += precipitation(env.weather, w, h);
     if (env.weather === 'fog') {
       weather += `<defs><linearGradient id="fogG" x2="0" y2="1"><stop offset="0" stop-color="#e8ecf6" stop-opacity="0"/><stop offset="1" stop-color="#e8ecf6" stop-opacity="${dark ? 0.25 : 0.55}"/></linearGradient></defs>`
@@ -258,6 +262,6 @@ export class Scene {
       const r = seeded(55);
       for (let i = 0; i < 5; i++) weather += leaf(20 + r() * (w - 40), -(r() * 9).toFixed(1), 8 + r() * 5, FOLIAGE.autumn[i % 3]);
     }
-    return { skyline: skyline(view, { w, h }, { light, phase, horizon: hz }).svg, back, backAnim: anim, weather };
+    return { skyline: flatSky + skyline(view, { w, h }, { light, phase, horizon: hz }).svg, back: '', backAnim: anim, weather };
   }
 }
