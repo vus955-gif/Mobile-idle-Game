@@ -109,11 +109,11 @@ export function assemble(parts, ctx) {
       if (blink) anim.push(lamp); else svg += lamp;
       grow(bx - 3.5, ty - 3.5, bx + 3.5, by);
     } else if (kind === 'glow') {
-      // Rdzeń o promieniu r i poświata z gradientu radialnego (bez filtra).
-      const [cx, cy] = P(x, y, z), c = col(part[5]), id = `d-glow-${seed}-${i}`;
+      // Rdzeń o promieniu r i poświata z gradientu radialnego (bez filtra); prostokąt obejmuje całą poświatę.
+      const [cx, cy] = P(x, y, z), c = col(part[5]), id = `d-glow-${seed}-${i}`, R = r1(r * RX / 0.45);
       svg += `<defs><radialGradient id="${id}"><stop offset="0" stop-color="${css(mixRgb(c, [255, 255, 255], 0.7))}"/><stop offset=".45" stop-color="${css(c)}"/>`
-        + `<stop offset="1" stop-color="${css(c)}" stop-opacity="0"/></radialGradient></defs><circle cx="${cx}" cy="${cy}" r="${r1(r * RX / 0.45)}" fill="url(#${id})"/>`;
-      grow(cx - r * RX, cy - r * RX, cx + r * RX, cy + r * RX);
+        + `<stop offset="1" stop-color="${css(c)}" stop-opacity="0"/></radialGradient></defs><circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#${id})"/>`;
+      grow(cx - R, cy - R, cx + R, cy + R);
     } else if (kind === 'label') {
       // Tabliczka szeroka na w · TW/2; nazwa w punktach kodowych, skrócona do max, escapowana po skróceniu.
       const [, , , , w, max] = part, chars = Array.from(String(ctx.company ?? ''));

@@ -142,9 +142,9 @@ const TEX = {
 // --- Spód: W = pół szerokości, fy = dół przedniej krawędzi; zwraca { svg, bottom } ---
 
 const UNDER = {
-  // Stożek skały z sopelkami.
+  // Stożek skały z sopelkami; płytki, żeby największa wyspa Ziemi mieściła się w pasie iPhone'a SE.
   island({ W, fy, s, r, tu }) {
-    const tip = [(r() - 0.5) * W * 0.3, fy + s * 5.5];
+    const tip = [(r() - 0.5) * W * 0.3, fy + s * 2.5];
     const out = (sx) => Array.from({ length: 7 }, (_, i) => {
       const k = (i + 1) / 8, z = i % 2;
       return [sx * W * (1 - k) ** 1.1 * (z ? 0.78 : 1) * (0.92 + r() * 0.1) + tip[0] * k, LV + (tip[1] - LV) * k + (z ? 0 : 7 + r() * 6)];

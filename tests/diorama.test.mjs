@@ -3,10 +3,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { checkSvg, lum } from './helpers/svg.mjs';
 import { TW, TH, LV, iso, n, RX, poly, tones, box, shadowOffset, windows, NIGHT_AMBIENT, WIN_GLOW, pyr, gable, cyl, dome, ring, shadow } from '../js/diorama/iso.js';
-import { RECIPES, VIEW_IDS } from '../js/art/views/index.js';
+import { RECIPES, VIEW_IDS, recipeFor } from '../js/art/views/index.js';
 import { PALETTES, assemble, emblem, emblemCenter, ER, SEATS, tierFor, CREW, MAX_ANIM, budget, drive, person, tree, pumpkin, xmasTree, stringLights, SIDE_ART, seeded, shade, esc } from '../js/diorama/parts.js';
 import { PLACES, island, groundTone, SNOW } from '../js/diorama/island.js';
-import { SE, SE_INSETS, frameFor } from '../js/diorama/frame.js';
+import { SE, SE_INSETS, frameFor, MIN_EMBLEM_PX, MIN_LOT_PX } from '../js/diorama/frame.js';
+import { SLOTS, layout } from '../js/diorama/layout.js';
+import { modelFor, newIds, buildDiorama, STAGE_ART } from '../js/diorama/index.js';
+import { Company } from '../js/engine.js';
+import { LAYERS, LAYER_ORDER } from '../js/layers.js';
 import { EARTH_RECIPES } from '../js/art/views/earth.js';
 import { SPACE_RECIPES } from '../js/art/views/space.js';
 import { GALAXY_RECIPES } from '../js/art/views/galaxy.js';
@@ -171,6 +175,8 @@ test('parts: maszt miga w warstwie animacji tylko z budżetu, glow ma gradient o
   assert.ok(ids(a).length >= 1 && [...ids(a), ...ids(b)].every((x) => x.startsWith('d-')));
   assert.equal(new Set([...ids(a), ...ids(b)]).size, ids(a).length + ids(b).length, 'id różne między wywołaniami');
   assert.ok(a.includes(`url(#${ids(a)[0]})`));
+  const halo = +a.match(/<circle[^>]* r="([\d.]+)" fill="url/)[1], gb = assemble(g, CTX({ seed: 1 })).box;
+  assert.ok(gb[2] - gb[0] >= 2 * halo && gb[3] - gb[1] >= 2 * halo, 'prostokąt obejmuje całą poświatę');
 });
 
 test('parts: tabliczka z nazwą firmy jest escapowana i skracana', () => {
@@ -468,4 +474,114 @@ test('frame: większa diorama oddala kamerę, mała nie jest powiększana ponad 
   assert.ok(small.scale <= SE.w / 300 + 1e-9);
   assert.equal(frameFor([-40, -60, 40, 10], { w: 0, h: 0 }, SE_INSETS), null);
   assert.equal(frameFor([-40, -60, 40, 10], { w: 300, h: 40 }, SE_INSETS), null);
+});
+
+// --- Model, układ działek i dioramy zastępcze (Zadanie 5) ---
+
+function maxModel(stage, extra = {}) {
+  const S = LAYERS[stage];
+  return {
+    stage, view: S.HQ, company: 'Krzemowe Imperium', rounds: 8, firstHeads: 100,
+    depts: S.DEPTS.map((d) => ({ id: d.id, icon: d.icon, color: d.color, tier: 5, isNew: false })),
+    env: { phase: 'night', season: 'winter', weather: 'snow', holiday: 'xmas', newYear: false, snowCover: stage === 'earth' },
+    light: recipeFor(S.HQ).light({ phase: 'night', weather: 'snow' }),
+    ...extra,
+  };
+}
+// inIsland(r, size): obrys r mieści się w rombie wyspy; overlap3d(a, b): obrysy nachodzą i zakresy [gz, gz + h] też
+const inIsland = (r, size) => r.gx >= -size / 2 && r.gy >= -size / 2 && r.gx + r.w <= size / 2 && r.gy + r.d <= size / 2;
+const overlap3d = (a, b) => a.gx < b.gx + b.w && b.gx < a.gx + a.w && a.gy < b.gy + b.d && b.gy < a.gy + a.d && a.gz < b.gz + b.h && b.gz < a.gz + a.h;
+
+test('layout: działki nie nachodzą na siebie ani na rdzeń, mieszczą się na wyspie i nie przeskakują, gdy dochodzi dział', () => {
+  for (const stage of LAYER_ORDER) {
+    const max = LAYERS[stage].DEPTS.length;
+    assert.ok(SLOTS[stage].length >= max - 1, `${stage}: dość działek`);
+    let prev = null;
+    for (let n = 1; n <= max; n++) {
+      const lay = layout(stage, n, 0, STAGE_ART[stage].coreFoot(n, 0));
+      const all = [lay.core, ...lay.lots];
+      assert.equal(lay.lots.length, n - 1);
+      for (const r of all) assert.ok(inIsland(r, lay.size), `${stage} n=${n}: na wyspie`);
+      for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) assert.ok(!overlap3d(all[i], all[j]), `${stage} n=${n}: ${i}/${j}`);
+      if (prev) { assert.deepEqual(lay.lots.slice(0, n - 2), prev.lots); assert.ok(lay.size >= prev.size); }
+      assert.ok(layout(stage, n, 8, STAGE_ART[stage].coreFoot(n, 8)).size >= lay.size, 'rundy nie zmniejszają wyspy');
+      prev = lay;
+    }
+  }
+});
+
+test('diorama: model z gry — odblokowane działy w kolejności, progi obsady, rundy ≤ 8', () => {
+  const co = new Company(null, { now: 1_700_000_000_000, rng: () => 0.5 });
+  const g = co.layers.earth;
+  g.s.deptUnlocked.rnd = true; g.s.depts.dev = 40; g.s.depts.rnd = 4; g.s.prestigeCount = 11;
+  const m = modelFor(g, { view: 'waw', env: ENV, light: recipeFor('waw').light(ENV) });
+  assert.deepEqual(m.depts.map((d) => [d.id, d.tier]), [['dev', 4], ['rnd', 1]]);
+  assert.equal(m.stage, 'earth'); assert.equal(m.rounds, 8); assert.equal(m.firstHeads, 40);
+});
+
+test('diorama: nowy dział wyrasta tylko raz, a wejście na etap i powrót na niego niczego nie animuje', () => {
+  const known = new Map();
+  assert.deepEqual([...newIds(known, 'earth', ['dev', 'rnd'])], []);
+  assert.deepEqual([...newIds(known, 'earth', ['dev', 'rnd', 'design'])], ['design']);
+  assert.deepEqual([...newIds(known, 'earth', ['dev', 'rnd', 'design'])], []);
+  assert.deepEqual([...newIds(known, 'space', ['engineers'])], [], 'przełączenie etapu');
+  assert.deepEqual([...newIds(known, 'earth', ['dev', 'rnd', 'design'])], [], 'powrót na Ziemię');
+  newIds(known, 'earth', ['dev']);
+  assert.deepEqual([...newIds(known, 'earth', ['dev', 'rnd'])], ['rnd'], 'po resecie dział znów wyrasta');
+});
+
+test('diorama: wszystkie działy każdego etapu mieszczą się i są czytelne na iPhonie SE', () => {
+  for (const stage of LAYER_ORDER) for (const extra of [{}, { env: ENV, rounds: 0 }]) {
+    const d = buildDiorama(maxModel(stage, extra));
+    const f = frameFor(d.bbox, SE, SE_INSETS);
+    assert.deepEqual(d.lots.map((l) => l.id).sort(), LAYERS[stage].DEPTS.map((x) => x.id).sort(), `${stage}: każdy dział ma element`);
+    const px = ([x, y]) => [(x - f.viewBox[0]) * f.scale, (y - f.viewBox[1]) * f.scale];
+    const inBox = ([x, y], b) => x > b[0] && x < b[2] && y > b[1] && y < b[3];
+    d.lots.forEach((a, i) => {
+      const r = a.emblem.r * f.scale, [x, y] = px([a.emblem.x, a.emblem.y]);
+      assert.ok(2 * r >= MIN_EMBLEM_PX, `${stage}/${a.id}: emblemat ${(2 * r).toFixed(1)} px`);
+      assert.ok(a.foot * f.scale >= MIN_LOT_PX, `${stage}/${a.id}: działka ${(a.foot * f.scale).toFixed(1)} px`);
+      assert.ok(x - r >= 0 && x + r <= SE.w && y - r >= SE_INSETS.top && y + r <= SE.h - SE_INSETS.bottom, `${stage}/${a.id}: w pasie`);
+      for (const b of d.lots.slice(i + 1)) {
+        assert.ok(Math.hypot(a.emblem.x - b.emblem.x, a.emblem.y - b.emblem.y) >= a.emblem.r + b.emblem.r, `${stage}: ${a.id}/${b.id} emblemy nachodzą`);
+        assert.ok(!inBox([a.emblem.x, a.emblem.y], b.box), `${stage}: ${b.id} zasłania ${a.id}`);
+      }
+    });
+  }
+});
+
+test('diorama: budżety elementów i animacji, poprawny i powtarzalny SVG, wyrasta tylko nowy dział', () => {
+  for (const stage of LAYER_ORDER) {
+    const m = maxModel(stage), d = buildDiorama(m);
+    assert.deepEqual(buildDiorama(maxModel(stage)), d, `${stage}: dwa buildy są identyczne`);
+    const { elements } = checkSvg(d.front);
+    assert.ok(elements <= 1200, `${stage}: ${elements} elementów`);
+    assert.equal(d.stats.elements, elements);
+    checkSvg(d.frontAnim);
+    assert.ok(d.stats.anim <= MAX_ANIM, `${stage}: ${d.stats.anim} animacji`);
+    assert.ok((d.front + d.frontAnim).split('filter=').length - 1 <= 8);
+    const ids = [...(d.front + d.frontAnim).matchAll(/\bid="([^"]+)"/g)].map((x) => x[1]);
+    assert.equal(new Set(ids).size, ids.length, `${stage}: identyfikatory w dioramie są unikalne`);
+    assert.ok(!d.front.includes('floor-new'));
+    const one = buildDiorama({ ...m, depts: m.depts.map((x, i) => ({ ...x, isNew: i === 2 })) });
+    assert.equal(one.front.split('class="floor-new"').length - 1, 1, `${stage}: wyrasta tylko trzeci dział`);
+  }
+});
+
+test('diorama: każdy dział ma emblemat z własną ikoną i kolorem', () => {
+  for (const stage of LAYER_ORDER) {
+    const { front } = buildDiorama(maxModel(stage));
+    for (const d of LAYERS[stage].DEPTS) assert.ok(front.includes(`>${d.icon}</text>`) && front.includes(`fill="${d.color}"`), `${stage}/${d.id}`);
+  }
+});
+
+test('diorama: obsada i ozdoby świąt — ludzie według progu, lampki na rdzeniu, choinka i dynie na Ziemi', () => {
+  const people = (tier) => buildDiorama(maxModel('earth', { depts: maxModel('earth').depts.slice(0, 3).map((d) => ({ ...d, tier })) })).stats.people;
+  assert.ok(people(0) === 0 && people(1) < people(3) && people(3) < people(5));
+  assert.deepEqual(buildDiorama(maxModel('earth')).stats.decor.sort(), ['lights', 'xmasTree']);
+  assert.deepEqual(buildDiorama(maxModel('space')).stats.decor, ['lights']);
+  assert.deepEqual(buildDiorama(maxModel('earth', { env: { ...ENV, holiday: 'halloween' } })).stats.decor, ['pumpkins']);
+  assert.deepEqual(buildDiorama(maxModel('galaxy', { env: { ...ENV, holiday: 'halloween' } })).stats.decor, []);
+  const s = buildDiorama(maxModel('universe')).stats;
+  assert.deepEqual([s.base, s.material, s.vehicles, s.ornaments], ['shard', 'crystal', 0, []]);
 });
