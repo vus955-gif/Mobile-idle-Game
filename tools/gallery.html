@@ -12,6 +12,8 @@
     label { font-size: 13px; color: #a7a3c4; }
     select { margin-left: 6px; background: #1b1930; color: #fff; border: 1px solid #3a3660; border-radius: 8px; padding: 4px 8px; font: inherit; }
     #summary { font-size: 13px; color: #7dffb6; font-family: ui-monospace, monospace; }
+    header a { font-size: 13px; color: #9db4ff; text-decoration: none; }
+    header a:hover { text-decoration: underline; }
     h2 { font-size: 16px; margin: 22px 16px 4px; }
     .grid { display: flex; flex-wrap: wrap; gap: 16px; padding: 10px 16px 8px; }
     figure { margin: 0; width: 300px; }
@@ -27,6 +29,7 @@
 <body>
   <header>
     <h1>Galeria widoków zza okna</h1>
+    <a href="dioramas.html">Dioramy →</a>
     <label>Pora dnia (Ziemia)<select id="phase"><option value="night">noc</option><option value="dawn">świt</option><option value="day" selected>dzień</option><option value="dusk">zmierzch</option></select></label>
     <label>Pogoda (Ziemia)<select id="weather"><option value="clear" selected>bezchmurnie</option><option value="cloudy">pochmurno</option><option value="rain">deszcz</option><option value="snow">śnieg</option><option value="fog">mgła</option></select></label>
     <span id="summary">liczę…</span>
