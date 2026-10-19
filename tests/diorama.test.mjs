@@ -5,6 +5,7 @@ import { checkSvg, lum } from './helpers/svg.mjs';
 import { TW, TH, LV, iso, tones, box, shadowOffset, windows, NIGHT_AMBIENT, WIN_GLOW, pyr, gable, cyl, dome, ring, shadow } from '../js/diorama/iso.js';
 import { RECIPES, VIEW_IDS } from '../js/art/views/index.js';
 import { PALETTES, assemble, emblem, emblemCenter, ER, SEATS, tierFor, CREW, MAX_ANIM, budget, drive, person, tree, pumpkin, xmasTree, stringLights, SIDE_ART, seeded, shade, esc } from '../js/diorama/parts.js';
+import { PLACES, island, groundTone, SNOW } from '../js/diorama/island.js';
 
 const PHASES = ['night', 'dawn', 'day', 'dusk'];
 const WEATHERS = ['clear', 'cloudy', 'rain', 'snow', 'fog'];
@@ -266,4 +267,104 @@ test('parts: grafika przeniesiona ze sceny zwraca poprawny SVG bez efektów uboc
   assert.equal(shade('#808080', 0.5), 'rgb(64,64,64)');
   assert.equal(shade('#808080', 1.5), 'rgb(192,192,192)');
   assert.equal(esc('<a href="x">&</a>'), '&lt;a href=&quot;x&quot;&gt;&amp;&lt;/a&gt;');
+});
+
+// --- Wyspy i platformy z materiałem miejsca (Zadanie 3) ---
+
+const DAY = L([0.42, -0.91], 0.8), NITE = L([0.6, -0.8], 0.3, [150, 170, 255]);
+const ENV = { phase: 'day', season: 'summer', weather: 'clear', holiday: null, newYear: false, snowCover: false };
+const bw = (b) => b[2] - b[0];
+
+test('island: każdy z 45 widoków ma podstawę i materiał zgodny z projektem', () => {
+  assert.deepEqual(Object.keys(PLACES).sort(), [...VIEW_IDS].sort());
+  const want = {
+    moon: ['island', 'regolith'], mars: ['island', 'rust'], europa: ['island', 'ice'], titan: ['island', 'dunes'],
+    mercury: ['island', 'rock'], ceres: ['island', 'rock'], leo: ['platform', 'metal'], l2: ['platform', 'metal'],
+    venus: ['aerostat', 'deck'], sgr: ['dock', 'metal'], edge: ['shard', 'crystal'], waw: ['island', 'grass'],
+  };
+  for (const [id, [base, material]] of Object.entries(want)) assert.deepEqual([PLACES[id].base, PLACES[id].material], [base, material], id);
+  const count = (base) => Object.values(PLACES).filter((p) => p.base === base).length;
+  assert.deepEqual(['island', 'platform', 'aerostat', 'dock', 'shard'].map(count), [24, 2, 1, 9, 9]);
+  // niebo: miasta mają chmury (gwiazdy nocą wynikają z pory dnia), światy skaliste gwiazdy bez ruchu, Galaktyka i Wszechświat komety
+  for (const id of ['waw', 'nyc', 'tlv']) assert.deepEqual(PLACES[id].sky, { stars: false, traffic: 'clouds' }, id);
+  for (const id of ['moon', 'mercury', 'ceres', 'europa']) assert.deepEqual(PLACES[id].sky, { stars: true, traffic: 'none' }, id);
+  for (const id of ['mars', 'titan', 'venus']) assert.deepEqual(PLACES[id].sky, { stars: false, traffic: 'none' }, id);
+  for (const id of ['leo', 'l2']) assert.deepEqual(PLACES[id].sky, { stars: true, traffic: 'satellites' }, id);
+  for (const id of ['sol', 'sgr', 'milkyway', 'edge']) assert.deepEqual(PLACES[id].sky, { stars: true, traffic: 'comets' }, id);
+  const mats = new Set(['grass', 'regolith', 'rock', 'rust', 'ice', 'dunes', 'metal', 'deck', 'crystal']);
+  for (const [id, p] of Object.entries(PLACES)) assert.ok(mats.has(p.material) && ['island', 'platform', 'aerostat', 'dock', 'shard'].includes(p.base), id);
+});
+
+test('island: rysuje bez wyjątku każdą podstawę, deterministycznie; większa wyspa → większy prostokąt', () => {
+  for (const view of ['waw', 'leo', 'venus', 'sgr', 'edge']) {
+    const a = island({ view, size: 8, light: DAY, env: ENV, seed: 3 }), b = island({ view, size: 8, light: DAY, env: ENV, seed: 3 });
+    assert.equal(a.svg, b.svg, `${view}: ten sam wynik`);
+    checkSvg(a.svg);
+    const small = island({ view, size: 4, light: DAY, env: ENV, seed: 3 });
+    assert.ok(bw(a.bbox) > bw(small.bbox) && a.bbox[3] - a.bbox[1] > small.bbox[3] - small.bbox[1], `${view}: większa wyspa → większy prostokąt`);
+    assert.notEqual(a.svg, island({ view, size: 8, light: DAY, env: ENV, seed: 4 }).svg, `${view}: ziarno zmienia fakturę`);
+  }
+});
+
+test('island: zima pokrywa trawę śniegiem, jesień zmienia barwę trawy', () => {
+  assert.equal(groundTone('waw', { snowCover: true, season: 'winter' }), SNOW);
+  assert.equal(SNOW, '#eef3fb');
+  const chroma = (h) => { const c = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)); return Math.max(...c) - Math.min(...c); };
+  const summer = groundTone('waw', { season: 'summer' });
+  assert.equal(summer, PALETTES.earth.ground, 'lato to barwa z palety');
+  assert.notEqual(groundTone('waw', { season: 'autumn' }), summer);
+  assert.ok(chroma(groundTone('waw', { season: 'autumn' })) < chroma(summer), 'jesienią trawa jest przygaszona');
+  assert.ok(lum(groundTone('waw', { season: 'spring' })) > lum(summer), 'wiosną trawa jest świeższa (jaśniejsza)');
+  for (const season of ['spring', 'summer', 'autumn', 'winter']) assert.match(groundTone('sto', { season }), /^#[0-9a-f]{6}$/, 'zawsze zapis #rrggbb (shade() go wymaga)');
+  assert.equal(groundTone('moon', { snowCover: true, season: 'winter' }), groundTone('moon', {}), 'poza Ziemią pora roku nie zmienia podłoża');
+  assert.equal(groundTone('waw'), summer, 'bez env jak lato');
+  const snowy = island({ view: 'waw', size: 6, light: DAY, env: { ...ENV, season: 'winter', snowCover: true }, seed: 1 }).svg;
+  assert.ok(snowy.includes(tones(SNOW, DAY).top) && !island({ view: 'waw', size: 6, light: DAY, env: ENV, seed: 1 }).svg.includes(tones(SNOW, DAY).top));
+});
+
+// Poniższe testy dodano ponad polecenie zadania.
+
+test('island: wszystkie 45 widoków w dzień i w nocy — poprawny SVG, rim w prostokącie, budżet elementów i brak filtrów', () => {
+  for (const view of VIEW_IDS) for (const light of [DAY, NITE]) {
+    const r = island({ view, size: 10, light, env: ENV, seed: 11 });
+    const { elements } = checkSvg(r.svg);
+    assert.ok(elements >= 6 && elements <= 80, `${view}: ${elements} elementów`);
+    assert.ok(!r.svg.includes('filter=') && !r.svg.includes('<animate'), view);
+    const [x0, y0, x1, y1] = r.bbox;
+    assert.ok(x1 > x0 && y1 > y0 && r.bbox.every(Number.isInteger), `${view}: prostokąt całkowity`);
+    assert.equal(r.rim.length, 4);
+    for (const [x, y] of r.rim) assert.ok(x >= x0 && x <= x1 && y >= y0 && y <= y1, `${view}: narożnik w prostokącie`);
+    for (const m of r.svg.matchAll(/\bid="([^"]+)"/g)) assert.ok(m[1].startsWith('d-isl-'), `${view}: id ${m[1]}`);
+  }
+});
+
+test('island: rim to narożniki wierzchu (tył, prawy, przód, lewy) w siatce wyśrodkowanej na początku', () => {
+  const { rim, bbox } = island({ view: 'waw', size: 6, light: DAY, env: ENV, seed: 1 });
+  assert.deepEqual(rim, [iso(-3, -3), iso(3, -3), iso(3, 3), iso(-3, 3)]);
+  assert.ok(bbox[0] <= rim[3][0] && bbox[2] >= rim[1][0]);
+  // każda podstawa ma spód poniżej krawędzi przedniego narożnika
+  for (const v of ['waw', 'leo', 'venus', 'sgr', 'edge']) {
+    assert.ok(island({ view: v, size: 6, light: DAY, env: ENV, seed: 1 }).bbox[3] > rim[2][1] + LV, `${v}: spód sięga poniżej krawędzi`);
+  }
+});
+
+test('island: materiały różnią się wyglądem, a faktura mieści się w kilku ścieżkach', () => {
+  const views = ['waw', 'moon', 'mercury', 'mars', 'europa', 'titan', 'leo', 'venus', 'sgr', 'edge'];
+  const svgs = views.map((v) => island({ view: v, size: 8, light: DAY, env: ENV, seed: 5 }).svg);
+  assert.equal(new Set(svgs).size, views.length);
+  const tops = new Set(['waw', 'moon', 'mercury', 'ceres', 'mars', 'europa', 'titan', 'leo', 'venus', 'sgr', 'edge'].map((v) => groundTone(v, ENV)));
+  assert.equal(tops.size, 11, 'każdy świat ma własną barwę podłoża');
+  const el = (v, size) => checkSvg(island({ view: v, size, light: DAY, env: ENV, seed: 5 }).svg).elements;
+  for (const v of views) assert.ok(el(v, 12) - el(v, 4) <= 12, `${v}: liczba elementów nie rośnie z polem wyspy`);
+});
+
+test('island: światło zmienia barwę wierzchu, a małe i duże rozmiary też się rysują', () => {
+  const a = island({ view: 'moon', size: 8, light: DAY, env: ENV, seed: 2 }).svg, b = island({ view: 'moon', size: 8, light: NITE, env: ENV, seed: 2 }).svg;
+  assert.notEqual(a, b);
+  assert.ok(a.includes(tones(groundTone('moon', ENV), DAY).top) && b.includes(tones(groundTone('moon', ENV), NITE).top));
+  for (const size of [1, 2, 3, 5, 7, 9, 12]) for (const view of ['waw', 'mars', 'europa', 'leo', 'venus', 'sgr', 'edge']) {
+    const r = island({ view, size, light: DAY, env: ENV, seed: size });
+    checkSvg(r.svg);
+    assert.equal(r.rim[1][0] - r.rim[3][0], size * TW, `${view} ${size}`);
+  }
 });
