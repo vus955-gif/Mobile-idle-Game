@@ -1,19 +1,15 @@
 // Części brył dioram: palety etapów, składanie listy Part w SVG, emblemat, obsada, budżet animacji, pojazdy i drobna
 // grafika przeniesiona ze sceny. Czysty JS bez DOM. W Part środek (x, y) mają cyl, dome, ring, dish, glow, mast; reszta róg.
-import { TW, LV, iso, tones, box, pyr, gable, cyl, dome, ring, shadow, windows, mixRgb, css } from './iso.js';
-
-const r1 = (v) => Math.round(v * 10) / 10 + 0; // do 0,1 i bez „-0”
-const RX = TW * Math.SQRT1_2; // półoś pozioma okręgu o promieniu 1 kafelka (jak w iso.js)
+import { TW, LV, RX, iso, tones, box, pyr, gable, cyl, dome, ring, shadow, windows, mixRgb, css, rgb, n as r1 } from './iso.js'; // r1: zaokrąglenie do 0,1 bez „-0”
 
 export function seeded(seed) {
   let s = seed >>> 0;
   return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
 }
 
-// f < 1 przyciemnia, f > 1 rozjaśnia.
-export function shade(hex, f) {
-  const n = parseInt(hex.slice(1), 16);
-  let r = (n >> 16) & 255; let g = (n >> 8) & 255; let b = n & 255;
+// c to #rrggbb, rgb() albo [r, g, b]; f < 1 przyciemnia, f > 1 rozjaśnia.
+export function shade(c, f) {
+  let [r, g, b] = rgb(c);
   if (f <= 1) { r *= f; g *= f; b *= f; } else { const t = f - 1; r += (255 - r) * t; g += (255 - g) * t; b += (255 - b) * t; }
   return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
 }
@@ -27,8 +23,8 @@ export function esc(s) {
 export const PALETTES = {
   earth: { wall: '#f3e3c7', wall2: '#e9c1a6', glass: '#8fc8e8', roof: '#d4725a', metal: '#b8c4cf', dark: '#4b4a63', crystal: '#9be0ef', green: '#6dbb78', ground: '#93cf80' },
   space: { wall: '#e6edf5', wall2: '#aebfd6', glass: '#5aa7e0', roof: '#7d93b5', metal: '#c9d3df', dark: '#2a3350', crystal: '#ffb84d', green: '#5cc2a0', ground: '#8fa0b5' },
-  galaxy: { wall: '#8a6fd0', wall2: '#c05fb8', glass: '#4fd6d0', roof: '#4c3a8f', metal: '#a9a3d6', dark: '#22164a', crystal: '#e86bd0', green: '#38d6b8', ground: '#3a2a78' },
-  universe: { wall: '#2c2a36', wall2: '#f0ead9', glass: '#bfb4e8', roof: '#d4a437', metal: '#e3c872', dark: '#0e0d14', crystal: '#fff2c4', green: '#a8b86a', ground: '#1d1b26' },
+  galaxy: { wall: '#8a6fd0', wall2: '#c05fb8', glass: '#4fd6d0', roof: '#4c3a8f', metal: '#a9a3d6', dark: '#22164a', crystal: '#e86bd0', green: '#38d6b8', ground: '#594c92' },
+  universe: { wall: '#2c2a36', wall2: '#f0ead9', glass: '#bfb4e8', roof: '#d4a437', metal: '#e3c872', dark: '#0e0d14', crystal: '#fff2c4', green: '#a8b86a', ground: '#d2c7dd' },
 };
 
 // Obsada: progi, gęstość i budżet animacji.

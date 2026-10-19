@@ -11,7 +11,7 @@ export const LV = 12; // wysokość jednego poziomu
 export const iso = (gx, gy, gz = 0) => [(gx - gy) * TW / 2, (gx + gy) * TH / 2 - gz * LV];
 
 // Półosie okręgu o promieniu r kafelków na ziemi: rzut 2:1 daje elipsę o stosunku 2:1.
-const RX = TW * Math.SQRT1_2;
+export const RX = TW * Math.SQRT1_2;
 const RY = RX / 2;
 // Pionowa półoś okręgu stojącego (rzut z elewacji 30°: cos 30° · RX).
 const RZ = RX * Math.sqrt(3) / 2;
@@ -71,13 +71,13 @@ export function tones(base, light, { snow = false } = {}) {
 // --- Prymitywy ---
 
 // Liczba zaokrąglona do 0,1, żeby SVG był krótki (i bez „-0”).
-const n = (v) => Math.round(v * 10) / 10 + 0;
+export const n = (v) => Math.round(v * 10) / 10 + 0;
 // Krycie z dokładnością do 0,01.
 const op = (v) => Math.round(v * 100) / 100;
-const pt = (p) => `${n(p[0])} ${n(p[1])}`;
+export const pt = (p) => `${n(p[0])} ${n(p[1])}`;
 
 // Wielokąt z uszczelniającą kreską w tym samym kolorze (bez szczelin między ścianami przy wygładzaniu).
-const poly = (pts, fill) =>
+export const poly = (pts, fill) =>
   `<path d="M${pts.map(pt).join('L')}Z" fill="${fill}" stroke="${fill}" stroke-width=".5" stroke-linejoin="round"/>`;
 
 // Pudełko: trzy ściany (lewa, prawa, góra) i, gdy rim, kreska krawędzi od strony światła.

@@ -2,10 +2,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { checkSvg, lum } from './helpers/svg.mjs';
-import { TW, TH, LV, iso, tones, box, shadowOffset, windows, NIGHT_AMBIENT, WIN_GLOW, pyr, gable, cyl, dome, ring, shadow } from '../js/diorama/iso.js';
+import { TW, TH, LV, iso, n, RX, poly, tones, box, shadowOffset, windows, NIGHT_AMBIENT, WIN_GLOW, pyr, gable, cyl, dome, ring, shadow } from '../js/diorama/iso.js';
 import { RECIPES, VIEW_IDS } from '../js/art/views/index.js';
 import { PALETTES, assemble, emblem, emblemCenter, ER, SEATS, tierFor, CREW, MAX_ANIM, budget, drive, person, tree, pumpkin, xmasTree, stringLights, SIDE_ART, seeded, shade, esc } from '../js/diorama/parts.js';
 import { PLACES, island, groundTone, SNOW } from '../js/diorama/island.js';
+import { EARTH_RECIPES } from '../js/art/views/earth.js';
+import { SPACE_RECIPES } from '../js/art/views/space.js';
+import { GALAXY_RECIPES } from '../js/art/views/galaxy.js';
+import { UNIVERSE_RECIPES } from '../js/art/views/universe.js';
+import { readFileSync } from 'node:fs';
 
 const PHASES = ['night', 'dawn', 'day', 'dusk'];
 const WEATHERS = ['clear', 'cloudy', 'rain', 'snow', 'fog'];
@@ -43,8 +48,6 @@ test('iso: pudełko, cień przeciwnie do światła i okna świecące tylko nocą
   assert.ok(night.includes(WIN_GLOW) && !day.includes(WIN_GLOW));
   assert.ok(checkSvg(night).elements <= 2, 'okna ściany to najwyżej dwie ścieżki');
 });
-
-// Poniższe testy dodano ponad polecenie zadania: pokrywają części, których test z planu nie dotyka.
 
 test('helpers: checkSvg łapie złe wartości i niezamknięte grupy, lum liczy luminancję względną', () => {
   assert.equal(checkSvg('<g><path d="M0 0"/><circle r="2"/></g>').elements, 3);
@@ -275,24 +278,23 @@ const DAY = L([0.42, -0.91], 0.8), NITE = L([0.6, -0.8], 0.3, [150, 170, 255]);
 const ENV = { phase: 'day', season: 'summer', weather: 'clear', holiday: null, newYear: false, snowCover: false };
 const bw = (b) => b[2] - b[0];
 
-test('island: każdy z 45 widoków ma podstawę i materiał zgodny z projektem', () => {
+test('island: każdy z 45 widoków ma podstawę, materiał i niebo zgodne z projektem (grupami etapów)', () => {
   assert.deepEqual(Object.keys(PLACES).sort(), [...VIEW_IDS].sort());
-  const want = {
-    moon: ['island', 'regolith'], mars: ['island', 'rust'], europa: ['island', 'ice'], titan: ['island', 'dunes'],
-    mercury: ['island', 'rock'], ceres: ['island', 'rock'], leo: ['platform', 'metal'], l2: ['platform', 'metal'],
-    venus: ['aerostat', 'deck'], sgr: ['dock', 'metal'], edge: ['shard', 'crystal'], waw: ['island', 'grass'],
+  const group = (recipes, want) => { for (const id of Object.keys(recipes)) assert.deepEqual(PLACES[id], want, id); };
+  group(EARTH_RECIPES, { base: 'island', material: 'grass', sky: { stars: false, traffic: 'clouds' } });
+  group(GALAXY_RECIPES, { base: 'dock', material: 'metal', sky: { stars: true, traffic: 'comets' } });
+  group(UNIVERSE_RECIPES, { base: 'shard', material: 'crystal', sky: { stars: true, traffic: 'comets' } });
+  assert.deepEqual([EARTH_RECIPES, GALAXY_RECIPES, UNIVERSE_RECIPES].map((g) => Object.keys(g).length), [18, 9, 9]);
+  // Kosmos: dziewięć widoków, każdy osobno
+  const rocky = (material, stars) => ({ base: 'island', material, sky: { stars, traffic: 'none' } });
+  const platform = { base: 'platform', material: 'metal', sky: { stars: true, traffic: 'satellites' } };
+  const space = {
+    leo: platform, l2: platform, venus: { base: 'aerostat', material: 'deck', sky: { stars: false, traffic: 'none' } },
+    moon: rocky('regolith', true), mercury: rocky('rock', true), ceres: rocky('rock', true), europa: rocky('ice', true),
+    mars: rocky('rust', false), titan: rocky('dunes', false),
   };
-  for (const [id, [base, material]] of Object.entries(want)) assert.deepEqual([PLACES[id].base, PLACES[id].material], [base, material], id);
-  const count = (base) => Object.values(PLACES).filter((p) => p.base === base).length;
-  assert.deepEqual(['island', 'platform', 'aerostat', 'dock', 'shard'].map(count), [24, 2, 1, 9, 9]);
-  // niebo: miasta mają chmury (gwiazdy nocą wynikają z pory dnia), światy skaliste gwiazdy bez ruchu, Galaktyka i Wszechświat komety
-  for (const id of ['waw', 'nyc', 'tlv']) assert.deepEqual(PLACES[id].sky, { stars: false, traffic: 'clouds' }, id);
-  for (const id of ['moon', 'mercury', 'ceres', 'europa']) assert.deepEqual(PLACES[id].sky, { stars: true, traffic: 'none' }, id);
-  for (const id of ['mars', 'titan', 'venus']) assert.deepEqual(PLACES[id].sky, { stars: false, traffic: 'none' }, id);
-  for (const id of ['leo', 'l2']) assert.deepEqual(PLACES[id].sky, { stars: true, traffic: 'satellites' }, id);
-  for (const id of ['sol', 'sgr', 'milkyway', 'edge']) assert.deepEqual(PLACES[id].sky, { stars: true, traffic: 'comets' }, id);
-  const mats = new Set(['grass', 'regolith', 'rock', 'rust', 'ice', 'dunes', 'metal', 'deck', 'crystal']);
-  for (const [id, p] of Object.entries(PLACES)) assert.ok(mats.has(p.material) && ['island', 'platform', 'aerostat', 'dock', 'shard'].includes(p.base), id);
+  assert.deepEqual(Object.keys(space).sort(), Object.keys(SPACE_RECIPES).sort());
+  for (const [id, want] of Object.entries(space)) assert.deepEqual(PLACES[id], want, id);
 });
 
 test('island: rysuje bez wyjątku każdą podstawę, deterministycznie; większa wyspa → większy prostokąt', () => {
@@ -321,8 +323,6 @@ test('island: zima pokrywa trawę śniegiem, jesień zmienia barwę trawy', () =
   const snowy = island({ view: 'waw', size: 6, light: DAY, env: { ...ENV, season: 'winter', snowCover: true }, seed: 1 }).svg;
   assert.ok(snowy.includes(tones(SNOW, DAY).top) && !island({ view: 'waw', size: 6, light: DAY, env: ENV, seed: 1 }).svg.includes(tones(SNOW, DAY).top));
 });
-
-// Poniższe testy dodano ponad polecenie zadania.
 
 test('island: wszystkie 45 widoków w dzień i w nocy — poprawny SVG, rim w prostokącie, budżet elementów i brak filtrów', () => {
   for (const view of VIEW_IDS) for (const light of [DAY, NITE]) {
@@ -366,5 +366,85 @@ test('island: światło zmienia barwę wierzchu, a małe i duże rozmiary też s
     const r = island({ view, size, light: DAY, env: ENV, seed: size });
     checkSvg(r.svg);
     assert.equal(r.rim[1][0] - r.rim[3][0], size * TW, `${view} ${size}`);
+  }
+});
+
+test('island: wspólne pomocnicze (n, RX, poly) są w iso.js i nie ma ich kopii w island.js ani parts.js', () => {
+  assert.equal(n(1.26), 1.3);
+  assert.ok(Object.is(n(-0.04), 0), 'bez „-0”');
+  assert.equal(RX, TW * Math.SQRT1_2);
+  assert.match(poly([[0, 0], [10, 0.04], [10, 10]], '#abc'), /^<path d="M0 0L10 0L10 10Z" fill="#abc" stroke="#abc" stroke-width="\.5"/);
+  const src = (f) => readFileSync(new URL(`../js/diorama/${f}`, import.meta.url), 'utf8');
+  for (const f of ['island.js', 'parts.js']) assert.ok(!/^const RX\b/m.test(src(f)), `${f}: bez własnej kopii RX`);
+  assert.ok(!/^const n = /m.test(src('island.js')), 'island.js: bez własnej kopii n');
+});
+
+test('parts: shade przyjmuje dowolny zapis barwy, a dla #rrggbb daje wynik jak dotąd', () => {
+  // wzorzec: dotychczasowa implementacja tylko dla hex
+  const old = (hex, f) => {
+    const q = parseInt(hex.slice(1), 16);
+    let r = (q >> 16) & 255, g = (q >> 8) & 255, b = q & 255;
+    if (f <= 1) { r *= f; g *= f; b *= f; } else { const t = f - 1; r += (255 - r) * t; g += (255 - g) * t; b += (255 - b) * t; }
+    return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+  };
+  for (const hex of ['#808080', '#93cf80', '#ff6b6b', '#0b1020', '#ffffff', '#000000', '#9eb26a']) {
+    for (const f of [0, 0.25, 0.55, 0.8, 0.85, 0.9, 1, 1.15, 1.2, 1.35, 1.45, 2]) assert.equal(shade(hex, f), old(hex, f), `${hex} × ${f}`);
+  }
+  assert.equal(shade('rgb(128,128,128)', 0.5), 'rgb(64,64,64)');
+  assert.equal(shade([128, 128, 128], 1.5), 'rgb(192,192,192)');
+  const top = tones('#808080', L([0, -1])).top;
+  assert.equal(shade(top, 0.5), shade(top.match(/\d+/g).map(Number), 0.5), 'zapis rgb() i tablica dają to samo');
+});
+
+test('island: kraterki regolitu mieszczą się w rombie wierzchu', () => {
+  for (const size of [4, 8, 12]) for (let seed = 1; seed <= 40; seed++) {
+    const svg = island({ view: 'moon', size, light: DAY, env: ENV, seed }).svg;
+    for (const m of svg.matchAll(/M(-?[\d.]+) (-?[\d.]+)a([\d.]+) ([\d.]+) 0 1 0/g)) {
+      const rx = +m[3], x = +m[1] + rx, y = +m[2], u = (x / 20 + y / 10) / 2, v = (y / 10 - x / 20) / 2, rad = rx / RX;
+      assert.ok(Math.abs(u) + rad <= size / 2 + 0.05 && Math.abs(v) + rad <= size / 2 + 0.05, `size ${size} seed ${seed}: krater (${u.toFixed(2)}, ${v.toFixed(2)}) r=${rad.toFixed(2)} wystaje`);
+    }
+  }
+});
+
+test('island: barwa podłoża w paletach etapów to ta, którą rysuje wyspa', () => {
+  for (const id of Object.keys(EARTH_RECIPES)) assert.equal(groundTone(id, ENV), PALETTES.earth.ground, id);
+  for (const id of ['leo', 'l2']) assert.equal(groundTone(id, ENV), PALETTES.space.ground, id);
+  for (const id of Object.keys(GALAXY_RECIPES)) assert.equal(groundTone(id, ENV), PALETTES.galaxy.ground, id);
+  for (const id of Object.keys(UNIVERSE_RECIPES)) assert.equal(groundTone(id, ENV), PALETTES.universe.ground, id);
+  for (const [id, stage] of [['waw', 'earth'], ['leo', 'space'], ['sgr', 'galaxy'], ['edge', 'universe']]) {
+    assert.ok(island({ view: id, size: 6, light: DAY, env: ENV, seed: 1 }).svg.includes(tones(PALETTES[stage].ground, DAY).top), `${id}: wierzch w barwie palety ${stage}`);
+  }
+});
+
+// Zasięg geometrii SVG: końce odcinków, krzywych i łuków (łuk dużego kąta to pół elipsy) plus połowa grubości kreski.
+function extent(svg) {
+  const e = [Infinity, Infinity, -Infinity, -Infinity];
+  const add = (x, y, h) => { e[0] = Math.min(e[0], x - h); e[1] = Math.min(e[1], y - h); e[2] = Math.max(e[2], x + h); e[3] = Math.max(e[3], y + h); };
+  for (const m of svg.matchAll(/<path d="([^"]*)"([^>]*)>/g)) {
+    const w = /stroke-width="([\d.]+)"/.exec(m[2]), h = w ? w[1] / 2 : 0, dy = +(/translate\(0 ([\d.]+)\)/.exec(m[2])?.[1] ?? 0);
+    let x = 0, y = 0, x0 = 0, y0 = 0;
+    const put = (px, py) => { x = px; y = py; add(x, y + dy, h); };
+    for (const [, c, args] of m[1].matchAll(/([MLHVAQZmlhvaqz])([^MLHVAQZmlhvaqz]*)/g)) {
+      const a = (args.match(/-?\d*\.?\d+/g) || []).map(Number), rel = c === c.toLowerCase(), C = c.toUpperCase();
+      if (C === 'Z') { x = x0; y = y0; } else if (C === 'H') put(rel ? x + a[0] : a[0], y); else if (C === 'V') put(x, rel ? y + a[0] : a[0]);
+      else if (C === 'A') {
+        const [rx, ry, , large, , ex, ey] = a, px = rel ? x + ex : ex, py = rel ? y + ey : ey;
+        if (large) { const cx = (x + px) / 2, cy = (y + py) / 2; add(cx - rx, cy - ry + dy, h); add(cx + rx, cy + ry + dy, h); }
+        put(px, py);
+      } else {
+        for (let i = 0; i < a.length; i += 2) {
+          put(rel ? x + a[i] : a[i], rel ? y + a[i + 1] : a[i + 1]);
+          if (C === 'M' && i === 0) { x0 = x; y0 = y; }
+        }
+      }
+    }
+  }
+  return e;
+}
+
+test('island: cała geometria (kreski, światła, dysze, balustrada) mieści się w bbox dla każdego widoku i rozmiaru', () => {
+  for (const view of VIEW_IDS) for (const size of [1, 4, 7, 10, 12]) {
+    const r = island({ view, size, light: DAY, env: ENV, seed: size + 5 }), [x0, y0, x1, y1] = extent(r.svg), [bx0, by0, bx1, by1] = r.bbox;
+    assert.ok(x0 >= bx0 && y0 >= by0 && x1 <= bx1 && y1 <= by1, `${view} ${size}: geometria [${x0}, ${y0}, ${x1}, ${y1}] poza bbox [${r.bbox}]`);
   }
 });
