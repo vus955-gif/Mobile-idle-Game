@@ -47,7 +47,7 @@ const LIT_DIR = 0.2;      // dir[0] powyżej progu oświetla prawy bok, w przeci
 
 // Trzy tony bryły: góra, bok oświetlony i bok ciemny, plus kreska krawędziowa.
 // kolor = base × mnożnik × tint, mnożnik = max(FLOOR, ekspozycja · (ambient + (1 − ambient) · k)).
-// Zwraca też `lit` ('left' | 'right'): który bok jest od strony światła (potrzebuje go box do kreski krawędzi).
+// Zwraca też `litSide` ('left' | 'right'): który bok jest od strony światła (potrzebuje go box do kreski krawędzi).
 export function tones(base, light, { snow = false } = {}) {
   const a = light.ambient;
   const tint = mixRgb([255, 255, 255], light.color, TINT_MIX).map((v) => v / 255);
@@ -56,15 +56,15 @@ export function tones(base, light, { snow = false } = {}) {
     const m = Math.max(FLOOR, gain * (a + (1 - a) * k));
     return css(rgb(c).map((v, i) => v * m * tint[i]));
   };
-  const lit = light.dir[0] > LIT_DIR ? 'right' : 'left';
+  const litSide = light.dir[0] > LIT_DIR ? 'right' : 'left';
   const top = snow ? mixRgb(base, [255, 255, 255], 0.75) : base;
   return {
     top: paint(top, K_TOP),
-    left: paint(base, lit === 'left' ? K_LIT : K_DARK),
-    right: paint(base, lit === 'right' ? K_LIT : K_DARK),
+    left: paint(base, litSide === 'left' ? K_LIT : K_DARK),
+    right: paint(base, litSide === 'right' ? K_LIT : K_DARK),
     rim: css(light.rim),
     rimAlpha: 0.2 + 0.6 * (1 - a),
-    lit,
+    litSide,
   };
 }
 
@@ -89,7 +89,7 @@ export function box(b, t, { rim = true } = {}) {
   let s = poly([l, f, fr, lo], t.left) + poly([f, r, ro, fr], t.right) + poly([top, r, f, l], t.top);
   if (rim) {
     // Kreska biegnie wzdłuż górnego brzegu i pionowego rogu po stronie światła.
-    const e = t.lit === 'right' ? [top, r, ro] : [top, l, lo];
+    const e = t.litSide === 'right' ? [top, r, ro] : [top, l, lo];
     s += `<path d="M${e.map(pt).join('L')}" fill="none" stroke="${t.rim}" stroke-opacity="${op(t.rimAlpha)}" stroke-width=".8" stroke-linecap="round" stroke-linejoin="round"/>`;
   }
   return s;
@@ -130,7 +130,7 @@ export function cyl({ gx, gy, gz = 0, r, h }, t) {
 // Kopuła (półkula) o środku podstawy (gx, gy): sylwetka w tonie lewym, prawa połowa w prawym, blask w tonie góry.
 export function dome({ gx, gy, gz = 0, r }, t) {
   const [cx, cy] = iso(gx, gy, gz), rx = r * RX, ry = r * RY;
-  const side = t.lit === 'right' ? 1 : -1;
+  const side = t.litSide === 'right' ? 1 : -1;
   return `<path d="M${n(cx - rx)} ${n(cy)}A${n(rx)} ${n(rx)} 0 0 1 ${n(cx + rx)} ${n(cy)}A${n(rx)} ${n(ry)} 0 0 1 ${n(cx - rx)} ${n(cy)}Z" fill="${t.left}"/>`
     + `<path d="M${n(cx)} ${n(cy - rx)}A${n(rx)} ${n(rx)} 0 0 1 ${n(cx + rx)} ${n(cy)}A${n(rx)} ${n(ry)} 0 0 1 ${n(cx)} ${n(cy + ry)}Z" fill="${t.right}"/>`
     + `<ellipse cx="${n(cx + side * rx * 0.3)}" cy="${n(cy - rx * 0.55)}" rx="${n(rx * 0.45)}" ry="${n(rx * 0.3)}" fill="${t.top}" fill-opacity=".7"/>`;
