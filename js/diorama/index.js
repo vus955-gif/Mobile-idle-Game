@@ -4,6 +4,7 @@ import { PALETTES, CREW, tierFor, budget, assemble, emblem, emblemCenter, person
 import { PLACES, island } from './island.js';
 import { layout, LOT_MAX_H } from './layout.js';
 import { LAYERS, LAYER_ORDER } from '../layers.js';
+import { EARTH_ART } from './earth.js';
 
 // Odblokowane działy w kolejności DEPTS z progiem obsady; rundy do 8.
 export function modelFor(game, { view, env, light, isNew = () => false }) {
@@ -38,7 +39,8 @@ export const GENERIC = Object.fromEntries(LAYER_ORDER.map((id) => {
   }];
 }));
 
-export const STAGE_ART = { earth: GENERIC.earth, space: GENERIC.space, galaxy: GENERIC.galaxy, universe: GENERIC.universe };
+// Oprawa etapu bez archetypów działów bierze je z dioramy zastępczej.
+export const STAGE_ART = { earth: { depts: GENERIC.earth.depts, ...EARTH_ART }, space: GENERIC.space, galaxy: GENERIC.galaxy, universe: GENERIC.universe };
 
 const R = 12;    // promień emblematu (czytelny na iPhonie SE)
 const PS = 0.45; // skala postaci
@@ -75,7 +77,7 @@ export function buildDiorama(model) {
   // extras biorą budżet animacji przed postaciami.
   const ex = art.extras?.(model, lay) ?? { svg: '', anim: [], decor: [], vehicles: 0, people: 0 };
   take(ex.anim);
-  const core = art.core(model);
+  const core = art.core(model, lay);
   const items = depts.map((d, i) => { const p = pos[i]; return { d, r: p ? lay.lots[p - 1] : lay.core, parts: p ? art.depts[d.id] : core.parts, seed: p + 1 }; })
     .sort((a, b) => depth(a.r) - depth(b.r))
     .map((o) => ({ ...o, a: assemble(o.parts, { at: [o.r.gx, o.r.gy, o.r.gz], palette: art.palette, accent: o.d.color, light, lit: CREW[o.d.tier].lit, snow: env.snowCover, seed: o.seed, company: model.company, budget: bud }) }));
@@ -83,8 +85,9 @@ export function buildDiorama(model) {
   items.forEach(({ d, r, a, seed }, k) => {
     front += (d.isNew ? `<g class="floor-new">${a.svg}</g>` : a.svg) + (r === lay.core ? holiday(r) : '');
     anim.push(...a.anim); grow(a.box); lit += CREW[d.tier].lit;
-    // Ruch tylko bez zasłony dalszym budynkiem, inaczej postać stoi w kolejności rysowania; ziarno postaci na budynek.
-    const later = items.slice(k + 1).map((o) => o.a.box), crew = CREW[d.tier].people, rnd = seeded(7 + seed);
+    // Ruch tylko bez zasłony dalszym budynkiem, inaczej postać stoi w kolejności rysowania; ziarno postaci na budynek;
+    // core.people zastępuje CREW w rdzeniu (garaż).
+    const later = items.slice(k + 1).map((o) => o.a.box), crew = (r === lay.core ? core.people : null) ?? CREW[d.tier].people, rnd = seeded(7 + seed);
     for (let j = 0; j < crew; j++, people++) {
       const [x, y] = iso(...spot(r, j, crew)), hid = later.some((b) => b[0] < x + 3 && b[2] > x - 3 && b[1] < y && b[3] > y - 11);
       if (!hid && bud.take()) anim.push(person(x, y, rnd, PS, (seed * 0.29 + j * 0.37) % 1.6)); else front += person(x, y, rnd, PS);

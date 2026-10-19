@@ -9,6 +9,7 @@ import { PLACES, island, groundTone, SNOW } from '../js/diorama/island.js';
 import { SE, SE_INSETS, frameFor, viewBoxAttr, MIN_EMBLEM_PX, MIN_LOT_PX } from '../js/diorama/frame.js';
 import { SLOTS, layout } from '../js/diorama/layout.js';
 import { modelFor, newIds, buildDiorama, STAGE_ART } from '../js/diorama/index.js';
+import { EARTH_ART } from '../js/diorama/earth.js';
 import { Company } from '../js/engine.js';
 import { LAYERS, LAYER_ORDER } from '../js/layers.js';
 import { EARTH_RECIPES } from '../js/art/views/earth.js';
@@ -633,6 +634,56 @@ test('skyline: budowle stoją na horyzoncie tła przy każdym rozmiarze sceny i 
   assert.notEqual(lit([0.94, -0.34]), lit([-0.94, -0.34]), 'jaśniejsza strona zależy od kierunku światła');
   assert.equal(skyline('sgr', SE, {}).svg, '', 'poza Ziemią nie ma panoramy SVG');
   for (const [id, r] of Object.entries(EARTH_RECIPES)) assert.ok(r.horizon > 0.7 && r.horizon < 0.92, id);
+});
+
+// --- Ziemia: rdzeń i ozdoby rund (Zadanie 8) ---
+
+// Ziemia z n pierwszymi działami (próg obsady jak przy firstHeads), w lecie za dnia.
+const earthModel = (n, o = {}) => {
+  const m = maxModel('earth', { env: ENV, light: DAY, rounds: 0, ...o });
+  return { ...m, depts: m.depts.slice(0, n).map((d) => ({ ...d, tier: tierFor(m.firstHeads) })) };
+};
+
+test('earth: forma rdzenia według liczby działów', () => {
+  assert.deepEqual([1, 2, 4, 5, 8, 9, 13].map(EARTH_ART.coreForm), ['garage', 'office', 'office', 'tower', 'tower', 'campus', 'campus']);
+});
+
+test('earth: rdzeń rośnie z działami', () => {
+  let prev = 0;
+  for (let n = 1; n <= 13; n++) {
+    const b = buildDiorama(earthModel(n)).lots.find((l) => l.id === 'dev').box, h = b[3] - b[1];
+    assert.ok(h >= prev, `n=${n}: wysokość ${h} < ${prev}`);
+    prev = h;
+  }
+});
+
+test('earth: ludzie w garażu według obsady pierwszego działu', () => {
+  assert.deepEqual([0, 3, 6, 100].map((firstHeads) => buildDiorama(earthModel(1, { firstHeads })).stats.people), [1, 2, 3, 3]);
+});
+
+test('earth: ozdoby rund', () => {
+  const orn = (rounds, n = 13) => buildDiorama(earthModel(n, { rounds })).stats.ornaments;
+  assert.deepEqual(orn(0), []);
+  assert.deepEqual([...orn(8)].sort(), ['dish', 'helipad', 'neon', 'rocket', 'solar']);
+  assert.deepEqual([...orn(2)].sort(), ['neon', 'solar']);
+  for (const n of [1, 3, 6, 10]) assert.equal(orn(8, n).length, 5, `n=${n}`);
+});
+
+test('earth: tabliczki rdzenia są escapowane i skracane na każdym etapie rozwoju', () => {
+  const name = '<b>Ala & "Kot"</b> 🚀 sp. z o.o. — bardzo długa nazwa';
+  for (const n of [1, 3, 6, 10]) {
+    const { front } = buildDiorama(earthModel(n, { company: name, rounds: 8 }));
+    checkSvg(front);
+    assert.ok(!front.includes('<b>') && front.includes('&lt;b&gt;'), `n=${n}`);
+    const texts = [...front.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((x) => unesc(x[1])).filter((t) => t.startsWith('<b>'));
+    assert.ok(texts.length === 1 && texts[0].endsWith('…'), `n=${n}: ${texts}`);
+    assert.ok(front.includes('◆ &lt;b&gt;Ala'), `n=${n}: neon z pierwszym słowem nazwy`);
+  }
+});
+
+test('earth: brak zastępczego rdzenia', () => {
+  assert.ok(!STAGE_ART.earth.placeholder);
+  assert.ok(!EARTH_ART.placeholder);
 });
 
 test('sw.js: pamięć offline zawiera każdy moduł dioram (poza galerią)', () => {

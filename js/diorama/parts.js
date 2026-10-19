@@ -44,7 +44,7 @@ export function budget(max = MAX_ANIM) {
 const SNOWY = new Set(['roof', 'wall', 'wall2', 'metal', 'green']); // śnieg bieli górę tych materiałów (nie szkła, kryształu, akcentu)
 
 // Rysuje części (od tyłu) przesunięte o ctx.at; ctx = { at, palette, accent, light, lit, snow, seed, company, budget }.
-// Bryła dostaje cień przed ścianami; flaga 'win' (box, cyl) daje okna, 'ledge' (box) gzyms. Zwraca svg (warstwa statyczna),
+// Bryła dostaje cień przed ścianami (bez flagi 'flush': detal na ścianie); 'win' (box, cyl) daje okna, 'ledge' (box) gzyms. Zwraca svg,
 // anim (światła masztów z budżetu), anchor (rzut punktu sign) i box (ekranowy prostokąt części, zaokrąglony na zewnątrz).
 // Id gradientu glow to `d-glow-${seed}-${i}`, więc seed musi być różny w jednym dokumencie.
 export function assemble(parts, ctx) {
@@ -72,7 +72,7 @@ export function assemble(parts, ctx) {
     if (kind === 'box' || kind === 'pyr' || kind === 'gable') {
       const [, , , , w, d, h, m, extra = ''] = part, b = { gx, gy, gz, w, d, h }, t = tone(m);
       const ledge = kind === 'box' && extra.includes('ledge'), pd = ledge ? 0.08 : 0;
-      svg += shadow(b, light);
+      if (!extra.includes('flush')) svg += shadow(b, light);
       if (kind === 'box') svg += box(b, t) + (extra.includes('win') ? wins(b, i) : '');
       else svg += kind === 'pyr' ? pyr(b, t) : gable(b, t, extra);
       if (ledge) svg += box({ gx: gx - pd, gy: gy - pd, gz: gz + h - 0.25, w: w + 2 * pd, d: d + 2 * pd, h: 0.25 }, paint(mixRgb(col(m), [255, 255, 255], 0.25), m), { rim: false });
@@ -115,13 +115,14 @@ export function assemble(parts, ctx) {
         + `<stop offset="1" stop-color="${css(c)}" stop-opacity="0"/></radialGradient></defs><circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#${id})"/>`;
       grow(cx - R, cy - R, cx + R, cy + R);
     } else if (kind === 'label') {
-      // Tabliczka szeroka na w · TW/2; nazwa w punktach kodowych, skrócona do max, escapowana po skróceniu.
-      const [, , , , w, max] = part, chars = Array.from(String(ctx.company ?? ''));
+      // Tabliczka w · TW/2: tekst (part[6] albo nazwa firmy) w punktach kodowych, skrócony do max, escapowany po skróceniu;
+      // part[7] to barwa neonu. Czcionka ≥ 5, więc dłuższy napis poszerza tabliczkę.
+      const [, , , , w, max, txt = ctx.company, ink] = part, chars = Array.from(String(txt ?? ''));
       if (!chars.length) continue;
-      const text = chars.length > max ? `${chars.slice(0, max - 1).join('')}…` : chars.join('');
-      const [cx, cy] = P(x, y, z), W = w * TW / 2, fs = Math.min(7, (W - 4) / (0.6 * Array.from(text).length)), H = fs + 3;
-      svg += `<rect x="${r1(cx - W / 2)}" y="${r1(cy - H / 2)}" width="${r1(W)}" height="${r1(H)}" rx="${r1(H / 4)}" fill="#11172b" fill-opacity=".85"/>`
-        + `<text x="${cx}" y="${cy}" dy=".35em" font-size="${r1(fs)}" font-weight="700" text-anchor="middle" fill="#f5f1e6">${esc(text)}</text>`;
+      const text = chars.length > max ? `${chars.slice(0, max - 1).join('')}…` : chars.join(''), k = 0.6 * Array.from(text).length;
+      const [cx, cy] = P(x, y, z), fs = Math.max(5, Math.min(7, (w * TW / 2 - 4) / k)), W = Math.max(w * TW / 2, k * fs + 4), H = fs + 3;
+      svg += `<rect x="${r1(cx - W / 2)}" y="${r1(cy - H / 2)}" width="${r1(W)}" height="${r1(H)}" rx="${r1(H / 4)}" fill="#11172b" fill-opacity=".85"${ink ? ` stroke="${ink}"` : ''}/>`
+        + `<text x="${cx}" y="${cy}" dy=".35em" font-size="${r1(fs)}" font-weight="700" text-anchor="middle" fill="${ink ?? '#f5f1e6'}">${esc(text)}</text>`;
       grow(cx - W / 2, cy - H / 2, cx + W / 2, cy + H / 2);
     } else if (kind === 'sign') anchor = P(x, y, z);
     else throw new TypeError(`assemble: nieznana część „${kind}”`);
