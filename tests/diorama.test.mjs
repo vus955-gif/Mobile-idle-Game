@@ -164,6 +164,21 @@ test('parts: wszystkie typy części dają poprawny SVG mieszczący się w prost
   assert.ok(Math.abs((cyl1[0] + cyl1[2]) / 2 - iso(3, 2)[0]) < 1.5 && cyl1[3] > iso(3, 2, 1)[1], 'walec wokół swojego środka');
 });
 
+test('parts: niewidoczne na ekranie fragmenty nie dają elementów (cienki detal flush, dioda, cienki walec, kwiaty)', () => {
+  const one = (p) => assemble([p], CTX()).svg, t = tones('#4b4a63', CTX().light);
+  // Pas 0,03 na lewej ścianie: tylko lewa ściana; pas na prawej: tylko prawa; słupek: obie, bez wierzchu i kreski.
+  assert.equal(checkSvg(one(['box', 0, 0.9, 0, 0.5, 0.03, 2, 'dark', 'flush'])).elements, 1);
+  assert.ok(one(['box', 0, 0.9, 0, 0.5, 0.03, 2, 'dark', 'flush']).includes(t.left));
+  assert.ok(one(['box', 0.9, 0, 0, 0.03, 0.5, 2, 'dark', 'flush']).includes(t.right));
+  assert.equal(checkSvg(one(['box', 0, 0, 0, 0.03, 0.03, 2, 'dark', 'flush'])).elements, 2);
+  assert.equal(checkSvg(one(['box', 0, 0, 0, 1.3, 1.3, 0.02, 'dark', 'flush'])).elements, 4, 'płyta flush zostaje cała');
+  const led = one(['glow', 0, 0, 1, 0.035, 'crystal']);
+  assert.ok(checkSvg(led).elements === 1 && !led.includes('Gradient'), 'dioda bez gradientu');
+  assert.ok(!one(['cyl', 0, 0, 0, 0.05, 1, 'wall']).includes('#0b1020') && one(['cyl', 0, 0, 0, 0.3, 1, 'wall']).includes('#0b1020'), 'cienki walec bez cienia');
+  const spring = tree(30, 40, 0.5, seeded(5), 'spring');
+  assert.ok(checkSvg(spring).elements <= 8 && spring.includes('#f7b6cf') && spring.includes('#ffd6e5'), 'kwiaty w dwóch ścieżkach');
+});
+
 test('parts: maszt miga w warstwie animacji tylko z budżetu, glow ma gradient o unikalnym id i nie używa filtru', () => {
   const masts = [['mast', 0, 0, 0, 2], ['mast', 1, 0, 0, 3]], bud = budget(1);
   const r = assemble(masts, CTX({ budget: bud }));
@@ -716,6 +731,9 @@ test('earth: ruch rośnie z firmą', () => {
   assert.equal(veh(13), 7, '3 auta i 4 drony');
   const d = buildDiorama(earthModel(13));
   assert.equal(d.frontAnim.split('class="car"').length - 1, 3);
+  // Najpierw po jednym dronie na dział: przy max cztery drony w kolorach czterech działów.
+  const bodies = [...d.frontAnim.matchAll(/<rect x="-3" y="-1.6"[^>]* fill="(#[0-9a-f]+)"/g)].map((x) => x[1]);
+  assert.equal(new Set(bodies).size, 4, `drony: ${bodies}`);
   // Drony: w warstwie animacji z klasami person i blink, nie zasłaniają emblematów (warstwa animacji leży nad nimi).
   const drones = [...d.frontAnim.matchAll(/translate\(([-\d.]+) ([-\d.]+)\)"><g class="person"[^>]*>(.*?)<\/g><\/g>/g)];
   assert.equal(drones.length, 4);
@@ -742,6 +760,9 @@ test('earth: pory roku i święta na wyspie', () => {
     assert.ok(decor({ season: 'autumn', holiday: 'halloween' }).includes('pumpkins'), `n=${n}: Halloween`);
     assert.deepEqual(decor({}), [], `n=${n}: lato bez święta`);
   }
+  // Dynie: dwie przy rdzeniu i po jednej przy drzwiach najwyżej 6 działów najbliżej widza.
+  const pumpkins = (n) => buildDiorama(earthModel(n, { env: { ...ENV, holiday: 'halloween' } })).front.split('fill="#f08a24"').length - 1;
+  assert.deepEqual([1, 3, 7, 13].map(pumpkins), [2, 4, 8, 8]);
   const svg = (season) => buildDiorama(earthModel(13, { env: { ...ENV, season } })).front;
   assert.equal(new Set(['spring', 'summer', 'autumn', 'winter'].map(svg)).size, 4, 'drzewa zmieniają się z porą roku');
 });

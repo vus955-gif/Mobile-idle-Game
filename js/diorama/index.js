@@ -86,8 +86,12 @@ export function buildDiorama(model) {
   take(ex.anim);
   if (ex.box) grow(ex.box);
   let front = isl.svg + ex.back, people = ex.people, lit = 0;
-  items.forEach(({ d, r, a, seed }, k) => {
-    front += (d.isNew ? `<g class="floor-new">${a.svg}</g>` : a.svg) + (r === lay.core ? holiday(r) : '');
+  // W Halloween na Ziemi dynia przy drzwiach (przed lewą ścianą) najwyżej 6 działów najbliżej widza (budżet elementów).
+  const doors = earth && env.holiday === 'halloween' ? new Set(items.filter((o) => o.r !== lay.core).slice(-6)) : null;
+  items.forEach((o, k) => {
+    const { d, r, a, seed } = o;
+    front += (d.isNew ? `<g class="floor-new">${a.svg}</g>` : a.svg)
+      + (r === lay.core ? holiday(r) : doors?.has(o) ? pumpkin(...iso(r.gx + 0.22, r.gy + r.d + 0.14), 0.5) : '');
     anim.push(...a.anim); grow(a.box); lit += CREW[d.tier].lit;
     // Ruch tylko bez zasłony dalszym budynkiem, inaczej postać stoi w kolejności rysowania; ziarno postaci na budynek
     // (mieszane, bo sąsiednie ziarna dają w seeded te same pierwsze losowania); core.people zastępuje CREW w rdzeniu (garaż).

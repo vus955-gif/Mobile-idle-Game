@@ -81,12 +81,12 @@ export const poly = (pts, fill) =>
   `<path d="M${pts.map(pt).join('L')}Z" fill="${fill}" stroke="${fill}" stroke-width=".5" stroke-linejoin="round"/>`;
 
 // Pudełko: trzy ściany (lewa, prawa, góra) i, gdy rim, kreska krawędzi od strony światła.
-// b = { gx, gy, gz = 0, w, d, h }; lewa ściana patrzy w stronę +y, prawa w stronę +x.
-export function box(b, t, { rim = true } = {}) {
-  const { gx, gy, gz = 0, w, d, h } = b, z = gz + h;
+// b = { gx, gy, gz = 0, w, d, h }; lewa ściana patrzy w stronę +y, prawa w stronę +x; faces wybiera ściany ('l', 'r', 't').
+export function box(b, t, { rim = true, faces = 'lrt' } = {}) {
+  const { gx, gy, gz = 0, w, d, h } = b, z = gz + h, has = (k) => faces.includes(k);
   const top = iso(gx, gy, z), r = iso(gx + w, gy, z), f = iso(gx + w, gy + d, z), l = iso(gx, gy + d, z);
   const fr = iso(gx + w, gy + d, gz), lo = iso(gx, gy + d, gz), ro = iso(gx + w, gy, gz);
-  let s = poly([l, f, fr, lo], t.left) + poly([f, r, ro, fr], t.right) + poly([top, r, f, l], t.top);
+  let s = (has('l') ? poly([l, f, fr, lo], t.left) : '') + (has('r') ? poly([f, r, ro, fr], t.right) : '') + (has('t') ? poly([top, r, f, l], t.top) : '');
   if (rim) {
     // Kreska biegnie wzdłuż górnego brzegu i pionowego rogu po stronie światła.
     const e = t.litSide === 'right' ? [top, r, ro] : [top, l, lo];

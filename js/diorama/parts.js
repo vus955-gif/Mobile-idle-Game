@@ -72,15 +72,18 @@ export function assemble(parts, ctx) {
     if (kind === 'box' || kind === 'pyr' || kind === 'gable') {
       const [, , , , w, d, h, m, extra = ''] = part, b = { gx, gy, gz, w, d, h }, t = tone(m);
       const ledge = kind === 'box' && extra.includes('ledge'), pd = ledge ? 0.08 : 0;
+      // Cienki detal na ścianie ('flush', grubość ≤ 0,05): tylko ściana widoczna od frontu, bez wierzchu i kreski krawędzi.
+      const thin = extra.includes('flush') && Math.min(w, d) <= 0.05 && { rim: false, faces: Math.max(w, d) <= 0.05 ? 'lr' : d < w ? 'l' : 'r' };
       if (!extra.includes('flush')) svg += shadow(b, light);
-      if (kind === 'box') svg += box(b, t) + (extra.includes('win') ? wins(b, i) : '');
+      if (kind === 'box') svg += box(b, t, thin || {}) + (extra.includes('win') ? wins(b, i) : '');
       else svg += kind === 'pyr' ? pyr(b, t) : gable(b, t, extra);
       if (ledge) svg += box({ gx: gx - pd, gy: gy - pd, gz: gz + h - 0.25, w: w + 2 * pd, d: d + 2 * pd, h: 0.25 }, paint(mixRgb(col(m), [255, 255, 255], 0.25), m), { rim: false });
       if (kind === 'box') tops(cub(w, d, h, pd));
       else tops([...cub(w, d, 0), ...(kind === 'pyr' ? [[w / 2, d / 2, h]] : extra === 'x' ? [[0, d / 2, h], [w, d / 2, h]] : [[w / 2, 0, h], [w / 2, d, h]])]);
     } else if (kind === 'cyl') {
       const [, , , , , h, m, extra = ''] = part, [cx, yb] = P(x, y, z), yt = P(x, y, z + h)[1];
-      svg += shadow(sq(h), light) + cyl({ gx, gy, gz, r, h }, tone(m)) + (extra.includes('win') ? wins(sq(h), i) : '');
+      // Cienki walec (kolumna, rura, r < 0,06) bez cienia: na ekranie to ułamek piksela.
+      svg += (r < 0.06 ? '' : shadow(sq(h), light)) + cyl({ gx, gy, gz, r, h }, tone(m)) + (extra.includes('win') ? wins(sq(h), i) : '');
       grow(cx - r * RX, yt - r * RX / 2, cx + r * RX, yb + r * RX / 2);
     } else if (kind === 'dome') {
       const [cx, cy] = P(x, y, z), rx = r * RX;
@@ -110,8 +113,10 @@ export function assemble(parts, ctx) {
       grow(bx - 3.5, ty - 3.5, bx + 3.5, by);
     } else if (kind === 'glow') {
       // Rdzeń o promieniu r i poświata z gradientu radialnego (bez filtra); prostokąt obejmuje całą poświatę.
+      // Dioda (r < 0,06, poświata ok. 2 jednostek) to jasne kółko bez gradientu.
       const [cx, cy] = P(x, y, z), c = col(part[5]), id = `d-glow-${seed}-${i}`, R = r1(r * RX / 0.45);
-      svg += `<defs><radialGradient id="${id}"><stop offset="0" stop-color="${css(mixRgb(c, [255, 255, 255], 0.7))}"/><stop offset=".45" stop-color="${css(c)}"/>`
+      svg += r < 0.06 ? `<circle cx="${cx}" cy="${cy}" r="${r1(r * RX * 1.5)}" fill="${css(mixRgb(c, [255, 255, 255], 0.45))}"/>`
+        : `<defs><radialGradient id="${id}"><stop offset="0" stop-color="${css(mixRgb(c, [255, 255, 255], 0.7))}"/><stop offset=".45" stop-color="${css(c)}"/>`
         + `<stop offset="1" stop-color="${css(c)}" stop-opacity="0"/></radialGradient></defs><circle cx="${cx}" cy="${cy}" r="${R}" fill="url(#${id})"/>`;
       grow(cx - R, cy - R, cx + R, cy + R);
     } else if (kind === 'label') {
@@ -191,8 +196,10 @@ export function tree(x, y, s, rnd, season = 'summer') {
   const pal = FOLIAGE[season] || FOLIAGE.summer, c1 = pal[Math.floor(pick * 3)];
   let extra = '';
   if (season === 'spring') {
-    const r2 = seeded(Math.floor(x * 7 + 3));
-    for (let i = 0; i < 9; i++) extra += `<circle cx="${(r2() * 26 - 13).toFixed(1)}" cy="${(-14 - r2() * 24).toFixed(1)}" r="1.8" fill="${i % 2 ? '#f7b6cf' : '#ffd6e5'}"/>`;
+    // Dziewięć kwiatów jako kropki (kreska h.1 z okrągłym końcem, średnica 3,6), jedna ścieżka na kolor.
+    const r2 = seeded(Math.floor(x * 7 + 3)), dots = ['', ''];
+    for (let i = 0; i < 9; i++) dots[i % 2] += `M${(r2() * 26 - 13).toFixed(1)} ${(-14 - r2() * 24).toFixed(1)}h.1`;
+    extra += dots.map((d, i) => `<path d="${d}" fill="none" stroke="${i ? '#f7b6cf' : '#ffd6e5'}" stroke-width="3.6" stroke-linecap="round"/>`).join('');
   }
   if (season === 'autumn') {
     const r2 = seeded(Math.floor(x * 5 + 1));

@@ -174,20 +174,20 @@ function extras(m, lay, marks = []) {
     anim.push(drive({ gx: -h, gy: y1 - 0.06, axis: 'x', len: 2 * h }, `<g transform="scale(.5)">${SIDE_ART.car(['#ff6b6b', '#4dabf7', '#ffd166'][i])}</g>`,
       { dur: 10 + i * 1.7, delay: -i * 3.9, id: `car${i}` }));
   }
-  // Drony (CREW.vehicles działu, łącznie ≤ 4) przy emblemacie działu: pierwsze wolne miejsce z dala od wszystkich kół i dronów.
+  // Drony (CREW.vehicles działu, łącznie ≤ 4): najpierw po jednym na dział, potem drugie; dron stoi przy emblemacie swojego działu,
+  // w pierwszym wolnym miejscu z dala od wszystkich kół i dronów.
   const spots = [[23, 14], [-23, 14], [25, -4], [-25, -4], [0, -31]], used = [];
-  for (const d of depts) {
+  for (const k of [1, 2]) for (const d of depts) {
     const e = marks.find((q) => q.id === d.id);
-    for (let j = 0; e && j < CREW[d.tier].vehicles && used.length < 4; j++) {
-      const p = spots.map(([u, v]) => [Math.round(e.x + u), Math.round(e.y + v)])
-        .find(([x, y]) => marks.every((q) => Math.hypot(x - q.x, y - q.y) >= q.r + 8) && used.every((u) => Math.hypot(x - u[0], y - u[1]) >= 16));
-      if (!p) continue;
-      used.push(p);
-      anim.push(`<g transform="translate(${p[0]} ${p[1]})"><g class="person" style="animation-delay:${(used.length * 0.4).toFixed(1)}s">`
-        + `<path d="M-7 0h14" stroke="#3a3f55" stroke-width="1.2"/><ellipse cx="-7" cy="-1.3" rx="3.6" ry="1" fill="#dfe7f1" opacity=".85"/>`
-        + `<ellipse cx="7" cy="-1.3" rx="3.6" ry="1" fill="#dfe7f1" opacity=".85"/><rect x="-3" y="-1.6" width="6" height="3.4" rx="1.5" fill="${d.color}"/>`
-        + `<circle class="blink" cx="0" cy="2.6" r="1.1" fill="${used.length % 2 ? '#ff4d4d' : '#4ade80'}"/></g></g>`);
-    }
+    if (!e || CREW[d.tier].vehicles < k || used.length >= 4) continue;
+    const p = spots.map(([u, v]) => [Math.round(e.x + u), Math.round(e.y + v)])
+      .find(([x, y]) => marks.every((q) => Math.hypot(x - q.x, y - q.y) >= q.r + 8) && used.every((u) => Math.hypot(x - u[0], y - u[1]) >= 16));
+    if (!p) continue;
+    used.push(p);
+    anim.push(`<g transform="translate(${p[0]} ${p[1]})"><g class="person" style="animation-delay:${(used.length * 0.4).toFixed(1)}s">`
+      + `<path d="M-7 0h14" stroke="#3a3f55" stroke-width="1.2"/><ellipse cx="-7" cy="-1.3" rx="3.6" ry="1" fill="#dfe7f1" opacity=".85"/>`
+      + `<ellipse cx="7" cy="-1.3" rx="3.6" ry="1" fill="#dfe7f1" opacity=".85"/><rect x="-3" y="-1.6" width="6" height="3.4" rx="1.5" fill="${d.color}"/>`
+      + `<circle class="blink" cx="0" cy="2.6" r="1.1" fill="${used.length % 2 ? '#ff4d4d' : '#4ade80'}"/></g></g>`);
   }
   const xs = used.map((q) => q[0]), ys = used.map((q) => q[1]);
   return { back, anim, decor, vehicles: cars + used.length, box: used.length && [Math.min(...xs) - 11, Math.min(...ys) - 4, Math.max(...xs) + 11, Math.max(...ys) + 4] };
