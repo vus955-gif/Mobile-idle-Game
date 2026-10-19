@@ -528,6 +528,8 @@ test('diorama: nowy dział wyrasta tylko raz, a wejście na etap i powrót na ni
   assert.deepEqual([...newIds(known, 'earth', ['dev', 'rnd', 'design'])], [], 'powrót na Ziemię');
   newIds(known, 'earth', ['dev']);
   assert.deepEqual([...newIds(known, 'earth', ['dev', 'rnd'])], ['rnd'], 'po resecie dział znów wyrasta');
+  newIds(known, 'galaxy', new Set(['a']));
+  assert.deepEqual([...newIds(known, 'galaxy', (function* () { yield 'a'; yield 'b'; })())], ['b'], 'dowolny iterowalny zbiór');
 });
 
 test('diorama: wszystkie działy każdego etapu mieszczą się i są czytelne na iPhonie SE', () => {
@@ -584,4 +586,34 @@ test('diorama: obsada i ozdoby świąt — ludzie według progu, lampki na rdzen
   assert.deepEqual(buildDiorama(maxModel('galaxy', { env: { ...ENV, holiday: 'halloween' } })).stats.decor, []);
   const s = buildDiorama(maxModel('universe')).stats;
   assert.deepEqual([s.base, s.material, s.vehicles, s.ornaments], ['shard', 'crystal', 0, []]);
+  // Każdy budynek ma własne ziarno postaci: jedna osoba mniej w jednym dziale nie przetasowuje koszulek w innych.
+  const shirts = (d) => new Map([...(d.front + d.frontAnim).matchAll(/translate\(([^)]+)\) scale\(0\.45\)">(?:<g [^>]*>)?<rect x="-5" y="-15"[^>]* fill="([^"]+)"/g)].map((x) => [x[1], x[2]]));
+  const m = maxModel('earth'), a = shirts(buildDiorama(m));
+  const same = [...shirts(buildDiorama({ ...m, depts: m.depts.map((d, i) => (i === 1 ? { ...d, tier: 4 } : d)) }))].filter(([p]) => a.has(p));
+  assert.ok(same.length >= 60 && same.every(([p, c]) => a.get(p) === c), 'koszulki w pozostałych budynkach bez zmian');
+});
+
+test('layout: działka działu wynika z jego miejsca w DEPTS — odblokowanie poza kolejnością niczego nie przesuwa', () => {
+  for (const stage of LAYER_ORDER) {
+    const full = maxModel(stage), id = LAYERS[stage].DEPTS[4].id, s = SLOTS[stage][3];
+    const part = buildDiorama({ ...full, depts: [0, 1, 4].map((i) => full.depts[i]) }), lot = (d) => d.lots.find((l) => l.id === id);
+    assert.equal(part.lots.length, 3);
+    assert.deepEqual(lot(part), lot(buildDiorama(full)), `${stage}: ${id} stoi tam, gdzie w pełnym układzie`);
+    assert.deepEqual([lot(part).box[0], lot(part).box[2]], [iso(s.gx, s.gy + s.d)[0], iso(s.gx + s.w, s.gy)[0]], `${stage}: ${id} na SLOTS[3]`);
+    const foot = STAGE_ART[stage].coreFoot(LAYERS[stage].DEPTS.length, 8);
+    assert.equal(layout(stage, 9, 8, foot).size, layout(stage, 9, 0, foot).size, `${stage}: rundy nie dokładają pierścienia wyspy`);
+  }
+  assert.deepEqual(layout('earth', 0, 0, { w: 2, d: 2, h: 2 }).lots, [], 'n = 0 bez działek');
+});
+
+test('diorama: identyfikatory z różnych budynków są unikalne (kontrola z poświatą na dwóch działkach)', () => {
+  const g = STAGE_ART.earth, glow = (p) => [...p, ['glow', 0.5, 0.5, 3.5, 0.2, 'crystal']];
+  STAGE_ART.earth = { ...g, depts: { ...g.depts, rnd: glow(g.depts.rnd), design: glow(g.depts.design) } };
+  try {
+    const d = buildDiorama(maxModel('earth')), ids = [...(d.front + d.frontAnim).matchAll(/\bid="([^"]+)"/g)].map((x) => x[1]);
+    assert.ok(ids.length >= 2, 'są identyfikatory');
+    assert.equal(new Set(ids).size, ids.length, ids.join());
+  } finally {
+    STAGE_ART.earth = g;
+  }
 });
