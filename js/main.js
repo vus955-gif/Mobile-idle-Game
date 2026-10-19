@@ -141,4 +141,6 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 
 // Dostęp do gry z konsoli (debug): __game to warstwa na ekranie, __co cała firma.
 window.__co = co;
+// Scena do pomiarów (lastMs, warstwy) tylko w trybie deweloperskim.
+if (DEV_TOOLS) window.__scene = ui.scene;
 Object.defineProperty(window, '__game', { get: () => co.g });

@@ -6,9 +6,10 @@ import { glow } from '../canvas.js';
 
 // Właściwy przepis (bez flagi placeholder): focus — główny obiekt w ułamkach kadru, stops — kolory
 // gradientu zastępczego na czas liczenia, light — klucz światła (albo funkcja env → klucz), animateWhen — opcjonalny
-// warunek env → true/false, kiedy animacja ma sens (bez niego działa zawsze).
-export function recipe(id, { focus, stops, light, draw, animate = null, animateWhen = null }) {
+// warunek env → true/false, kiedy animacja ma sens (bez niego działa zawsze), horizon — linia panoramy miasta (ułamek wysokości).
+export function recipe(id, { focus, stops, light, draw, animate = null, animateWhen = null, horizon }) {
   const r = { id, seed: seedOf(id), focus, stops, draw, light: typeof light === 'function' ? light : () => light };
+  if (horizon) r.horizon = horizon;
   if (animate) r.animate = animate;
   if (animate && animateWhen) r.animateWhen = animateWhen;
   return r;

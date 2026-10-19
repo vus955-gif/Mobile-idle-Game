@@ -1,6 +1,6 @@
 // Widoki zza okna na Ziemi: 18 miast. Niebo zależy od pory dnia i pogody, panorama ma trzy plany
 // z perspektywą powietrzną, a każde miasto dostaje element miejsca (góry, wodę, mgłę, zorzę, pył).
-// Charakterystyczne budowle (LANDMARKS) zostają w SVG sceny — przepis ich nie rysuje.
+// Charakterystyczne budowle rysuje SVG (js/diorama/skyline.js) na linii panoramy horizon.
 import { seedOf } from './placeholder.js';
 import { recipe } from './common.js';
 import { SKY, earthSky, sunMoon, cloudBank, cityPlanes, mountains, water, fogBank } from '../kit/earth.js';
@@ -74,7 +74,7 @@ function dustBand(ctx, w, h, c, phase) {
 }
 
 function cityRecipe(id) {
-  const P = PLACES[id], seed = seedOf(id);
+  const P = PLACES[id], seed = seedOf(id), base = P.water ? P.water - 0.004 : 0.86;
   const draw = (ctx, w, h, env = {}) => {
     const phase = env.phase || 'day', weather = env.weather || 'clear', e = { phase, weather };
     earthSky(ctx, w, h, e);
@@ -88,7 +88,6 @@ function cityRecipe(id) {
     if (P.dust) dustBand(ctx, w, h, hazeFor(P.dust, phase).map((v) => v | 0), phase);
     if (P.mountains) mountains(ctx, w, h, { seed: seed + 2, kind: P.mountains, ...e });
     if (P.foothills) mountains(ctx, w, h, { seed: seed + 5, kind: 'hills', ...e });
-    const base = P.water ? P.water - 0.004 : 0.86;
     cityPlanes(ctx, w, h, { seed: seed + 3, ...e, base, haze: hazeFor(P.haze, phase), density: P.density || 1, tall: P.tall || 1, planes: P.planes || 3 });
     if (P.water) water(ctx, w, h, { y: P.water, seed: seed + 4, ...e });
     if (P.fog && weather === 'clear' && (phase === 'dawn' || phase === 'day')) fogBank(ctx, w, h, { y: base - 0.02, phase });
@@ -98,6 +97,7 @@ function cityRecipe(id) {
     : earthLight;
   return recipe(id, {
     focus: { x: 0.5, y: 0.3 },
+    horizon: base,
     stops: skyStops,
     light,
     draw,

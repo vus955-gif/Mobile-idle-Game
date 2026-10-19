@@ -15,7 +15,8 @@ import { EARTH_RECIPES } from '../js/art/views/earth.js';
 import { SPACE_RECIPES } from '../js/art/views/space.js';
 import { GALAXY_RECIPES } from '../js/art/views/galaxy.js';
 import { UNIVERSE_RECIPES } from '../js/art/views/universe.js';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { skyline } from '../js/diorama/skyline.js';
 
 const PHASES = ['night', 'dawn', 'day', 'dusk'];
 const WEATHERS = ['clear', 'cloudy', 'rain', 'snow', 'fog'];
@@ -616,4 +617,28 @@ test('diorama: identyfikatory z różnych budynków są unikalne (kontrola z po�
   } finally {
     STAGE_ART.earth = g;
   }
+});
+
+test('skyline: budowle stoją na horyzoncie tła przy każdym rozmiarze sceny i biorą światło z klucza', () => {
+  const env = { phase: 'night', weather: 'clear' }, horizon = EARTH_RECIPES.waw.horizon;
+  for (const size of [{ w: 341, h: 273 }, { w: 406, h: 465 }, { w: 440, h: 956 }]) {
+    const s = skyline('waw', size, { light: EARTH_RECIPES.waw.light(env), phase: 'night', horizon });
+    checkSvg(s.svg);
+    assert.equal(s.anchors.length, 2);
+    for (const a of s.anchors) assert.ok(Math.abs(a.y - horizon * size.h) < 0.5);
+    assert.ok(s.anchors[0].x < size.w / 2 && s.anchors[1].x > size.w / 2);
+  }
+  const lit = (dir) => skyline('waw', SE, { light: { ...EARTH_RECIPES.waw.light(env), dir }, phase: 'day', horizon }).svg;
+  assert.notEqual(lit([0.94, -0.34]), lit([-0.94, -0.34]), 'jaśniejsza strona zależy od kierunku światła');
+  assert.equal(skyline('sgr', SE, {}).svg, '', 'poza Ziemią nie ma panoramy SVG');
+  for (const [id, r] of Object.entries(EARTH_RECIPES)) assert.ok(r.horizon > 0.7 && r.horizon < 0.92, id);
+});
+
+test('sw.js: pamięć offline zawiera każdy moduł dioram (poza galerią)', () => {
+  const sw = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
+  const walk = (dir) => readdirSync(new URL(dir, import.meta.url), { withFileTypes: true })
+    .flatMap((e) => (e.isDirectory() ? walk(`${dir}${e.name}/`) : [`${dir}${e.name}`]));
+  const files = walk('../js/diorama/').filter((f) => f.endsWith('.js') && !f.endsWith('/gallery.js')).map((f) => f.replace('../', './'));
+  const missing = files.filter((f) => !sw.includes(`'${f}'`));
+  assert.deepEqual(missing, []);
 });

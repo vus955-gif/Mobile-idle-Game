@@ -11,7 +11,7 @@ const hex = (s) => [parseInt(s.slice(1, 3), 16), parseInt(s.slice(3, 5), 16), pa
 const rgbStr = (c) => `${c[0] | 0},${c[1] | 0},${c[2] | 0}`;
 const mixC = (a, b, t) => [mix(a[0], b[0], t), mix(a[1], b[1], t), mix(a[2], b[2], t)];
 
-// Kolory nieba jak w SKIES (js/scene.js) — skopiowane, bo klocki muszą działać w workerze bez DOM.
+// Kolory nieba pór dnia (far i win biorą też budowle miast w js/diorama/skyline.js).
 export const SKY = {
   night: { stops: ['#070a24', '#141a46', '#2a2f66'], far: '#1d2250', win: '#ffd88a', light: [150, 170, 255] },
   dawn: { stops: ['#3b3a85', '#c97aa8', '#ffc6a0'], far: '#7c6fa3', win: '#ffe7b0', light: [255, 190, 150] },
