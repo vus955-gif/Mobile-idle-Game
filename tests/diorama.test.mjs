@@ -7,7 +7,7 @@ import { RECIPES, VIEW_IDS, recipeFor } from '../js/art/views/index.js';
 import { PALETTES, assemble, emblem, emblemCenter, ER, SEATS, tierFor, CREW, MAX_ANIM, budget, drive, person, tree, pumpkin, xmasTree, stringLights, SIDE_ART, seeded, shade, esc } from '../js/diorama/parts.js';
 import { PLACES, island, groundTone, SNOW } from '../js/diorama/island.js';
 import { SE, SE_INSETS, frameFor, viewBoxAttr, MIN_EMBLEM_PX, MIN_LOT_PX } from '../js/diorama/frame.js';
-import { SLOTS, layout } from '../js/diorama/layout.js';
+import { SLOTS, layout, LOT_MAX_H } from '../js/diorama/layout.js';
 import { modelFor, newIds, buildDiorama, STAGE_ART } from '../js/diorama/index.js';
 import { EARTH_ART } from '../js/diorama/earth.js';
 import { Company } from '../js/engine.js';
@@ -535,23 +535,27 @@ test('diorama: nowy dział wyrasta tylko raz, a wejście na etap i powrót na ni
   assert.deepEqual([...newIds(known, 'galaxy', (function* () { yield 'a'; yield 'b'; })())], ['b'], 'dowolny iterowalny zbiór');
 });
 
-test('diorama: wszystkie działy każdego etapu mieszczą się i są czytelne na iPhonie SE', () => {
-  for (const stage of LAYER_ORDER) for (const extra of [{}, { env: ENV, rounds: 0 }]) {
-    const d = buildDiorama(maxModel(stage, extra));
-    const f = frameFor(d.bbox, SE, SE_INSETS);
-    assert.deepEqual(d.lots.map((l) => l.id).sort(), LAYERS[stage].DEPTS.map((x) => x.id).sort(), `${stage}: każdy dział ma element`);
-    const px = ([x, y]) => [(x - f.viewBox[0]) * f.scale, (y - f.viewBox[1]) * f.scale];
-    const inBox = ([x, y], b) => x > b[0] && x < b[2] && y > b[1] && y < b[3];
-    d.lots.forEach((a, i) => {
-      const r = a.emblem.r * f.scale, [x, y] = px([a.emblem.x, a.emblem.y]);
-      assert.ok(2 * r >= MIN_EMBLEM_PX, `${stage}/${a.id}: emblemat ${(2 * r).toFixed(1)} px`);
-      assert.ok(a.foot * f.scale >= MIN_LOT_PX, `${stage}/${a.id}: działka ${(a.foot * f.scale).toFixed(1)} px`);
-      assert.ok(x - r >= 0 && x + r <= SE.w && y - r >= SE_INSETS.top && y + r <= SE.h - SE_INSETS.bottom, `${stage}/${a.id}: w pasie`);
-      for (const b of d.lots.slice(i + 1)) {
-        assert.ok(Math.hypot(a.emblem.x - b.emblem.x, a.emblem.y - b.emblem.y) >= a.emblem.r + b.emblem.r, `${stage}: ${a.id}/${b.id} emblemy nachodzą`);
-        assert.ok(!inBox([a.emblem.x, a.emblem.y], b.box), `${stage}: ${b.id} zasłania ${a.id}`);
-      }
-    });
+// Każde n od 1 do wszystkich działów, rundy 0 i 8, święta zimą nocą i lato w dzień (najciaśniej bywa przed max).
+test('diorama: wszystkie działy każdego etapu mieszczą się i są czytelne na iPhonie SE (każde n, rundy 0 i 8)', () => {
+  for (const stage of LAYER_ORDER) {
+    const full = maxModel(stage);
+    for (let n = 1; n <= full.depts.length; n++) for (const rounds of [0, 8]) for (const env of [full.env, ENV]) {
+      const d = buildDiorama({ ...full, depts: full.depts.slice(0, n), rounds, env }), at = `${stage} n=${n} r=${rounds} ${env.season}`;
+      const f = frameFor(d.bbox, SE, SE_INSETS);
+      assert.deepEqual(d.lots.map((l) => l.id).sort(), full.depts.slice(0, n).map((x) => x.id).sort(), `${at}: każdy dział ma element`);
+      const px = ([x, y]) => [(x - f.viewBox[0]) * f.scale, (y - f.viewBox[1]) * f.scale];
+      const inBox = ([x, y], b) => x > b[0] && x < b[2] && y > b[1] && y < b[3];
+      d.lots.forEach((a, i) => {
+        const r = a.emblem.r * f.scale, [x, y] = px([a.emblem.x, a.emblem.y]);
+        assert.ok(2 * r >= MIN_EMBLEM_PX, `${at}/${a.id}: emblemat ${(2 * r).toFixed(1)} px`);
+        assert.ok(a.foot * f.scale >= MIN_LOT_PX, `${at}/${a.id}: działka ${(a.foot * f.scale).toFixed(1)} px`);
+        assert.ok(x - r >= 0 && x + r <= SE.w && y - r >= SE_INSETS.top && y + r <= SE.h - SE_INSETS.bottom, `${at}/${a.id}: w pasie`);
+        for (const b of d.lots.slice(i + 1)) {
+          assert.ok(Math.hypot(a.emblem.x - b.emblem.x, a.emblem.y - b.emblem.y) >= a.emblem.r + b.emblem.r, `${at}: ${a.id}/${b.id} emblemy nachodzą`);
+          assert.ok(!inBox([a.emblem.x, a.emblem.y], b.box), `${at}: ${b.id} zasłania ${a.id}`);
+        }
+      });
+    }
   }
 });
 
@@ -583,7 +587,7 @@ test('diorama: każdy dział ma emblemat z własną ikoną i kolorem', () => {
 test('diorama: obsada i ozdoby świąt — ludzie według progu, lampki na rdzeniu, choinka i dynie na Ziemi', () => {
   const people = (tier) => buildDiorama(maxModel('earth', { depts: maxModel('earth').depts.slice(0, 3).map((d) => ({ ...d, tier })) })).stats.people;
   assert.ok(people(0) === 0 && people(1) < people(3) && people(3) < people(5));
-  assert.deepEqual(buildDiorama(maxModel('earth')).stats.decor.sort(), ['lights', 'xmasTree']);
+  assert.deepEqual(buildDiorama(maxModel('earth')).stats.decor.sort(), ['lights', 'snow', 'xmasTree']);
   assert.deepEqual(buildDiorama(maxModel('space')).stats.decor, ['lights']);
   assert.deepEqual(buildDiorama(maxModel('earth', { env: { ...ENV, holiday: 'halloween' } })).stats.decor, ['pumpkins']);
   assert.deepEqual(buildDiorama(maxModel('galaxy', { env: { ...ENV, holiday: 'halloween' } })).stats.decor, []);
@@ -594,6 +598,9 @@ test('diorama: obsada i ozdoby świąt — ludzie według progu, lampki na rdzen
   const m = maxModel('earth'), a = shirts(buildDiorama(m));
   const same = [...shirts(buildDiorama({ ...m, depts: m.depts.map((d, i) => (i === 1 ? { ...d, tier: 4 } : d)) }))].filter(([p]) => a.has(p));
   assert.ok(same.length >= 60 && same.every(([p, c]) => a.get(p) === c), 'koszulki w pozostałych budynkach bez zmian');
+  // Przy progu 1 każda postać jest pierwszą w swoim budynku: ziarna sąsiednich budynków nie dają tej samej koszulki.
+  const firsts = shirts(buildDiorama({ ...m, depts: m.depts.map((d) => ({ ...d, tier: 1 })) }));
+  assert.ok(firsts.size === 13 && new Set(firsts.values()).size >= 5, `koszulki pierwszych osób: ${[...firsts.values()]}`);
 });
 
 test('layout: działka działu wynika z jego miejsca w DEPTS — odblokowanie poza kolejnością niczego nie przesuwa', () => {
@@ -602,8 +609,11 @@ test('layout: działka działu wynika z jego miejsca w DEPTS — odblokowanie po
     const part = buildDiorama({ ...full, depts: [0, 1, 4].map((i) => full.depts[i]) }), lot = (d) => d.lots.find((l) => l.id === id);
     assert.equal(part.lots.length, 3);
     assert.deepEqual(lot(part), lot(buildDiorama(full)), `${stage}: ${id} stoi tam, gdzie w pełnym układzie`);
-    assert.deepEqual([lot(part).box[0], lot(part).box[2]], [iso(s.gx, s.gy + s.d)[0], iso(s.gx + s.w, s.gy)[0]], `${stage}: ${id} na SLOTS[3]`);
-    const foot = STAGE_ART[stage].coreFoot(LAYERS[stage].DEPTS.length, 8);
+    // Działka z układu to SLOTS[3], a emblemat stoi nad jej rzutem (niezależnie od szerokości detali archetypu).
+    const foot = STAGE_ART[stage].coreFoot(LAYERS[stage].DEPTS.length, 8), r = layout(stage, 5, 8, STAGE_ART[stage].coreFoot(3, 8)).lots[3];
+    assert.deepEqual([r.gx, r.gy, r.w, r.d], [s.gx, s.gy, s.w, s.d], `${stage}: ${id} na SLOTS[3]`);
+    const ex = lot(part).emblem.x;
+    assert.ok(ex > iso(s.gx, s.gy + s.d)[0] && ex < iso(s.gx + s.w, s.gy)[0], `${stage}: emblemat ${id} nad SLOTS[3]`);
     assert.equal(layout(stage, 9, 8, foot).size, layout(stage, 9, 0, foot).size, `${stage}: rundy nie dokładają pierścienia wyspy`);
   }
   assert.deepEqual(layout('earth', 0, 0, { w: 2, d: 2, h: 2 }).lots, [], 'n = 0 bez działek');
@@ -684,6 +694,88 @@ test('earth: tabliczki rdzenia są escapowane i skracane na każdym etapie rozwo
 test('earth: brak zastępczego rdzenia', () => {
   assert.ok(!STAGE_ART.earth.placeholder);
   assert.ok(!EARTH_ART.placeholder);
+});
+
+// --- Ziemia: budynki działów, pory roku, święta i ruch (Zadanie 9) ---
+
+test('earth: każdy dział ma własny archetyp z jednym emblematem, archetypy się różnią', () => {
+  assert.deepEqual(Object.keys(EARTH_ART.depts).sort(), LAYERS.earth.DEPTS.slice(1).map((d) => d.id).sort());
+  for (const [id, parts] of Object.entries(EARTH_ART.depts)) {
+    const signs = parts.filter((p) => p[0] === 'sign');
+    assert.equal(signs.length, 1, `${id}: jeden sign`);
+    assert.ok(signs[0][3] <= LOT_MAX_H.earth, `${id}: emblemat na wysokości ≤ ${LOT_MAX_H.earth}`);
+    assert.ok(parts.some((p) => p.includes('accent')), `${id}: akcent w kolorze działu`);
+  }
+  assert.equal(new Set(Object.values(EARTH_ART.depts).map((p) => JSON.stringify(p))).size, 12);
+  assert.equal(STAGE_ART.earth.depts, EARTH_ART.depts);
+});
+
+test('earth: ruch rośnie z firmą', () => {
+  const veh = (n, o) => buildDiorama(earthModel(n, o)).stats.vehicles;
+  assert.deepEqual([1, 2, 6, 10].map((n) => veh(n, { firstHeads: 5 })), [0, 1, 2, 3], 'auta bez dronów (próg < 3)');
+  assert.equal(veh(13), 7, '3 auta i 4 drony');
+  const d = buildDiorama(earthModel(13));
+  assert.equal(d.frontAnim.split('class="car"').length - 1, 3);
+  // Drony: w warstwie animacji z klasami person i blink, nie zasłaniają emblematów (warstwa animacji leży nad nimi).
+  const drones = [...d.frontAnim.matchAll(/translate\(([-\d.]+) ([-\d.]+)\)"><g class="person"[^>]*>(.*?)<\/g><\/g>/g)];
+  assert.equal(drones.length, 4);
+  for (const [, x, y, body] of drones) {
+    assert.ok(body.includes('class="blink"'));
+    for (const l of d.lots) assert.ok(Math.hypot(x - l.emblem.x, y - l.emblem.y) >= l.emblem.r + 8, `dron (${x}, ${y}) na emblemacie ${l.id}`);
+  }
+});
+
+test('earth: gęstość obsady rośnie z progiem SEATS', () => {
+  const m = earthModel(2), at = (tier) => buildDiorama({ ...m, depts: m.depts.map((d, i) => (i ? { ...d, tier } : d)) }).stats;
+  const s = [0, 1, 2, 3, 4, 5].map(at);
+  for (let t = 1; t < 6; t++) for (const k of ['people', 'lit', 'vehicles']) assert.ok(s[t][k] >= s[t - 1][k], `${k}: próg ${t}`);
+  assert.ok(s[5].people > s[1].people && s[5].lit > s[1].lit && s[5].vehicles > s[1].vehicles);
+});
+
+test('earth: pory roku i święta na wyspie', () => {
+  for (const n of [1, 6, 13]) {
+    const decor = (env) => buildDiorama(earthModel(n, { env: { ...ENV, ...env } })).stats.decor;
+    assert.ok(decor({ season: 'winter', snowCover: true }).includes('snow'), `n=${n}: śnieg`);
+    assert.ok(decor({ season: 'spring' }).includes('blossom'), `n=${n}: kwiaty`);
+    assert.ok(decor({ season: 'autumn' }).includes('leaves'), `n=${n}: liście`);
+    assert.ok(['xmasTree', 'lights'].every((k) => decor({ season: 'winter', holiday: 'xmas' }).includes(k)), `n=${n}: Boże Narodzenie`);
+    assert.ok(decor({ season: 'autumn', holiday: 'halloween' }).includes('pumpkins'), `n=${n}: Halloween`);
+    assert.deepEqual(decor({}), [], `n=${n}: lato bez święta`);
+  }
+  const svg = (season) => buildDiorama(earthModel(13, { env: { ...ENV, season } })).front;
+  assert.equal(new Set(['spring', 'summer', 'autumn', 'winter'].map(svg)).size, 4, 'drzewa zmieniają się z porą roku');
+});
+
+// Odległość punktu p od prostokąta [x0, y0, x1, y1] w kafelkach.
+const far = (p, [x0, y0, x1, y1]) => Math.hypot(Math.max(x0 - p[0], 0, p[0] - x1), Math.max(y0 - p[1], 0, p[1] - y1));
+
+test('earth: rakieta, drzewa i droga nie kolidują z działkami ani ze sobą, plac przed rdzeniem jest wolny', () => {
+  const D = LAYERS.earth.DEPTS;
+  // Pierwsze n działów i pojedynczy dział poza kolejnością (wolne działki zamkniętych działów).
+  const cases = [...Array.from({ length: 13 }, (_, i) => i + 1).map((n) => earthModel(n, { rounds: 8 })),
+    ...[4, 7, 12].map((i) => { const m = maxModel('earth', { env: ENV, light: DAY }); return { ...m, depts: [m.depts[0], m.depts[i]] }; })];
+  for (const m of cases) {
+    const pos = m.depts.map((d) => D.findIndex((x) => x.id === d.id)), at = m.depts.map((d) => d.id).join();
+    const lay = layout('earth', Math.max(...pos) + 1, m.rounds, EARTH_ART.coreFoot(m.depts.length, m.rounds)), s = EARTH_ART.site(m, lay);
+    const rect = (r) => [r.gx, r.gy, r.gx + r.w, r.gy + r.d], lots = lay.lots.map(rect), mine = pos.filter((p) => p).map((p) => lots[p - 1]);
+    for (const b of [...lots, s.road, s.plaza]) assert.ok(far(s.rocket, b) >= 0.42, `${at}: rakieta przy ${b}`);
+    for (const t of s.trees) {
+      assert.ok(Math.hypot(t[0] - s.rocket[0], t[1] - s.rocket[1]) >= 0.42 + 0.3, `${at}: drzewo ${t} przy rakiecie`);
+      for (const b of [...mine, s.road, s.plaza, rect(lay.core)]) assert.ok(far(t, b) >= 0.15, `${at}: drzewo ${t} na ${b}`);
+    }
+    assert.ok(far([(s.plaza[0] + s.plaza[2]) / 2, (s.plaza[1] + s.plaza[3]) / 2], s.road) > 0.5, `${at}: droga z dala od placu`);
+    assert.ok(s.trees.length >= 3, `${at}: drzewa na brzegu wyspy`);
+  }
+});
+
+test('earth: lampki świąteczne widać na wieżowcu i kampusie', () => {
+  for (let n = 5; n <= 13; n++) for (const rounds of [0, 8]) {
+    const d = buildDiorama(earthModel(n, { rounds, env: { ...ENV, season: 'winter', holiday: 'xmas' } }));
+    const bulbs = [...d.front.matchAll(/<circle cx="([-\d.]+)" cy="([-\d.]+)" r="1\.7"/g)].map((x) => [+x[1], +x[2]]);
+    const lots = d.lots.filter((l) => l.id !== 'dev'), hit = ([x, y], l) => Math.hypot(x - l.emblem.x, y - l.emblem.y) < l.emblem.r + 2;
+    const seen = bulbs.filter((p) => !d.lots.some((l) => hit(p, l)) && !lots.some(({ box: b }) => p[0] > b[0] && p[0] < b[2] && p[1] > b[1] && p[1] < b[3]));
+    assert.ok(bulbs.length >= 5 && seen.length === bulbs.length, `n=${n} r=${rounds}: widać ${seen.length}/${bulbs.length}`);
+  }
 });
 
 test('sw.js: pamięć offline zawiera każdy moduł dioram (poza galerią)', () => {

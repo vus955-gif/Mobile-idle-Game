@@ -39,8 +39,8 @@ export const GENERIC = Object.fromEntries(LAYER_ORDER.map((id) => {
   }];
 }));
 
-// Oprawa etapu bez archetypów działów bierze je z dioramy zastępczej.
-export const STAGE_ART = { earth: { depts: GENERIC.earth.depts, ...EARTH_ART }, space: GENERIC.space, galaxy: GENERIC.galaxy, universe: GENERIC.universe };
+// Oprawa etapów; pozostałe etapy na razie zastępcze.
+export const STAGE_ART = { earth: EARTH_ART, space: GENERIC.space, galaxy: GENERIC.galaxy, universe: GENERIC.universe };
 
 const R = 12;    // promień emblematu (czytelny na iPhonie SE)
 const PS = 0.45; // skala postaci
@@ -51,7 +51,7 @@ const spot = (r, j, k) => {
   return j % 2 ? [r.gx + r.w * u, r.gy + r.d + 0.22] : [r.gx + r.w + 0.22, r.gy + r.d * u];
 };
 
-// Wyspa, budynki od tyłu (ludzie i ozdoby świąt zaraz po swoim), extras, na końcu emblematy.
+// Wyspa, extras.back, budynki od tyłu (ludzie i ozdoby świąt zaraz po swoim), extras.svg, na końcu emblematy.
 export function buildDiorama(model) {
   const { stage, env, light, depts } = model, art = STAGE_ART[stage], n = depts.length, earth = stage === 'earth';
   // Działka = pozycja działu w DEPTS (0 = rdzeń): odblokowanie poza kolejnością nic nie przesuwa.
@@ -61,33 +61,38 @@ export function buildDiorama(model) {
   const bud = budget(), anim = [], decor = [], bb = [...isl.bbox];
   const grow = (b) => { for (let i = 0; i < 4; i++) bb[i] = (i < 2 ? Math.min : Math.max)(bb[i], b[i]); };
   const take = (list) => { for (const a of list) if (bud.take()) anim.push(a); };
-  // Święta przy rdzeniu c: w grudniu lampki na krawędzi dachu (na Ziemi i choinka), w Halloween dynie u wejścia.
+  const core = art.core(model, lay);
+  // Święta przy rdzeniu c: w grudniu lampki na łamanych core.lights (punkty względem obrysu; domyślnie przednia krawędź
+  // dachu), na Ziemi i choinka; w Halloween dynie u wejścia.
   const holiday = (c) => {
     const at = (u, v, z = 0) => iso(c.gx + u, c.gy + v, c.gz + z);
     if (env.holiday === 'xmas') {
-      const l = stringLights([at(0, c.d, c.h), at(c.w, c.d, c.h), at(c.w, 0, c.h)]);
-      take(l.blink);
+      const ls = (core.lights ?? [[[0, c.d, c.h], [c.w, c.d, c.h], [c.w, 0, c.h]]]).map((line) => stringLights(line.map((p) => at(...p))));
+      ls.forEach((l) => take(l.blink));
       decor.push('lights', ...(earth ? ['xmasTree'] : []));
-      return l.svg + (earth ? xmasTree(...at(c.w + 1.1, c.d + 1.1), 0.7) : '');
+      return ls.map((l) => l.svg).join('') + (earth ? xmasTree(...at(c.w + 1.1, c.d + 1.1), 0.7) : '');
     }
     if (env.holiday !== 'halloween' || !earth) return '';
     decor.push('pumpkins');
     return pumpkin(...at(c.w + 0.45, c.d + 0.2), 0.6) + pumpkin(...at(c.w + 0.2, c.d + 0.45), 0.6);
   };
-  // extras biorą budżet animacji przed postaciami.
-  const ex = art.extras?.(model, lay) ?? { svg: '', anim: [], decor: [], vehicles: 0, people: 0 };
-  take(ex.anim);
-  const core = art.core(model, lay);
   const items = depts.map((d, i) => { const p = pos[i]; return { d, r: p ? lay.lots[p - 1] : lay.core, parts: p ? art.depts[d.id] : core.parts, seed: p + 1 }; })
     .sort((a, b) => depth(a.r) - depth(b.r))
     .map((o) => ({ ...o, a: assemble(o.parts, { at: [o.r.gx, o.r.gy, o.r.gz], palette: art.palette, accent: o.d.color, light, lit: CREW[o.d.tier].lit, snow: env.snowCover, seed: o.seed, company: model.company, budget: bud }) }));
-  let front = isl.svg, people = ex.people, lit = 0;
+  // Koła emblematów są znane przed extras, bo warstwa animacji (pojazdy) leży nad nimi.
+  const marks = items.map(({ d, a }) => { const [x, y] = emblemCenter(a.anchor, R); return { id: d.id, x, y, r: R }; });
+  // extras: back pod budynkami, svg nad nimi, anim z budżetu przed postaciami, box powiększa kadr.
+  const ex = { back: '', svg: '', anim: [], decor: [], vehicles: 0, people: 0, ...art.extras?.(model, lay, marks) };
+  take(ex.anim);
+  if (ex.box) grow(ex.box);
+  let front = isl.svg + ex.back, people = ex.people, lit = 0;
   items.forEach(({ d, r, a, seed }, k) => {
     front += (d.isNew ? `<g class="floor-new">${a.svg}</g>` : a.svg) + (r === lay.core ? holiday(r) : '');
     anim.push(...a.anim); grow(a.box); lit += CREW[d.tier].lit;
-    // Ruch tylko bez zasłony dalszym budynkiem, inaczej postać stoi w kolejności rysowania; ziarno postaci na budynek;
-    // core.people zastępuje CREW w rdzeniu (garaż).
-    const later = items.slice(k + 1).map((o) => o.a.box), crew = (r === lay.core ? core.people : null) ?? CREW[d.tier].people, rnd = seeded(7 + seed);
+    // Ruch tylko bez zasłony dalszym budynkiem, inaczej postać stoi w kolejności rysowania; ziarno postaci na budynek
+    // (mieszane, bo sąsiednie ziarna dają w seeded te same pierwsze losowania); core.people zastępuje CREW w rdzeniu (garaż).
+    const later = items.slice(k + 1).map((o) => o.a.box), crew = (r === lay.core ? core.people : null) ?? CREW[d.tier].people;
+    const h = Math.imul(seed, 2654435761), rnd = seeded(h ^ (h >>> 15));
     for (let j = 0; j < crew; j++, people++) {
       const [x, y] = iso(...spot(r, j, crew)), hid = later.some((b) => b[0] < x + 3 && b[2] > x - 3 && b[1] < y && b[3] > y - 11);
       if (!hid && bud.take()) anim.push(person(x, y, rnd, PS, (seed * 0.29 + j * 0.37) % 1.6)); else front += person(x, y, rnd, PS);
@@ -95,8 +100,8 @@ export function buildDiorama(model) {
   });
   front += ex.svg;
   // Emblematy na wierzchu.
-  const lots = items.map(({ d, r, a }) => {
-    const [x, y] = emblemCenter(a.anchor, R);
+  const lots = items.map(({ d, r, a }, i) => {
+    const { x, y } = marks[i];
     grow([x - R - 2, y - R - 2, x + R + 2, y]);
     front += emblem(d, a.anchor, R);
     return { id: d.id, emblem: { x, y, r: R }, box: a.box, foot: (r.w + r.d) * TW / 2 };
