@@ -59,10 +59,10 @@ export function assemble(parts, ctx) {
   const col = (m) => (m === 'accent' ? ctx.accent : palette[m]);
   const paint = (c, m) => tones(c, light, { snow: !!ctx.snow && SNOWY.has(m) });
   const tone = (m) => paint(col(m), m);
-  // Okna obu widocznych ścian: rows = floor(h), świecą w udziale ctx.lit, osobne ziarno na ścianę.
-  const wins = (b, i) => ['left', 'right'].map((face, f) => {
+  // Okna widocznych ścian (faces: 'l', 'r'): rows = floor(h), świecą w udziale ctx.lit, osobne ziarno na ścianę.
+  const wins = (b, i, faces = 'lr') => ['left', 'right'].map((face, f) => {
     const rows = Math.floor(b.h), len = face === 'left' ? b.w : b.d;
-    return rows < 1 ? '' : windows(b, face, { rows, cols: Math.max(1, Math.round(len * 2)), lit: ctx.lit, seed: Math.imul(seed * 64 + i * 2 + f + 1, 2654435761) }, light);
+    return rows < 1 || !faces.includes(face[0]) ? '' : windows(b, face, { rows, cols: Math.max(1, Math.round(len * 2)), lit: ctx.lit, seed: Math.imul(seed * 64 + i * 2 + f + 1, 2654435761) }, light);
   }).join('');
 
   for (const [i, part] of parts.entries()) {
@@ -75,7 +75,7 @@ export function assemble(parts, ctx) {
       // Cienki detal na ścianie ('flush', grubość ≤ 0,05): tylko ściana widoczna od frontu, bez wierzchu i kreski krawędzi.
       const thin = extra.includes('flush') && Math.min(w, d) <= 0.05 && { rim: false, faces: Math.max(w, d) <= 0.05 ? 'lr' : d < w ? 'l' : 'r' };
       if (!extra.includes('flush')) svg += shadow(b, light);
-      if (kind === 'box') svg += box(b, t, thin || {}) + (extra.includes('win') ? wins(b, i) : '');
+      if (kind === 'box') svg += box(b, t, thin || {}) + (extra.includes('win') ? wins(b, i, (thin || {}).faces) : ''); // cienki: okna tylko na jego ścianie
       else svg += kind === 'pyr' ? pyr(b, t) : gable(b, t, extra);
       if (ledge) svg += box({ gx: gx - pd, gy: gy - pd, gz: gz + h - 0.25, w: w + 2 * pd, d: d + 2 * pd, h: 0.25 }, paint(mixRgb(col(m), [255, 255, 255], 0.25), m), { rim: false });
       if (kind === 'box') tops(cub(w, d, h, pd));
@@ -134,7 +134,8 @@ export function assemble(parts, ctx) {
       const [, , , , x2, y2, z2, m, sw = 1.6] = part, a = P(x, y, z), b = P(x2, y2, z2);
       svg += `<path d="M${a.join(' ')}L${b.join(' ')}" stroke="${tone(m).left}" stroke-width="${sw}" stroke-linecap="round"/>`;
       grow(Math.min(a[0], b[0]) - 1, Math.min(a[1], b[1]) - 1, Math.max(a[0], b[0]) + 1, Math.max(a[1], b[1]) + 1);
-    } else if (kind === 'sign') anchor = P(x, y, z);
+    } else if (kind === 'shadow') svg += shadow(sq(part[5]), light); // sam cień walca r o wysokości part[5] na płaszczyźnie z (np. pod nogami)
+    else if (kind === 'sign') anchor = P(x, y, z);
     else throw new TypeError(`assemble: nieznana część „${kind}”`);
   }
   const fin = bb[0] === Infinity ? [0, 0, 0, 0] : [Math.floor(bb[0]), Math.floor(bb[1]), Math.ceil(bb[2]), Math.ceil(bb[3])];
@@ -179,11 +180,11 @@ const SKIN = ['#f5d0b5', '#e8b796', '#c98e6b', '#8d5a3b', '#f1c9a5'];
 const HAIR = ['#2b1d16', '#5a3825', '#d9a441', '#1b1b1b', '#8b4a2b', '#c0c0c0'];
 
 // Bez `delay` postać jest statyczna; z `delay` (s) ma klasę `person` (kołysanie) i idzie do warstwy animacji.
-// suit (barwa) to kombinezon z hełmem i szybką zamiast koszulki, twarzy i włosów.
+// suit (barwa) to kombinezon z pasem w barwie koszulki (kontrast na jasnym gruncie), hełmem i szybką zamiast twarzy i włosów.
 export function person(x, y, rnd, s = 1, delay, suit) {
   const shirt = SHIRTS[Math.floor(rnd() * SHIRTS.length)], skin = SKIN[Math.floor(rnd() * SKIN.length)], hair = HAIR[Math.floor(rnd() * HAIR.length)];
   const body = `<rect x="-5" y="-15" width="10" height="11" rx="4" fill="${suit ?? shirt}"/>` + (suit
-    ? `<circle cx="0" cy="-19.5" r="4.4" fill="${suit}"/><rect x="-3" y="-21.6" width="6" height="3.4" rx="1.6" fill="#2b4a7a"/>`
+    ? `<rect x="-5" y="-10" width="10" height="2.8" fill="${shirt}"/><circle cx="0" cy="-19.5" r="4.4" fill="${suit}"/><rect x="-3" y="-21.6" width="6" height="3.4" rx="1.6" fill="#2b4a7a"/>`
     : `<circle cx="0" cy="-19" r="3.6" fill="${skin}"/><path d="M-3.8 -19.5 a3.8 3.8 0 0 1 7.6 0 q-3.8 -1.6 -7.6 0z" fill="${hair}"/>`);
   return `${place(x, y, s)}${delay === undefined ? body : `<g class="person" style="animation-delay:${delay.toFixed(2)}s">${body}</g>`}</g>`;
 }

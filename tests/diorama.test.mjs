@@ -164,6 +164,9 @@ test('parts: wszystkie typy części dają poprawny SVG mieszczący się w prost
   assert.ok(Math.abs((cyl1[0] + cyl1[2]) / 2 - iso(3, 2)[0]) < 1.5 && cyl1[3] > iso(3, 2, 1)[1], 'walec wokół swojego środka');
   const strut = assemble([['strut', 0, 0, 0, 1, 0, 2, 'metal']], CTX());
   assert.equal(checkSvg(strut.svg).elements, 1, 'zastrzał to jedna kreska');
+  const sh = assemble([['shadow', 1, 1, 0, 0.5, 4]], CTX());
+  assert.ok(checkSvg(sh.svg).elements === 1 && sh.svg === shadow({ gx: 0.65, gy: 0.65, gz: 0, w: 0.7, d: 0.7, h: 4 }, CTX().light), 'cień walca r = 0,5 o wysokości 4');
+  assert.deepEqual(sh.box, [0, 0, 0, 0], 'cień nie powiększa prostokąta (jak cienie brył)');
   assert.deepEqual(strut.box, [Math.floor(iso(0, 0)[0] - 1), Math.floor(iso(1, 0, 2)[1] - 1), Math.ceil(iso(1, 0, 2)[0] + 1), Math.ceil(iso(0, 0)[1] + 1)]);
 });
 
@@ -553,26 +556,32 @@ test('diorama: nowy dział wyrasta tylko raz, a wejście na etap i powrót na ni
   assert.deepEqual([...newIds(known, 'galaxy', (function* () { yield 'a'; yield 'b'; })())], ['b'], 'dowolny iterowalny zbiór');
 });
 
+// Czytelność dioramy d na iPhonie SE: emblemat i działka dość duże, emblemat w pasie, emblematy nie nachodzą na siebie,
+// a budynek narysowany później nie zasłania emblematu wcześniejszego.
+function assertSE(d, at) {
+  const f = frameFor(d.bbox, SE, SE_INSETS);
+  const px = ([x, y]) => [(x - f.viewBox[0]) * f.scale, (y - f.viewBox[1]) * f.scale];
+  const inBox = ([x, y], b) => x > b[0] && x < b[2] && y > b[1] && y < b[3];
+  d.lots.forEach((a, i) => {
+    const r = a.emblem.r * f.scale, [x, y] = px([a.emblem.x, a.emblem.y]);
+    assert.ok(2 * r >= MIN_EMBLEM_PX, `${at}/${a.id}: emblemat ${(2 * r).toFixed(1)} px`);
+    assert.ok(a.foot * f.scale >= MIN_LOT_PX, `${at}/${a.id}: działka ${(a.foot * f.scale).toFixed(1)} px`);
+    assert.ok(x - r >= 0 && x + r <= SE.w && y - r >= SE_INSETS.top && y + r <= SE.h - SE_INSETS.bottom, `${at}/${a.id}: w pasie`);
+    for (const b of d.lots.slice(i + 1)) {
+      assert.ok(Math.hypot(a.emblem.x - b.emblem.x, a.emblem.y - b.emblem.y) >= a.emblem.r + b.emblem.r, `${at}: ${a.id}/${b.id} emblemy nachodzą`);
+      assert.ok(!inBox([a.emblem.x, a.emblem.y], b.box), `${at}: ${b.id} zasłania ${a.id}`);
+    }
+  });
+}
+
 // Każde n od 1 do wszystkich działów, rundy 0 i 8, święta zimą nocą i lato w dzień (najciaśniej bywa przed max).
 test('diorama: wszystkie działy każdego etapu mieszczą się i są czytelne na iPhonie SE (każde n, rundy 0 i 8)', () => {
   for (const stage of LAYER_ORDER) {
     const full = maxModel(stage);
     for (let n = 1; n <= full.depts.length; n++) for (const rounds of [0, 8]) for (const env of [full.env, ENV]) {
       const d = buildDiorama({ ...full, depts: full.depts.slice(0, n), rounds, env }), at = `${stage} n=${n} r=${rounds} ${env.season}`;
-      const f = frameFor(d.bbox, SE, SE_INSETS);
       assert.deepEqual(d.lots.map((l) => l.id).sort(), full.depts.slice(0, n).map((x) => x.id).sort(), `${at}: każdy dział ma element`);
-      const px = ([x, y]) => [(x - f.viewBox[0]) * f.scale, (y - f.viewBox[1]) * f.scale];
-      const inBox = ([x, y], b) => x > b[0] && x < b[2] && y > b[1] && y < b[3];
-      d.lots.forEach((a, i) => {
-        const r = a.emblem.r * f.scale, [x, y] = px([a.emblem.x, a.emblem.y]);
-        assert.ok(2 * r >= MIN_EMBLEM_PX, `${at}/${a.id}: emblemat ${(2 * r).toFixed(1)} px`);
-        assert.ok(a.foot * f.scale >= MIN_LOT_PX, `${at}/${a.id}: działka ${(a.foot * f.scale).toFixed(1)} px`);
-        assert.ok(x - r >= 0 && x + r <= SE.w && y - r >= SE_INSETS.top && y + r <= SE.h - SE_INSETS.bottom, `${at}/${a.id}: w pasie`);
-        for (const b of d.lots.slice(i + 1)) {
-          assert.ok(Math.hypot(a.emblem.x - b.emblem.x, a.emblem.y - b.emblem.y) >= a.emblem.r + b.emblem.r, `${at}: ${a.id}/${b.id} emblemy nachodzą`);
-          assert.ok(!inBox([a.emblem.x, a.emblem.y], b.box), `${at}: ${b.id} zasłania ${a.id}`);
-        }
-      });
+      assertSE(d, at);
     }
   }
 });
@@ -862,14 +871,38 @@ test('space: tabliczka „◆ NAZWA” na każdym etapie, escapowana i skracana 
 test('space: łazik tylko na wyspach z powierzchnią, astronauci w białych kombinezonach, każdy widok czytelny na SE', () => {
   const build = (view, o) => buildDiorama(spaceModel(9, { view, ...o }));
   for (const { id } of LAYERS.space.OFFICES) {
-    const d = build(id, { rounds: 8 }), surface = PLACES[id].base === 'island', f = frameFor(d.bbox, SE, SE_INSETS);
+    const d = build(id, { rounds: 8 }), surface = PLACES[id].base === 'island';
     assert.equal(d.frontAnim.includes('class="car"'), surface, `${id}: łazik`);
     assert.ok(surface ? d.stats.vehicles >= 1 : d.stats.vehicles === 0, `${id}: pojazdy ${d.stats.vehicles}`);
-    assert.ok(2 * 12 * f.scale >= MIN_EMBLEM_PX && 40 * f.scale >= MIN_LOT_PX, `${id}: skala ${f.scale.toFixed(2)}`);
+    for (const rounds of [0, 8]) assertSE(build(id, { rounds }), `space/${id} r=${rounds}`);
   }
   const d = build('moon'), suits = [...(d.front + d.frontAnim).matchAll(/scale\(0\.45\)">(?:<g [^>]*>)?<rect x="-5" y="-15"[^>]* fill="([^"]+)"/g)].map((x) => x[1]);
   assert.ok(suits.length === d.stats.people && suits.length > 20 && new Set(suits).size === 1, `kombinezony: ${new Set(suits).size} barw`);
   assert.ok(lum(suits[0]) > 0.8, `biały kombinezon ${suits[0]}`);
+});
+
+test('space: moduł centralny, kapsuła i habitat rzucają cień całej wysokości na grunt (także spod nóg lądownika)', () => {
+  for (const view of ['moon', 'leo']) for (const n of [1, 2, 5, 9]) {
+    const foot = SP().coreFoot(n, 0), parts = SP().core(spaceModel(n, { view }), layout('space', n, 0, foot)).parts, at = `${view} n=${n}`;
+    // Segmenty walców modułu, kapsuły i rakiety (bez kołnierza, stopy i węzła, które stoją na czymś) nie rzucają własnych cieni.
+    const segs = parts.filter((p) => p[0] === 'cyl' && ['wall', 'wall2', 'accent'].includes(p[6]));
+    assert.ok(segs.length >= 3 && segs.every((p) => String(p[7]).includes('flush')), `${at}: segmenty bez cienia`);
+    const sh = parts.filter((p) => p[0] === 'shadow');
+    assert.equal(sh.length, 1, `${at}: jeden cień modułu`);
+    assert.equal(sh[0][3], 0, `${at}: cień na gruncie`);
+    assert.ok(sh[0][5] >= (n > 1 ? foot.h : 2.2), `${at}: cień wysokości ${sh[0][5]}`);
+  }
+  const hab = SP().depts.astronauts.filter((p) => p[0] === 'shadow');
+  assert.ok(hab.length === 1 && hab[0][3] === 0 && hab[0][5] >= 2.1, 'habitat: cień całego walca');
+});
+
+test('space: każdy moduł działu ma okna, które nocą świecą według progu obsady', () => {
+  const glow = (parts, lit) => (assemble(parts, CTX({ palette: PALETTES.space, light: NIGHT, lit })).svg.match(/<path d="([^"]*)" fill="#ffd88a"/g) ?? []).join('').split('M').length - 1;
+  for (const [id, parts] of Object.entries(SP().depts)) {
+    assert.ok(parts.some((p) => p.some((v) => typeof v === 'string' && /\bwin\b/.test(v))), `${id}: okna`);
+    assert.equal(glow(parts, 0), 0, `${id}: przy udziale 0 nic nie świeci`);
+    assert.ok(glow(parts, 1) >= 2, `${id}: przy pełnej obsadzie świeci ${glow(parts, 1)} okien`);
+  }
 });
 
 test('sw.js: pamięć offline zawiera każdy moduł dioram (poza galerią)', () => {
