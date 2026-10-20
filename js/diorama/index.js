@@ -5,6 +5,7 @@ import { PLACES, island } from './island.js';
 import { layout, LOT_MAX_H } from './layout.js';
 import { LAYERS, LAYER_ORDER } from '../layers.js';
 import { EARTH_ART } from './earth.js';
+import { SPACE_ART } from './space.js';
 
 // Odblokowane działy w kolejności DEPTS z progiem obsady; rundy do 8.
 export function modelFor(game, { view, env, light, isNew = () => false }) {
@@ -40,7 +41,7 @@ export const GENERIC = Object.fromEntries(LAYER_ORDER.map((id) => {
 }));
 
 // Oprawa etapów; pozostałe etapy na razie zastępcze.
-export const STAGE_ART = { earth: EARTH_ART, space: GENERIC.space, galaxy: GENERIC.galaxy, universe: GENERIC.universe };
+export const STAGE_ART = { earth: EARTH_ART, space: SPACE_ART, galaxy: GENERIC.galaxy, universe: GENERIC.universe };
 
 const R = 12;    // promień emblematu (czytelny na iPhonie SE)
 const PS = 0.45; // skala postaci
@@ -99,7 +100,7 @@ export function buildDiorama(model) {
     const h = Math.imul(seed, 2654435761), rnd = seeded(h ^ (h >>> 15));
     for (let j = 0; j < crew; j++, people++) {
       const [x, y] = iso(...spot(r, j, crew)), hid = later.some((b) => b[0] < x + 3 && b[2] > x - 3 && b[1] < y && b[3] > y - 11);
-      if (!hid && bud.take()) anim.push(person(x, y, rnd, PS, (seed * 0.29 + j * 0.37) % 1.6)); else front += person(x, y, rnd, PS);
+      if (!hid && bud.take()) anim.push(person(x, y, rnd, PS, (seed * 0.29 + j * 0.37) % 1.6, art.suit)); else front += person(x, y, rnd, PS, undefined, art.suit);
     }
   });
   front += ex.svg;

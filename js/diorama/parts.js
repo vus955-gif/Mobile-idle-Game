@@ -82,8 +82,8 @@ export function assemble(parts, ctx) {
       else tops([...cub(w, d, 0), ...(kind === 'pyr' ? [[w / 2, d / 2, h]] : extra === 'x' ? [[0, d / 2, h], [w, d / 2, h]] : [[w / 2, 0, h], [w / 2, d, h]])]);
     } else if (kind === 'cyl') {
       const [, , , , , h, m, extra = ''] = part, [cx, yb] = P(x, y, z), yt = P(x, y, z + h)[1];
-      // Cienki walec (kolumna, rura, r < 0,06) bez cienia: na ekranie to ułamek piksela.
-      svg += (r < 0.06 ? '' : shadow(sq(h), light)) + cyl({ gx, gy, gz, r, h }, tone(m)) + (extra.includes('win') ? wins(sq(h), i) : '');
+      // Cienki walec (kolumna, rura, r < 0,06) i walec 'flush' (pas na innym walcu) bez cienia.
+      svg += (r < 0.06 || extra.includes('flush') ? '' : shadow(sq(h), light)) + cyl({ gx, gy, gz, r, h }, tone(m)) + (extra.includes('win') ? wins(sq(h), i) : '');
       grow(cx - r * RX, yt - r * RX / 2, cx + r * RX, yb + r * RX / 2);
     } else if (kind === 'dome') {
       const [cx, cy] = P(x, y, z), rx = r * RX;
@@ -129,6 +129,11 @@ export function assemble(parts, ctx) {
       svg += `<rect x="${r1(cx - W / 2)}" y="${r1(cy - H / 2)}" width="${r1(W)}" height="${r1(H)}" rx="${r1(H / 4)}" fill="#11172b" fill-opacity=".85"${ink ? ` stroke="${ink}"` : ''}/>`
         + `<text x="${cx}" y="${cy}" dy=".35em" font-size="${r1(fs)}" font-weight="700" text-anchor="middle" fill="${ink ?? '#f5f1e6'}">${esc(text)}</text>`;
       grow(cx - W / 2, cy - H / 2, cx + W / 2, cy + H / 2);
+    } else if (kind === 'strut') {
+      // Zastrzał: kreska do (part[4], part[5], part[6]) — noga, kratownica, ramię, lina; part[8] to grubość.
+      const [, , , , x2, y2, z2, m, sw = 1.6] = part, a = P(x, y, z), b = P(x2, y2, z2);
+      svg += `<path d="M${a.join(' ')}L${b.join(' ')}" stroke="${tone(m).left}" stroke-width="${sw}" stroke-linecap="round"/>`;
+      grow(Math.min(a[0], b[0]) - 1, Math.min(a[1], b[1]) - 1, Math.max(a[0], b[0]) + 1, Math.max(a[1], b[1]) + 1);
     } else if (kind === 'sign') anchor = P(x, y, z);
     else throw new TypeError(`assemble: nieznana część „${kind}”`);
   }
@@ -174,10 +179,12 @@ const SKIN = ['#f5d0b5', '#e8b796', '#c98e6b', '#8d5a3b', '#f1c9a5'];
 const HAIR = ['#2b1d16', '#5a3825', '#d9a441', '#1b1b1b', '#8b4a2b', '#c0c0c0'];
 
 // Bez `delay` postać jest statyczna; z `delay` (s) ma klasę `person` (kołysanie) i idzie do warstwy animacji.
-export function person(x, y, rnd, s = 1, delay) {
+// suit (barwa) to kombinezon z hełmem i szybką zamiast koszulki, twarzy i włosów.
+export function person(x, y, rnd, s = 1, delay, suit) {
   const shirt = SHIRTS[Math.floor(rnd() * SHIRTS.length)], skin = SKIN[Math.floor(rnd() * SKIN.length)], hair = HAIR[Math.floor(rnd() * HAIR.length)];
-  const body = `<rect x="-5" y="-15" width="10" height="11" rx="4" fill="${shirt}"/><circle cx="0" cy="-19" r="3.6" fill="${skin}"/>`
-    + `<path d="M-3.8 -19.5 a3.8 3.8 0 0 1 7.6 0 q-3.8 -1.6 -7.6 0z" fill="${hair}"/>`;
+  const body = `<rect x="-5" y="-15" width="10" height="11" rx="4" fill="${suit ?? shirt}"/>` + (suit
+    ? `<circle cx="0" cy="-19.5" r="4.4" fill="${suit}"/><rect x="-3" y="-21.6" width="6" height="3.4" rx="1.6" fill="#2b4a7a"/>`
+    : `<circle cx="0" cy="-19" r="3.6" fill="${skin}"/><path d="M-3.8 -19.5 a3.8 3.8 0 0 1 7.6 0 q-3.8 -1.6 -7.6 0z" fill="${hair}"/>`);
   return `${place(x, y, s)}${delay === undefined ? body : `<g class="person" style="animation-delay:${delay.toFixed(2)}s">${body}</g>`}</g>`;
 }
 

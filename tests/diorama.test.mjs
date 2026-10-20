@@ -8,7 +8,7 @@ import { PALETTES, assemble, emblem, emblemCenter, ER, SEATS, tierFor, CREW, MAX
 import { PLACES, island, groundTone, SNOW } from '../js/diorama/island.js';
 import { SE, SE_INSETS, frameFor, viewBoxAttr, MIN_EMBLEM_PX, MIN_LOT_PX } from '../js/diorama/frame.js';
 import { SLOTS, layout, LOT_MAX_H } from '../js/diorama/layout.js';
-import { modelFor, newIds, buildDiorama, STAGE_ART } from '../js/diorama/index.js';
+import { modelFor, newIds, buildDiorama, STAGE_ART, GENERIC } from '../js/diorama/index.js';
 import { EARTH_ART } from '../js/diorama/earth.js';
 import { Company } from '../js/engine.js';
 import { LAYERS, LAYER_ORDER } from '../js/layers.js';
@@ -145,7 +145,7 @@ test('parts: wszystkie typy części dają poprawny SVG mieszczący się w prost
     ['box', 0, 0, 0, 2, 1, 2, 'wall2', 'win ledge'], ['gable', 0, 0, 2, 2, 1, 1, 'roof', 'y'], ['cyl', 3, 1, 0, 0.6, 2, 'metal', 'win'],
     ['dome', 3, 1, 2, 0.6, 'glass'], ['ring', 1, 3, 0, 1, 'crystal', 'flat'], ['ring', 4, 3, 0, 1, 'crystal', 'upright'],
     ['dish', 0.5, 2, 0, 0.3], ['panel', 2, 2, 0, 1.5, 1], ['mast', 5, 0, 0, 3], ['glow', 5, 2, 1, 0.4, 'crystal'],
-    ['label', 1, 0, 1, 2, 12], ['sign', 1, 0.5, 3],
+    ['label', 1, 0, 1, 2, 12], ['strut', 0, 3, 0, 1.5, 4, 2, 'metal'], ['sign', 1, 0.5, 3],
   ];
   const r = assemble(parts, CTX());
   assert.ok(checkSvg(r.svg).elements > 40);
@@ -162,6 +162,9 @@ test('parts: wszystkie typy części dają poprawny SVG mieszczący się w prost
   assert.deepEqual(at, [Math.floor(iso(4, 4, 2)[0]), Math.floor(iso(4, 3, 4)[1]), Math.ceil(iso(6, 3, 2)[0]), Math.ceil(iso(6, 4, 2)[1])], 'prostokąt uwzględnia x, y, z i at');
   const cyl1 = assemble([['cyl', 3, 2, 1, 0.5, 2, 'metal']], CTX()).box;
   assert.ok(Math.abs((cyl1[0] + cyl1[2]) / 2 - iso(3, 2)[0]) < 1.5 && cyl1[3] > iso(3, 2, 1)[1], 'walec wokół swojego środka');
+  const strut = assemble([['strut', 0, 0, 0, 1, 0, 2, 'metal']], CTX());
+  assert.equal(checkSvg(strut.svg).elements, 1, 'zastrzał to jedna kreska');
+  assert.deepEqual(strut.box, [Math.floor(iso(0, 0)[0] - 1), Math.floor(iso(1, 0, 2)[1] - 1), Math.ceil(iso(1, 0, 2)[0] + 1), Math.ceil(iso(0, 0)[1] + 1)]);
 });
 
 test('parts: niewidoczne na ekranie fragmenty nie dają elementów (cienki detal flush, dioda, cienki walec, kwiaty)', () => {
@@ -797,6 +800,76 @@ test('earth: lampki świąteczne widać na wieżowcu i kampusie', () => {
     const seen = bulbs.filter((p) => !d.lots.some((l) => hit(p, l)) && !lots.some(({ box: b }) => p[0] > b[0] && p[0] < b[2] && p[1] > b[1] && p[1] < b[3]));
     assert.ok(bulbs.length >= 5 && seen.length === bulbs.length, `n=${n} r=${rounds}: widać ${seen.length}/${bulbs.length}`);
   }
+});
+
+// --- Kosmos: kapsuła → stacja (Zadanie 10) ---
+
+const SP = () => STAGE_ART.space;
+// Kosmos z n pierwszymi działami w widoku view (domyślnie siedziba), bez rund i świąt.
+const spaceModel = (n, o = {}) => {
+  const view = o.view ?? LAYERS.space.HQ, m = maxModel('space', { env: { ...ENV, season: 'space' }, light: recipeFor(view).light({}), rounds: 0, ...o });
+  return { ...m, depts: m.depts.slice(0, n) };
+};
+
+test('space: forma rdzenia i podstawa według widoku', () => {
+  assert.deepEqual([1, 2, 4, 5, 9].map((n) => SP().coreForm(n)), ['capsule', 'hub', 'hub', 'station', 'station']);
+  const st = (view) => buildDiorama(spaceModel(9, { view })).stats;
+  assert.deepEqual([st('moon').base, st('leo').base, st('venus').base], ['island', 'platform', 'aerostat']);
+  assert.deepEqual([st('moon').material, st('europa').material], ['regolith', 'ice']);
+});
+
+test('space: każdy dział ma własny moduł z jednym emblematem, moduły się różnią', () => {
+  const depts = SP().depts, top = (p) => (p[0] === 'strut' ? Math.max(p[3], p[6]) : p[3] + ({ box: p[6], pyr: p[6], gable: p[6], cyl: p[5], dome: p[4], mast: p[4] }[p[0]] ?? 0));
+  assert.deepEqual(Object.keys(depts).sort(), LAYERS.space.DEPTS.slice(1).map((d) => d.id).sort());
+  for (const [id, parts] of Object.entries(depts)) {
+    const signs = parts.filter((p) => p[0] === 'sign');
+    assert.equal(signs.length, 1, `${id}: jeden sign`);
+    assert.ok(Math.max(...parts.map(top)) <= LOT_MAX_H.space, `${id}: moduł i emblemat na wysokości ≤ ${LOT_MAX_H.space}`);
+    assert.ok(parts.some((p) => p.includes('accent')), `${id}: akcent w kolorze działu`);
+    assert.ok(parts.some((p) => p[0] === 'glow' && p[5] === 'crystal'), `${id}: bursztynowe światło modułu`);
+  }
+  assert.equal(new Set(Object.values(depts).map((p) => JSON.stringify(p))).size, 8);
+  assert.ok(depts.medics.some((p) => p.includes('green')), 'medycy: zielony pas zamiast krzyża');
+});
+
+test('space: ozdoby rund', () => {
+  const orn = (rounds, n = 9) => buildDiorama(spaceModel(n, { rounds })).stats.ornaments;
+  assert.deepEqual(orn(0), []);
+  assert.deepEqual([...orn(8)].sort(), ['rocket1', 'rocket2', 'rocket3', 'torus', 'wing']);
+  assert.deepEqual([...orn(3)].sort(), ['rocket1', 'rocket2', 'wing']);
+  for (const n of [1, 3, 6]) assert.equal(orn(8, n).length, 5, `n=${n}`);
+  // Każdy próg rund coś dokłada do obrazu.
+  for (const n of [1, 3, 9]) assert.equal(new Set([0, 1, 2, 3, 5, 8].map((rounds) => buildDiorama(spaceModel(n, { rounds })).front)).size, 6, `n=${n}`);
+});
+
+test('space: brak zastępczej dioramy', () => {
+  assert.ok(!SP().placeholder);
+  for (const d of LAYERS.space.DEPTS.slice(1)) assert.notEqual(SP().depts[d.id], GENERIC.space.depts[d.id], d.id);
+  assert.notEqual(SP().core, GENERIC.space.core);
+});
+
+test('space: tabliczka „◆ NAZWA” na każdym etapie, escapowana i skracana do 24 znaków', () => {
+  const name = '<b>Ala & "Kot"</b> 🚀 sp. z o.o. — bardzo długa nazwa';
+  for (const n of [1, 3, 6, 9]) {
+    const { front } = buildDiorama(spaceModel(n, { company: name, rounds: 8 }));
+    checkSvg(front);
+    const texts = [...front.matchAll(/<text[^>]*>([^<]*)<\/text>/g)].map((x) => unesc(x[1])).filter((t) => t.startsWith('◆'));
+    assert.equal(texts.length, 1, `n=${n}: ${texts}`);
+    assert.ok(Array.from(texts[0]).length === 24 && texts[0].endsWith('…') && !front.includes('<b>'), `n=${n}: ${texts[0]}`);
+  }
+});
+
+test('space: łazik tylko na wyspach z powierzchnią, astronauci w białych kombinezonach, każdy widok czytelny na SE', () => {
+  const build = (view, o) => buildDiorama(spaceModel(9, { view, ...o }));
+  for (const { id } of LAYERS.space.OFFICES) {
+    const d = build(id, { rounds: 8 }), surface = PLACES[id].base === 'island', f = frameFor(d.bbox, SE, SE_INSETS);
+    assert.equal(d.frontAnim.includes('class="car"'), surface, `${id}: łazik`);
+    assert.ok(surface ? d.stats.vehicles >= 1 : d.stats.vehicles === 0, `${id}: pojazdy ${d.stats.vehicles}`);
+    assert.ok(2 * 12 * f.scale >= MIN_EMBLEM_PX && 40 * f.scale >= MIN_LOT_PX, `${id}: skala ${f.scale.toFixed(2)}`);
+  }
+  const d = build('moon'), suits = [...(d.front + d.frontAnim).matchAll(/scale\(0\.45\)">(?:<g [^>]*>)?<rect x="-5" y="-15"[^>]* fill="([^"]+)"/g)].map((x) => x[1]);
+  assert.ok(suits.length === d.stats.people && suits.length > 20 && new Set(suits).size === 1, `kombinezony: ${new Set(suits).size} barw`);
+  assert.ok(lum(suits[0]) > 0.8, `biały kombinezon ${suits[0]}`);
 });
 
 test('sw.js: pamięć offline zawiera każdy moduł dioram (poza galerią)', () => {
