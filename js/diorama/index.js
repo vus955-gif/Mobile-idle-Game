@@ -7,6 +7,7 @@ import { LAYERS, LAYER_ORDER } from '../layers.js';
 import { EARTH_ART } from './earth.js';
 import { SPACE_ART } from './space.js';
 import { GALAXY_ART } from './galaxy.js';
+import { UNIVERSE_ART } from './universe.js';
 
 // Odblokowane działy w kolejności DEPTS z progiem obsady; rundy do 8.
 export function modelFor(game, { view, env, light, isNew = () => false }) {
@@ -41,15 +42,16 @@ export const GENERIC = Object.fromEntries(LAYER_ORDER.map((id) => {
   }];
 }));
 
-// Oprawa etapów; Wszechświat na razie zastępczy.
-export const STAGE_ART = { earth: EARTH_ART, space: SPACE_ART, galaxy: GALAXY_ART, universe: GENERIC.universe };
+// Oprawa etapów.
+export const STAGE_ART = { earth: EARTH_ART, space: SPACE_ART, galaxy: GALAXY_ART, universe: UNIVERSE_ART };
 
 const R = 12;    // promień emblematu (czytelny na iPhonie SE)
 const PS = 0.45; // skala postaci
 // Kolejność rysowania: najpierw to, co stoi niżej (działka na kadłubie po kadłubie), potem od tyłu ku przodowi.
 const depth = (r) => r.gx + r.gy + (r.w + r.d) / 2;
 // j-ta z k postaci stoi na ścieżce tuż przed przednimi ścianami obrysu r (na jego wysokości gz); oprawa etapu może to
-// zmienić hookiem art.spot(r, j, k) → [gx, gy] (np. gdy budynki stoją ciasno i ścieżkę zasłania sąsiad).
+// zmienić hookiem art.spot(r, j, k) → [gx, gy] albo [gx, gy, gz] (np. gdy budynki stoją ciasno i ścieżkę zasłania sąsiad),
+// a samą postać hookiem art.figure(x, y, rnd, s, delay, suit) zamiast person (świetliste drobiny Wszechświata).
 const spot = (r, j, k) => {
   const u = 1 - (Math.floor(j / 2) + 0.5) / Math.ceil(k / 2);
   return j % 2 ? [r.gx + r.w * u, r.gy + r.d + 0.22] : [r.gx + r.w + 0.22, r.gy + r.d * u];
@@ -62,7 +64,7 @@ export function buildDiorama(model) {
   const ids = LAYERS[stage].DEPTS.map((x) => x.id), pos = depts.map((d) => ids.indexOf(d.id));
   const lay = layout(stage, Math.max(...pos) + 1, model.rounds, art.coreFoot(n, model.rounds));
   const place = PLACES[model.view] ?? PLACES.waw, isl = island({ view: model.view, size: lay.size, light, env, seed: 1 });
-  const bud = budget(), anim = [], decor = [], bb = [...isl.bbox];
+  const bud = budget(art.maxAnim), anim = [], decor = [], bb = [...isl.bbox]; // oprawa może mieć niższy limit animacji
   const grow = (b) => { for (let i = 0; i < 4; i++) bb[i] = (i < 2 ? Math.min : Math.max)(bb[i], b[i]); };
   const take = (list) => { for (const a of list) if (bud.take()) anim.push(a); };
   const core = art.core(model, lay);
@@ -100,10 +102,10 @@ export function buildDiorama(model) {
     // Ruch tylko bez zasłony dalszym budynkiem, inaczej postać stoi w kolejności rysowania; ziarno postaci na budynek
     // (mieszane, bo sąsiednie ziarna dają w seeded te same pierwsze losowania); core.people zastępuje CREW w rdzeniu (garaż).
     const later = items.slice(k + 1).map((o) => o.a.box), crew = (r === lay.core ? core.people : null) ?? CREW[d.tier].people;
-    const h = Math.imul(seed, 2654435761), rnd = seeded(h ^ (h >>> 15));
+    const h = Math.imul(seed, 2654435761), rnd = seeded(h ^ (h >>> 15)), fig = art.figure ?? person;
     for (let j = 0; j < crew; j++, people++) {
       const [x, y] = iso(...(art.spot ?? spot)(r, j, crew), r.gz), hid = later.some((b) => b[0] < x + 3 && b[2] > x - 3 && b[1] < y && b[3] > y - 11);
-      if (!hid && bud.take()) anim.push(person(x, y, rnd, PS, (seed * 0.29 + j * 0.37) % 1.6, art.suit)); else front += person(x, y, rnd, PS, undefined, art.suit);
+      if (!hid && bud.take()) anim.push(fig(x, y, rnd, PS, (seed * 0.29 + j * 0.37) % 1.6, art.suit)); else front += fig(x, y, rnd, PS, undefined, art.suit);
     }
   });
   front += ex.svg;
