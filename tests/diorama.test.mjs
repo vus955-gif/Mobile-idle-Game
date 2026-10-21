@@ -630,9 +630,14 @@ test('diorama: budżety elementów i animacji, poprawny i powtarzalny SVG, wyras
   }
 });
 
-test('diorama: żaden etap nie używa zastępczej dioramy', () => {
-  assert.ok(LAYER_ORDER.every((s) => !STAGE_ART[s].placeholder));
-  for (const s of LAYER_ORDER) for (const d of LAYERS[s].DEPTS.slice(1)) assert.ok(Array.isArray(STAGE_ART[s].depts[d.id]), `${s}/${d.id}: archetyp działu`);
+test('diorama: żaden etap nie używa zastępczej dioramy — każdy ma własny rdzeń i archetyp każdego działu', () => {
+  for (const s of LAYER_ORDER) {
+    const art = STAGE_ART[s];
+    assert.ok(art && art.id === s, `${s}: oprawa tego etapu`);
+    assert.equal(typeof art.coreFoot, 'function', `${s}: coreFoot`);
+    assert.equal(typeof art.core, 'function', `${s}: core`);
+    for (const d of LAYERS[s].DEPTS.slice(1)) assert.ok(Array.isArray(art.depts[d.id]) && art.depts[d.id].length > 0, `${s}/${d.id}: archetyp działu`);
+  }
 });
 
 test('diorama: każdy dział ma emblemat z własną ikoną i kolorem', () => {

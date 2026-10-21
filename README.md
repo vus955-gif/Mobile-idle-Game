@@ -110,7 +110,7 @@ Obraz tła liczy się w rozmiarze sceny (×2 dla ekranów Retina), ale najwyżej
 
 Pomiar teł (PC deweloperski, 18–19.10.2026, mediana z 5 prób po rozgrzewce): w Chromium przy kadrze 600×800 wszystkie 45 widoków mieści się w budżecie 125 ms (najdłużej Sagittarius A* 104 ms, Gromada w Herkulesie 87 ms, Mgławica Oriona 85 ms, Plejady 83 ms; miasta najwyżej 59 ms w dzień i 93 ms nocą). Przy rozmiarach z telefonów (Node, płótno testowe — wynik zawyżony o ok. 20–25%, bo kopiowanie pikseli idzie w JS): iPhone SE 704×640 — najdłużej Sagittarius A* ok. 139 ms, reszta ≤ 104 ms; iPhone 16 Pro Max (limit 0,6 Mpx) — Sagittarius A* ok. 155 ms, Herkules i Zurych nocą ok. 125 ms, reszta ≤ 102 ms. Po przeliczeniu na przeglądarkę Sagittarius A* jest na granicy budżetu (ok. 115–125 ms), pozostałe widoki poniżej. Tło liczy się w workerze, więc dłuższy czas oznacza tylko dłużej widoczny gradient, nie przycięcie gry. Pomiary w karcie w tle (ukryte okno) potrafią wyjść o 30–80% wyżej i nie nadają się do oceny. Kod teł (`js/art/`) ma ok. 120 kB, w tym 5 kB galerii. **Do sprawdzenia na iPhonie** (przez Wi-Fi: `node tools/serve.mjs 8090` na PC i adres PC w Safari): czas od otwarcia Biura do gotowego tła, płynność przewijania listy Produktów przy animowanym widoku Sagittarius A* oraz start zainstalowanej aplikacji w trybie samolotowym (czy worker tła ładuje się offline). Dla dioram dodatkowo: czytelność emblematów działów na SE (zainstalowana aplikacja, maksymalna diorama każdego etapu), płynność przewijania listy przy dioramie z animacjami (ludzie, auta, drony, migające światła) oraz odwołanie między warstwami SVG `url(#d-mote)` w WebKit (drobiny obsady Wszechświata rysuje gradient zdefiniowany w warstwie statycznej, a użyty także w animowanej; sprawdzone tylko w Chromium).
 
-Pomiar dioram (PC deweloperski, 21.10.2026, Chromium, okno 375×667 z `--safe-top: 20px`, scena 342×275 px, maksymalna diorama każdego etapu: wszystkie działy, 100 osób w każdym, 8 rund; budżet `Scene.render` ≤ 12 ms, ≈ 50 ms przy 4× wolniejszym procesorze). Mediana z 5 przerysowań (`render(game, true)`) tuż po przełączeniu etapu: Ziemia 9,9 ms, Kosmos 6,6 ms, Galaktyka 6,7 ms, Wszechświat 5,0 ms; po rozgrzewce (mediana z 8 serii) 9,0 / 6,2 / 6,5 / 4,6 ms. W ukrytym oknie podglądu ten sam pomiar dał dla Ziemi 12,6 ms w pierwszej serii i 8,1 ms po rozgrzewce — ukryte okno zawyża czasy, więc liczy się pomiar w widocznym oknie. Poniżej galeria dioram przy rozmiarze SE 341×273 (maksymalna diorama, dzień, lato; budowa to `buildDiorama` w Node, mediana z 9 serii po 50 budów; w święta, zimą i nocą elementów jest o 5–31 więcej, animacji o 0–4 więcej):
+Pomiar dioram (PC deweloperski, 21.10.2026, Chromium, okno 375×667 z `--safe-top: 20px`, scena 342×275 px, maksymalna diorama każdego etapu: wszystkie działy, 100 osób w każdym, 8 rund; budżet `Scene.render` ≤ 12 ms, ≈ 50 ms przy 4× wolniejszym procesorze). Mediana z 5 przerysowań (`render(game, true)`) tuż po przełączeniu etapu: Ziemia 9,9 ms, Kosmos 6,6 ms, Galaktyka 6,7 ms, Wszechświat 5,0 ms; po rozgrzewce (mediana z 8 serii) 9,0 / 6,2 / 6,5 / 4,6 ms. W ukrytym oknie podglądu ten sam pomiar dał dla Ziemi 12,6 ms w pierwszej serii i 8,1 ms po rozgrzewce — pomiary w ukrytym oknie są niewiarygodne, więc liczy się pomiar w widocznym oknie. Poniżej galeria dioram przy rozmiarze SE 341×273 (maksymalna diorama, dzień, lato; budowa to `buildDiorama` w Node, mediana z 9 serii po 50 budów; w święta, zimą i nocą elementów jest o 5–31 więcej, animacji o 0–4 więcej):
 
 | Etap | skala | emblemat min | działka min | elementy SVG | animacje | budowa |
 |---|---|---|---|---|---|---|
@@ -159,6 +159,23 @@ tools/make-worldmap.mjs generator mapy świata (jednorazowo, wymaga world-atlas)
 tests/                testy silnika (node:test)
 ```
 
+```bash
+npm start            # serwer lokalny: http://localhost:8080
+npm test             # testy silnika, etapów, tłumaczeń i wyceny
+npm run sim          # symulacja 21 dni gry „z doskoku”
+npm run sim:active   # symulacja ~5 h gry aktywnej
+node tools/simulate.mjs human 14             # człowiek: 5 sesji po 20 min dziennie, raport tempa i czekania
+SESS_PER_DAY=3 SESS_MIN=15 node tools/simulate.mjs human 16   # gracz okazjonalny
+LOAD_STATE=st-10.json node tools/simulate.mjs human 0 --chal  # wyzwania w sesjach człowieka (offline się liczy)
+TRANSCEND=1 SAVE_STATE=st.json SAVE_TIMES=7 node tools/simulate.mjs casual 7   # dwa przejścia gry
+LOAD_STATE=st-7.json node tools/simulate.mjs casual 0 --chal=galaxy           # wyzwania od tego stanu
+node tools/ladder.mjs earth                  # drabinka produktów Ziemi
+```
+
+Po zmianie plików gry podbij `CACHE` w `sw.js`, żeby zainstalowana aplikacja pobrała nową wersję.
+
+**Tryb deweloperski** (*Firma → Ustawienia*, na dole): mnożnik przychodu ×10/×100/×1000 działający już po nasyceniu rynku (szczyty zarobków, od których liczą się ceny lobbingu i hamulca, mierzą grę bez mnożnika) oraz przewijanie czasu o 10 min / 1 h / 8 h, które gra liczy jak prawdziwą przerwę (limit i wydajność offline, kontrakty). Gdy tryb jest włączony, w nagłówku widać czerwone „DEV ×N”. Przewinięcie przesuwa zegar gry na stałe w tym zapisie. Przed wydaniem w sklepach ustaw `DEV_TOOLS = false` w `js/main.js`.
+
 ### Kontrakt oprawy etapu (`StageArt`)
 
 Każdy etap eksportuje z `js/diorama/{earth,space,galaxy,universe}.js` oprawę, którą `buildDiorama` (`js/diorama/index.js`) składa w dwie warstwy SVG (statyczną i animowaną). Model to `{ stage, view, depts: [{ id, icon, color, tier, isNew }], firstHeads, rounds, company, env, light }`.
@@ -166,10 +183,11 @@ Każdy etap eksportuje z `js/diorama/{earth,space,galaxy,universe}.js` oprawę, 
 ```
 StageArt = {
   id, palette, suit?,                  // palette: wall, wall2, glass, roof, metal, dark, crystal, green, ground
-  coreForm(n), coreFoot(n, rounds),    // forma rdzenia i jego obrys { w, d, h } w kafelkach i poziomach
+  coreFoot(n, rounds),                 // obrys rdzenia { w, d, h } w kafelkach i poziomach
+  coreForm?(n),                        // nazwa formy rdzenia; woła ją tylko oprawa i testy, nie buildDiorama
   core(model, lay) → { parts, ornaments, people?, lights? },
   depts: { [deptId]: Part[] },         // archetyp każdego działu poza pierwszym (rdzeń to pierwszy dział)
-  extras?(model, lay, marks) → { svg, back?, anim, decor, vehicles, people, box? },
+  extras?(model, lay, marks) → { svg?, back?, anim?, decor?, vehicles?, people?, box? },   // każde pole opcjonalne
   spot?(r, j, k) → [gx, gy] | [gx, gy, gz],
   figure?(x, y, rnd, s, delay, suit),
   maxAnim?,                            // niższy limit animacji, przycinany do MAX_ANIM = 40
@@ -177,7 +195,7 @@ StageArt = {
 ```
 
 - `core`: `lay` to układ `{ size, core, lots }`; `ornaments` to ozdoby rund (idą do statystyk), `people` zastępuje obsadę z `CREW` w rdzeniu (garaż), a `lights` to łamane `[[u, v, z], …]` względem obrysu rdzenia, wzdłuż których w grudniu wiszą lampki (domyślnie przednia krawędź dachu).
-- `extras`: `back` leży pod budynkami, `svg` nad nimi, `anim` trafia do warstwy animowanej przed postaciami (w ramach budżetu), `decor`, `vehicles` i `people` liczą się w statystykach, `box` powiększa kadr; `marks` to koła emblematów `{ id, x, y, r }`, których drony i drobiny omijają. `lay.lots` zawiera też działki działów jeszcze zamkniętych, więc filtruj po `model.depts`.
+- `extras`: `back` leży pod budynkami, `svg` nad nimi, `anim` trafia do warstwy animowanej przed postaciami (w ramach budżetu), `decor`, `vehicles` i `people` liczą się w statystykach, `box` powiększa kadr; `marks` to koła emblematów `{ id, x, y, r }`; dziś korzysta z nich tylko Ziemia (jej drony je omijają). `lay.lots` zawiera też działki działów jeszcze zamkniętych, więc filtruj po `model.depts`.
 - `spot`: miejsce j-tej z k postaci na działce r; dwie liczby oznaczają wysokość działki (`r.gz`), trzy — gz bezwzględne. Domyślnie postacie stoją na ścieżce przed przednimi ścianami. `figure` zastępuje postać (drobiny Wszechświata), `suit` to barwa kombinezonu (astronauci, załoga).
 - Kolejność rysowania: działki rosnąco po `gz` (najpierw niżej), w obrębie jednego poziomu od tyłu ku przodowi.
 
@@ -196,20 +214,3 @@ StageArt = {
 - `ring`: `flat` leży na gruncie (krąg, halo), `upright` stoi w płaszczyźnie x–z (portal). Opcje `{ u: -1, v }` kładą stojący pierścień w płaszczyźnie y–z (obręcz wokół kadłuba wzdłuż x), a `v` to jego pionowa półoś w jednostkach rysunku.
 - `shadow` rysuje sam cień bryły o wysokości h na poziomie z: okrągły (promień r) albo prostokątny od rogu (kolejność w, h, d, inna niż w `box`). `glow` z r < 0,06 to dioda bez gradientu. `label`: tekst to domyślnie nazwa firmy (skracana w punktach kodowych do `max` i escapowana), barwa to ramka i napis neonu.
 - Części rysują się w kolejności listy, więc podawaj je od tyłu. Działka z `gz > 0` (pokłady statku na kadłubie) ma wysokość bezwzględną, a części samej działki mają `z` względem jej poziomu.
-
-```bash
-npm start            # serwer lokalny: http://localhost:8080
-npm test             # testy silnika, etapów, tłumaczeń i wyceny
-npm run sim          # symulacja 21 dni gry „z doskoku”
-npm run sim:active   # symulacja ~5 h gry aktywnej
-node tools/simulate.mjs human 14             # człowiek: 5 sesji po 20 min dziennie, raport tempa i czekania
-SESS_PER_DAY=3 SESS_MIN=15 node tools/simulate.mjs human 16   # gracz okazjonalny
-LOAD_STATE=st-10.json node tools/simulate.mjs human 0 --chal  # wyzwania w sesjach człowieka (offline się liczy)
-TRANSCEND=1 SAVE_STATE=st.json SAVE_TIMES=7 node tools/simulate.mjs casual 7   # dwa przejścia gry
-LOAD_STATE=st-7.json node tools/simulate.mjs casual 0 --chal=galaxy           # wyzwania od tego stanu
-node tools/ladder.mjs earth                  # drabinka produktów Ziemi
-```
-
-Po zmianie plików gry podbij `CACHE` w `sw.js`, żeby zainstalowana aplikacja pobrała nową wersję.
-
-**Tryb deweloperski** (*Firma → Ustawienia*, na dole): mnożnik przychodu ×10/×100/×1000 działający już po nasyceniu rynku (szczyty zarobków, od których liczą się ceny lobbingu i hamulca, mierzą grę bez mnożnika) oraz przewijanie czasu o 10 min / 1 h / 8 h, które gra liczy jak prawdziwą przerwę (limit i wydajność offline, kontrakty). Gdy tryb jest włączony, w nagłówku widać czerwone „DEV ×N”. Przewinięcie przesuwa zegar gry na stałe w tym zapisie. Przed wydaniem w sklepach ustaw `DEV_TOOLS = false` w `js/main.js`.

@@ -2,8 +2,6 @@
 
 Kopia rejestru wykonawcy (`.superpowers/sdd/2026-10-19-oprawa-2-dioramy/progress.md`) zachowana po zakończeniu planu. Linie `Ruling:` to decyzje podjęte w trakcie, z kosztem, jeśli były złe; `minor (deferred)` to drobne uwagi z przeglądu odłożone na później.
 
-# SDD ledger — plan: docs/superpowers/plans/2026-10-19-oprawa-2-dioramy.md
-
 - Spec: docs/superpowers/specs/2026-10-17-oprawa-wizualna-design.md (read). Branch: claude/oprawa-wizualna. Plan commit: 4289390. Repo root: D:/ClaudeCode/Krzemowe-Imperium (no worktree; same checkout as part 1, not main).
 
 ## Pre-flight
