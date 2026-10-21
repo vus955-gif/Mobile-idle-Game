@@ -1,6 +1,6 @@
 // Diorama etapu: model ze stanu gry, dioramy zastępcze i budowa warstw SVG (statycznej i animowanej).
 import { TW, iso } from './iso.js';
-import { PALETTES, CREW, tierFor, budget, assemble, emblem, emblemCenter, person, pumpkin, xmasTree, stringLights, seeded } from './parts.js';
+import { PALETTES, CREW, MAX_ANIM, tierFor, budget, assemble, emblem, emblemCenter, person, pumpkin, xmasTree, stringLights, seeded } from './parts.js';
 import { PLACES, island } from './island.js';
 import { layout, LOT_MAX_H } from './layout.js';
 import { LAYERS, LAYER_ORDER } from '../layers.js';
@@ -50,8 +50,9 @@ const PS = 0.45; // skala postaci
 // Kolejność rysowania: najpierw to, co stoi niżej (działka na kadłubie po kadłubie), potem od tyłu ku przodowi.
 const depth = (r) => r.gx + r.gy + (r.w + r.d) / 2;
 // j-ta z k postaci stoi na ścieżce tuż przed przednimi ścianami obrysu r (na jego wysokości gz); oprawa etapu może to
-// zmienić hookiem art.spot(r, j, k) → [gx, gy] albo [gx, gy, gz] (np. gdy budynki stoją ciasno i ścieżkę zasłania sąsiad),
-// a samą postać hookiem art.figure(x, y, rnd, s, delay, suit) zamiast person (świetliste drobiny Wszechświata).
+// zmienić hookiem art.spot(r, j, k) (np. gdy budynki stoją ciasno i ścieżkę zasłania sąsiad): [gx, gy] stawia postać na
+// wysokości r.gz, a [gx, gy, gz] na bezwzględnej wysokości gz (r.gz pominięte). Samą postać zmienia hook
+// art.figure(x, y, rnd, s, delay, suit) zamiast person (świetliste drobiny Wszechświata).
 const spot = (r, j, k) => {
   const u = 1 - (Math.floor(j / 2) + 0.5) / Math.ceil(k / 2);
   return j % 2 ? [r.gx + r.w * u, r.gy + r.d + 0.22] : [r.gx + r.w + 0.22, r.gy + r.d * u];
@@ -64,7 +65,7 @@ export function buildDiorama(model) {
   const ids = LAYERS[stage].DEPTS.map((x) => x.id), pos = depts.map((d) => ids.indexOf(d.id));
   const lay = layout(stage, Math.max(...pos) + 1, model.rounds, art.coreFoot(n, model.rounds));
   const place = PLACES[model.view] ?? PLACES.waw, isl = island({ view: model.view, size: lay.size, light, env, seed: 1 });
-  const bud = budget(art.maxAnim), anim = [], decor = [], bb = [...isl.bbox]; // oprawa może mieć niższy limit animacji
+  const bud = budget(Math.min(art.maxAnim ?? MAX_ANIM, MAX_ANIM)), anim = [], decor = [], bb = [...isl.bbox]; // oprawa może mieć niższy limit
   const grow = (b) => { for (let i = 0; i < 4; i++) bb[i] = (i < 2 ? Math.min : Math.max)(bb[i], b[i]); };
   const take = (list) => { for (const a of list) if (bud.take()) anim.push(a); };
   const core = art.core(model, lay);

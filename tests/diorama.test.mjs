@@ -1055,7 +1055,7 @@ const universeModel = (n, o = {}) => {
   return { ...m, depts: m.depts.slice(0, n) };
 };
 const universeCore = (n, rounds = 0) => UV().core(universeModel(n, { rounds }), layout('universe', n, rounds, UV().coreFoot(n, rounds))).parts;
-const motes = (s) => (s.match(/fill="#fff7de"/g) || []).length; // jasne jądro świetlistej drobiny
+const motes = (s) => (s.match(/fill="url\(#d-mote\)"/g) || []).length; // świetlista drobina: jedno koło z gradientem
 
 test('universe: forma rdzenia; kręgi przybywają z działami', () => {
   assert.deepEqual([1, 2, 4, 5, 9].map((n) => UV().coreForm(n)), ['spark', 'spire', 'spire', 'citadel', 'citadel']);
@@ -1075,15 +1075,19 @@ test('universe: forma rdzenia; kręgi przybywają z działami', () => {
 });
 
 test('universe: każdy dział ma własną budowlę z jednym emblematem, budowle się różnią', () => {
-  const depts = UV().depts, top = (p) => (p[0] === 'strut' ? Math.max(p[3], p[6]) : p[3] + ({ box: p[6], pyr: p[6], gable: p[6], cyl: p[5], dome: p[4], mast: p[4] }[p[0]] ?? 0));
-  const glow = (parts, lit) => (assemble(parts, CTX({ palette: PALETTES.universe, light: NIGHT, lit })).svg.match(new RegExp(`<path d="([^"]*)" fill="${WIN_GLOW}"`, 'g')) ?? []).join('').split('M').length - 1;
+  // Szczyt części w poziomach: poświata pełnym promieniem gradientu, pierścień i kopuła swoim zasięgiem w pionie.
+  const top = (p) => (p[0] === 'strut' ? Math.max(p[3], p[6]) : p[0] === 'glow' ? p[3] + (p[4] < 0.06 ? 1.5 : 1 / 0.45) * p[4] * RX / LV
+    : p[0] === 'ring' ? p[3] + p[4] * (p[6] === 'flat' ? RX / 2 : Math.hypot(TH / 2, RX * Math.sqrt(3) / 2)) / LV : p[0] === 'dome' ? p[3] + p[4] * RX / LV
+    : p[3] + ({ box: p[6], pyr: p[6], gable: p[6], cyl: p[5], mast: p[4] }[p[0]] ?? 0)), depts = UV().depts;
+  const glow = (parts, lit, seed) => (assemble(parts, CTX({ palette: PALETTES.universe, light: NIGHT, lit, seed })).svg.match(new RegExp(`<path d="([^"]*)" fill="${WIN_GLOW}"`, 'g')) ?? []).join('').split('M').length - 1;
   assert.deepEqual(Object.keys(depts).sort(), LAYERS.universe.DEPTS.slice(1).map((d) => d.id).sort());
   for (const [id, parts] of Object.entries(depts)) {
     assert.equal(parts.filter((p) => p[0] === 'sign').length, 1, `${id}: jeden sign`);
     assert.ok(Math.max(...parts.map(top)) <= LOT_MAX_H.universe, `${id}: budowla z iglicami i emblemat na wysokości ≤ ${LOT_MAX_H.universe}`);
     assert.ok(parts.some((p) => p.includes('accent')), `${id}: akcent w kolorze działu`);
-    assert.equal(glow(parts, 0), 0, `${id}: przy udziale 0 nic nie świeci`);
-    assert.ok(glow(parts, 1) >= 2, `${id}: przy pełnej obsadzie świeci ${glow(parts, 1)} okien`);
+    // Ziarno okien jak w buildDiorama (pozycja działu w DEPTS + 1); próg 0 to prawdziwy udział lit = 0,15.
+    const seed = LAYERS.universe.DEPTS.findIndex((d) => d.id === id) + 1, [lo, hi] = [glow(parts, CREW[0].lit, seed), glow(parts, CREW[5].lit, seed)];
+    assert.ok(lo < hi && hi >= 2, `${id}: świecące okna ${lo} (próg 0) / ${hi} (próg 5)`);
   }
   assert.equal(new Set(Object.values(depts).map((p) => JSON.stringify(p))).size, 8);
   // Wyróżniki budowli z briefu.
@@ -1129,6 +1133,14 @@ test('universe: świetliste drobiny zamiast ludzi, tabliczka „◆ NAZWA” na 
   assert.ok(d.stats.anim <= UV().maxAnim && UV().maxAnim < MAX_ANIM, `animacje ${d.stats.anim} z limitu etapu ${UV().maxAnim}`);
   const dense = (tier) => { const t = buildDiorama(universeModel(9, { depts: universeModel(9).depts.map((x) => ({ ...x, tier })) })); return motes(t.front + t.frontAnim); };
   assert.ok(dense(0) === 0 && dense(1) < dense(3) && dense(3) < dense(5), 'gęstość drobin według progu');
+  assert.equal((d.front.match(/id="d-mote"/g) || []).length, 1, 'jeden gradient drobin na dioramę');
+  // Przy iskrze obsada jest widoczna: drobiny leżą w całości poza każdą poświatą (próg 0: żadnej, próg 5: wszystkie).
+  const circles = (t, g) => [...t.matchAll(new RegExp(`<circle cx="([-\\d.]+)" cy="([-\\d.]+)" r="([\\d.]+)" fill="url\\(#${g}`, 'g'))].map((x) => x.slice(1, 4).map(Number));
+  const clear = (tier, view) => {
+    const t = buildDiorama(universeModel(1, { view, depts: [{ ...universeModel(1).depts[0], tier }] })), all = t.front + t.frontAnim, glows = circles(all, 'd-glow');
+    return circles(all, 'd-mote').filter(([x, y, r]) => glows.every(([gx, gy, R]) => Math.hypot(x - gx, y - gy) > R + r)).length;
+  };
+  for (const view of ['milkyway', 'bootes', 'edge']) assert.deepEqual([clear(0, view), clear(5, view)], [0, CREW[5].people], `${view}: drobiny iskry poza poświatą`);
   const name = '<b>Ala & "Kot"</b> 🚀 sp. z o.o. — bardzo długa nazwa';
   for (const n of [1, 3, 6, 9]) {
     const { front } = buildDiorama(universeModel(n, { company: name, rounds: 8 }));
@@ -1141,18 +1153,26 @@ test('universe: świetliste drobiny zamiast ludzi, tabliczka „◆ NAZWA” na 
 
 test('universe: drobiny obsady unoszą się poza obrysami budowli, nic ich nie zasłania i nie wchodzą na emblematy', () => {
   const k = CREW[5].people;
-  for (const n of [2, 5, 9]) for (const view of ['milkyway', 'bootes', 'edge']) {
+  for (const n of [1, 2, 5, 9]) for (const view of ['milkyway', 'bootes', 'edge']) {
     const m = universeModel(n, { view, rounds: 8, depts: universeModel(n).depts.map((d) => ({ ...d, tier: 5 })) }), lay = layout('universe', n, 8, UV().coreFoot(n, 8));
     const ids = LAYERS.universe.DEPTS.map((x) => x.id), d = buildDiorama(m);
     const lots = d.lots.map((l, i) => ({ ...l, i, r: ids.indexOf(l.id) ? lay.lots[ids.indexOf(l.id) - 1] : lay.core }));
     for (const l of lots) for (let j = 0; j < k; j++) {
       const [gx, gy, gz = l.r.gz] = UV().spot(l.r, j, k), [x, y] = iso(gx, gy, gz), at = `${view} n=${n} ${l.id} #${j} (${gx.toFixed(2)}; ${gy.toFixed(2)}; ${gz})`;
+      // Środek drobiny (6,3–8,1 nad punktem) leży dalej od środka każdej poświaty własnej budowli niż jej pełny promień
+      // (gradient, r ≥ 0,06), np. poza kulą iskry.
+      const own = l.r === lay.core ? UV().core(m, lay).parts : UV().depts[l.id];
+      for (const p of own.filter((q) => q[0] === 'glow' && q[4] >= 0.06)) {
+        const [cx, cy] = iso(l.r.gx + p[1], l.r.gy + p[2], l.r.gz + p[3]), my = Math.min(y - 6.3, Math.max(y - 8.1, cy));
+        assert.ok(Math.hypot(x - cx, my - cy) > p[4] * RX / 0.45, `${at}: w poświacie własnej budowli`);
+      }
       assert.ok(Math.abs(gx) < lay.size / 2 && Math.abs(gy) < lay.size / 2, `${at}: nad odłamkiem`);
       for (const o of lots) assert.ok(o === l || !(gx > o.r.gx && gx < o.r.gx + o.r.w && gy > o.r.gy && gy < o.r.gy + o.r.d), `${at}: w obrysie ${o.id}`);
-      // Drobina zajmuje [x ± 4, y − 15 … y]: budynek rysowany później jej nie zasłania, a ona nie wchodzi na żaden emblemat.
-      for (const o of d.lots.slice(l.i + 1)) assert.ok(!(o.box[0] < x + 4 && o.box[2] > x - 4 && o.box[1] < y && o.box[3] > y - 15), `${at}: zasłania ${o.id}`);
+      // Drobina (koło r 3,8 unoszące się 6,3–8,1 nad punktem) zajmuje [x ± 4, y − 12 … y − 2]: budynek rysowany później
+      // jej nie zasłania, a ona nie wchodzi na żaden emblemat.
+      for (const o of d.lots.slice(l.i + 1)) assert.ok(!(o.box[0] < x + 4 && o.box[2] > x - 4 && o.box[1] < y - 2 && o.box[3] > y - 12), `${at}: zasłania ${o.id}`);
       for (const o of d.lots) {
-        const dx = Math.max(x - 4 - o.emblem.x, 0, o.emblem.x - x - 4), dy = Math.max(y - 15 - o.emblem.y, 0, o.emblem.y - y);
+        const dx = Math.max(x - 4 - o.emblem.x, 0, o.emblem.x - x - 4), dy = Math.max(y - 12 - o.emblem.y, 0, o.emblem.y - y + 2);
         assert.ok(Math.hypot(dx, dy) > o.emblem.r + 1.7, `${at}: na emblemacie ${o.id}`);
       }
     }
