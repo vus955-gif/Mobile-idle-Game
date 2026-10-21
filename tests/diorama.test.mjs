@@ -55,6 +55,9 @@ test('iso: pudełko, cień przeciwnie do światła i okna świecące tylko nocą
   const day = windows(b, 'left', { rows: 3, cols: 2, lit: 1, seed: 1 }, L([0.6, -0.8], 0.8));
   assert.ok(night.includes(WIN_GLOW) && !day.includes(WIN_GLOW));
   assert.ok(checkSvg(night).elements <= 2, 'okna ściany to najwyżej dwie ścieżki');
+  // Próg włącznie: przy ambient = NIGHT_AMBIENT okna już świecą (klucze orion, pleiades, omega), tuż powyżej jeszcze nie.
+  const at = (a) => windows(b, 'left', { rows: 3, cols: 2, lit: 1, seed: 1 }, L([0.6, -0.8], a));
+  assert.ok(at(NIGHT_AMBIENT).includes(WIN_GLOW) && !at(NIGHT_AMBIENT + 0.01).includes(WIN_GLOW));
 });
 
 test('helpers: checkSvg łapie złe wartości i niezamknięte grupy, lum liczy luminancję względną', () => {
@@ -997,6 +1000,50 @@ test('galaxy: cień statku, promu i radiolatarni leży na doku (każdy widok, ka
   }
   const nose = assemble([['pyr', 0, 0, 1, 1.5, 2, 1, 'metal', 'x flush']], CTX()), shaded = assemble([['pyr', 0, 0, 1, 1.5, 2, 1, 'metal', 'x']], CTX());
   assert.ok(!nose.svg.includes('#0b1020') && shaded.svg.includes('#0b1020') && nose.svg === shaded.svg.replace(/<path[^>]*#0b1020[^>]*\/>/, ''));
+  // Kopuła 'flush' (czarna kula grawitonów nad cokołem) też bez cienia w powietrzu.
+  const ball = assemble([['dome', 0.5, 0.5, 1.75, 0.3, 'dark', 'flush']], CTX()), lit = assemble([['dome', 0.5, 0.5, 1.75, 0.3, 'dark']], CTX());
+  assert.ok(!ball.svg.includes('#0b1020') && lit.svg.includes('#0b1020') && ball.svg === lit.svg.replace(/<path[^>]*#0b1020[^>]*\/>/, ''));
+  assert.ok(GX().depts.gravitons.some((p) => p[0] === 'dome' && p[3] > 1 && p[6] === 'flush'), 'kula grawitonów bez cienia');
+  // Stojący pierścień z samym u (bez v) ma skończony prostokąt.
+  assert.ok(assemble([['ring', 0, 0, 1, 1, 'metal', 'upright', { u: -1 }]], CTX()).box.every(Number.isFinite));
+});
+
+// Działka galaktyki o pozycji p w DEPTS (p ≥ 1) przy n działach i obsadzie tier.
+const galaxyCrew = (n, tier) => {
+  const m = galaxyModel(n, { depts: galaxyModel(n).depts.map((d) => ({ ...d, tier })) }), lay = layout('galaxy', n, 0, GX().coreFoot(n, 0));
+  const ids = LAYERS.galaxy.DEPTS.map((d) => d.id), d = buildDiorama(m);
+  const lots = d.lots.map((l, i) => ({ ...l, i, r: ids.indexOf(l.id) ? lay.lots[ids.indexOf(l.id) - 1] : null })).filter((l) => l.r);
+  return { m, d, lay, lots };
+};
+
+test('galaxy: załoga pokładów stoi na kadłubie poza obrysami innych działek i nic jej nie zasłania (max i n = 2)', () => {
+  const k = CREW[5].people;
+  for (const n of [2, 9]) {
+    const { d, lay, lots } = galaxyCrew(n, 5), hull = { x0: lay.core.gx - 0.45, y0: lay.core.gy, y1: lay.core.gy + GX().coreFoot(n, 0).d };
+    for (const l of lots) for (let j = 0; j < k; j++) {
+      const [gx, gy] = GX().spot(l.r, j, k), [x, y] = iso(gx, gy, l.r.gz), at = `n=${n} ${l.id} #${j} (${gx.toFixed(2)}; ${gy.toFixed(2)})`;
+      assert.ok(gx > hull.x0 && gy > hull.y0 && gy < hull.y1, `${at}: na kadłubie`);
+      for (const o of lots) assert.ok(o === l || !(gx > o.r.gx && gx < o.r.gx + o.r.w && gy > o.r.gy && gy < o.r.gy + o.r.d), `${at}: w obrysie ${o.id}`);
+      // Ten sam test zasłonięcia co w buildDiorama: prostokąt budynku rysowanego później nie obejmuje postaci.
+      for (const o of d.lots.slice(l.i + 1)) assert.ok(!(o.box[0] < x + 3 && o.box[2] > x - 3 && o.box[1] < y && o.box[3] > y - 11), `${at}: zasłania ${o.id}`);
+    }
+  }
+  // Przy progu 1 każda postać pokładu (i załoga nawigatorów) jest ruchoma w warstwie animacji, więc widoczna.
+  const { d } = galaxyCrew(9, 1);
+  assert.equal((d.frontAnim.match(/class="person"/g) || []).length, d.stats.people);
+  assert.equal(d.stats.people, 9);
+});
+
+test('galaxy: okna pokładów świecą według progu obsady także przy ambient 0,45 (orion, pleiades, omega)', () => {
+  const glow = (view, tier) => {
+    const d = buildDiorama(galaxyModel(9, { view, depts: galaxyModel(9).depts.map((x) => ({ ...x, tier })) }));
+    return [...d.front.matchAll(new RegExp(`<path d="([^"]+)" fill="${WIN_GLOW}"`, 'g'))].reduce((s, x) => s + x[1].split('M').length - 1, 0);
+  };
+  for (const view of ['orion', 'pleiades', 'omega']) {
+    assert.equal(recipeFor(view).light({}).ambient, NIGHT_AMBIENT, `${view}: ambient na progu`);
+    const [a, b] = [glow(view, 1), glow(view, 5)];
+    assert.ok(a > 0 && b > 1.5 * a, `${view}: świecące okna ${a} (próg 1) / ${b} (próg 5)`);
+  }
 });
 
 test('sw.js: pamięć offline zawiera każdy moduł dioram (poza galerią)', () => {

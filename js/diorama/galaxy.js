@@ -1,13 +1,15 @@
 // Galaktyka: rdzeń (nawigatorzy) to prom na lądowisku doku, od drugiego działu statek-matka. Kadłub leży wzdłuż osi x
 // i z każdą działką wydłuża się dziobem o segment; rufa z mostkiem i napędem stoi w miejscu, więc pokłady (działki
-// SLOTS.galaxy na wysokości kadłuba) nie przeskakują. Obie formy mają obrys 5,5 × 2,85 (róg w siatce wyspy: −2,75; −1,65).
+// SLOTS.galaxy na wysokości kadłuba) nie przeskakują. Części liczymy od rogu miejsca w doku 5,5 × 2,85 (róg w siatce
+// wyspy: −2,75; −1,65); statek z rufą, gondolami i dziobem celowo wystaje poza dok, cienie przycinamy do doku.
 import { PALETTES, CREW, SIDE_ART, drive, person, seeded } from './parts.js';
 import { iso, pt, shadowOffset } from './iso.js';
+import { SLOTS } from './layout.js';
 
 const H = 2, D = 2.85, Y = D / 2, XS = -0.55, K = 2.75; // wysokość i szerokość kadłuba, oś, rufa, środek obrysu
 const XE = (k) => 0.85 + 0.6 * k; // koniec kadłuba (podstawa dziobu) przy k działkach
 const coreForm = (n) => (n > 1 ? 'mothership' : 'shuttle');
-const coreFoot = () => ({ w: 5.5, d: D, h: H });
+const coreFoot = () => ({ w: 5.5, d: D, h: H }); // miejsce w doku (obrys do układu), nie zasięg statku
 const SUIT = PALETTES.galaxy.glass; // turkusowe mundury
 
 const B = (...a) => ['box', ...a], C = (...a) => ['cyl', ...a], S = (z) => ['sign', 0.5, 0.5, z], L = (...a) => ['strut', ...a];
@@ -107,10 +109,20 @@ const DEPTS = {
   // Grawitony: cokół, trzy wsporniki i czarna kula w złotym pierścieniu z poświatą.
   gravitons: [B(0.18, 0.18, 0, 0.64, 0.64, 1, 'roof', 'win'), B(0.14, 0.14, 1, 0.72, 0.72, 0.08, 'accent'),
     ...[[0.2, 0.8], [0.8, 0.8], [0.8, 0.2]].map(([u, v]) => L(u, v, 1.08, (u + 0.5) / 2, (v + 0.5) / 2, 1.75, 'metal', 1.4)),
-    G(0.5, 0.5, 1.9, 0.22, 'accent'), ['dome', 0.5, 0.5, 1.75, 0.3, 'dark'], ['ring', 0.5, 0.5, 1.75, 0.44, 'accent', 'flat'], S(2.85)],
+    G(0.5, 0.5, 1.9, 0.22, 'accent'), ['dome', 0.5, 0.5, 1.75, 0.3, 'dark', F], ['ring', 0.5, 0.5, 1.75, 0.44, 'accent', 'flat'], S(2.85)],
   // Biokopuła: bęben z oknami, fioletowa roślinność (kopuła) pod szklanymi żebrami.
   xeno: [C(0.5, 0.5, 0, 0.44, 1, 'wall2', 'win'), C(0.5, 0.5, 1, 0.46, 0.08, 'accent', F), ['dome', 0.5, 0.5, 1.08, 0.42, 'wall'],
     ...[[0.94, 0.5], [0.81, 0.81], [0.5, 0.94]].map(([u, v]) => L(u, v, 1.08, 0.5, 0.5, 1.95, 'glass', 1)), S(2.15)],
+};
+
+// Załoga pokładu (j-ta z k) stoi na kadłubie tam, gdzie nie zasłoni jej pokład rysowany później. Przedni rząd (działki
+// nieparzyste) stoi na pasie kadłuba przed sobą. Tylny rząd zasłaniają przednie pokłady, więc jego załoga stoi przy mostku
+// (działka 0, wzdłuż y), na początku pasa (2) albo w pierwszym szeregu przed wcześniej rysowanym pokładem przednim (4 → 1, 6 → 3).
+const spot = (r, j, k) => {
+  const i = SLOTS.galaxy.findIndex((s) => s.gx === r.gx), u = (j + 0.5) / k, o = j % 2;
+  if (!i) return [-3.12 + 0.18 * o, 0.35 + 0.7 * u];
+  const x = i === 2 ? -2.58 : SLOTS.galaxy[i % 2 ? i : i - 3].gx + 0.12, w = i === 2 ? 0.42 : 0.76;
+  return [x + w * u, (i % 2 ? 0.98 : 1.1) + 0.05 * o];
 };
 
 // Promy kursują nad przednią lewą krawędzią doku, załoga nawigatorów stoi na płycie przed kadłubem, rój dronów krąży przy dziobie.
@@ -125,4 +137,4 @@ function extras(m, lay) {
   return { anim, svg, vehicles: ships, people: crew };
 }
 
-export const GALAXY_ART = { id: 'galaxy', palette: PALETTES.galaxy, suit: SUIT, coreForm, coreFoot, core, depts: DEPTS, extras };
+export const GALAXY_ART = { id: 'galaxy', palette: PALETTES.galaxy, suit: SUIT, coreForm, coreFoot, core, depts: DEPTS, spot, extras };

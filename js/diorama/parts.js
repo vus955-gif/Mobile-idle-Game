@@ -88,12 +88,13 @@ export function assemble(parts, ctx) {
       svg += (r < 0.06 || extra.includes('flush') ? '' : shadow(sq(h), light)) + cyl({ gx, gy, gz, r, h }, tone(m)) + (extra.includes('win') ? wins(sq(h), i) : '');
       grow(cx - r * RX, yt - r * RX / 2, cx + r * RX, yb + r * RX / 2);
     } else if (kind === 'dome') {
+      // part[6] 'flush': kopuła bez własnego cienia (np. kula zawieszona nad podstawą).
       const [cx, cy] = P(x, y, z), rx = r * RX;
-      svg += shadow(sq(rx / LV), light) + dome({ gx, gy, gz, r }, tone(part[5]));
+      svg += (String(part[6] ?? '').includes('flush') ? '' : shadow(sq(rx / LV), light)) + dome({ gx, gy, gz, r }, tone(part[5]));
       grow(cx - rx, cy - rx, cx + rx, cy + rx / 2);
     } else if (kind === 'ring') {
-      // part[7]: opcje stojącego pierścienia (u, v jak w iso.ring); v rozciąga prostokąt w pionie.
-      const [cx, cy] = P(x, y, z), flat = part[6] === 'flat', o = part[7], rx = flat ? r * RX : r * TW / 2, ry = flat ? r * RX / 2 : o ? o.v + r * TW / 4 : r * RX;
+      // part[7]: opcje stojącego pierścienia (u, v jak w iso.ring); v rozciąga prostokąt w pionie (bez v jak dla zwykłego, z zapasem).
+      const [cx, cy] = P(x, y, z), flat = part[6] === 'flat', o = part[7], rx = flat ? r * RX : r * TW / 2, ry = flat ? r * RX / 2 : o ? (o.v ?? r * RX) + r * TW / 4 : r * RX;
       svg += ring({ gx, gy, gz, r }, tone(part[5]), part[6], o);
       grow(cx - rx, cy - ry, cx + rx, cy + ry);
     } else if (kind === 'dish') {

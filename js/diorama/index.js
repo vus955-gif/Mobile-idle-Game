@@ -48,7 +48,8 @@ const R = 12;    // promień emblematu (czytelny na iPhonie SE)
 const PS = 0.45; // skala postaci
 // Kolejność rysowania: najpierw to, co stoi niżej (działka na kadłubie po kadłubie), potem od tyłu ku przodowi.
 const depth = (r) => r.gx + r.gy + (r.w + r.d) / 2;
-// j-ta z k postaci stoi na ścieżce tuż przed przednimi ścianami obrysu r (na jego wysokości gz).
+// j-ta z k postaci stoi na ścieżce tuż przed przednimi ścianami obrysu r (na jego wysokości gz); oprawa etapu może to
+// zmienić hookiem art.spot(r, j, k) → [gx, gy] (np. gdy budynki stoją ciasno i ścieżkę zasłania sąsiad).
 const spot = (r, j, k) => {
   const u = 1 - (Math.floor(j / 2) + 0.5) / Math.ceil(k / 2);
   return j % 2 ? [r.gx + r.w * u, r.gy + r.d + 0.22] : [r.gx + r.w + 0.22, r.gy + r.d * u];
@@ -101,7 +102,7 @@ export function buildDiorama(model) {
     const later = items.slice(k + 1).map((o) => o.a.box), crew = (r === lay.core ? core.people : null) ?? CREW[d.tier].people;
     const h = Math.imul(seed, 2654435761), rnd = seeded(h ^ (h >>> 15));
     for (let j = 0; j < crew; j++, people++) {
-      const [x, y] = iso(...spot(r, j, crew), r.gz), hid = later.some((b) => b[0] < x + 3 && b[2] > x - 3 && b[1] < y && b[3] > y - 11);
+      const [x, y] = iso(...(art.spot ?? spot)(r, j, crew), r.gz), hid = later.some((b) => b[0] < x + 3 && b[2] > x - 3 && b[1] < y && b[3] > y - 11);
       if (!hid && bud.take()) anim.push(person(x, y, rnd, PS, (seed * 0.29 + j * 0.37) % 1.6, art.suit)); else front += person(x, y, rnd, PS, undefined, art.suit);
     }
   });

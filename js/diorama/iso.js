@@ -194,20 +194,20 @@ export function shadow(b, light) {
 
 // --- Okna ---
 
-export const NIGHT_AMBIENT = 0.45; // poniżej tej jasności okna świecą
+export const NIGHT_AMBIENT = 0.45; // przy tej jasności i niższej okna świecą
 export const WIN_GLOW = '#ffd88a';
 
 const GLASS = [70, 100, 130]; // szyba w dzień przed zabarwieniem światłem
 
 // Okna jednej ściany ('left' albo 'right') jako najwyżej dwie ścieżki: szyby i okna świecące.
-// Świecą tylko przy ambient < NIGHT_AMBIENT, a ich udział to lit (0–1); wybór jest losowy z ziarnem.
+// Świecą tylko przy ambient ≤ NIGHT_AMBIENT, a ich udział to lit (0–1); wybór jest losowy z ziarnem.
 // W dzień (i dla okien nieświecących) szyba odbija barwę światła.
 export function windows(b, face, { rows, cols, lit, seed }, light) {
   const { gx, gy, gz = 0, w, d, h } = b;
   const at = face === 'left'
     ? (u, v) => iso(gx + u * w, gy + d, gz + v * h)
     : (u, v) => iso(gx + w, gy + u * d, gz + v * h);
-  const night = light.ambient < NIGHT_AMBIENT, r = rng(seed);
+  const night = light.ambient <= NIGHT_AMBIENT, r = rng(seed);
   const cu = 0.8 / cols, cv = 0.76 / rows; // komórka siatki w ułamkach ściany (margines 10% z boków, 12% u góry i u dołu)
   let glass = '', glow = '';
   for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
