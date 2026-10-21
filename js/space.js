@@ -300,9 +300,9 @@ export const SPACE_LOBBY = [
 // Wyzwania Kosmosu (po transcendencji).
 export const SPACE_CHALLENGES = [
   { id: 'nofeed', icon: '🔌', rule: 'noFeed', name: 'Bez wsparcia z Ziemi',
-    desc: 'Ziemia nie zasila programu kosmicznego.', goal: 1.5, fx: [{ t: 'feedX', x: 2 }] },
+    desc: 'Ziemia nie zasila programu kosmicznego.', goal: 1, fx: [{ t: 'feedX', x: 2 }] },
   { id: 'minimal', icon: '🪶', rule: 'noUpgrades', name: 'Minimalizm',
-    desc: 'Nie możesz kupować ulepszeń.', goal: 1.5, fx: [{ t: 'upgradeCost', x: 0.75 }] },
+    desc: 'Nie możesz kupować ulepszeń.', goal: 1, fx: [{ t: 'upgradeCost', x: 0.75 }] },
   { id: 'organic', icon: '🌱', rule: 'noAcq', name: 'Wzrost organiczny',
-    desc: 'Nie możesz przejmować innych firm.', goal: 1.5, fx: [{ t: 'prestige', x: 1.25 }] },
+    desc: 'Nie możesz przejmować innych firm.', goal: 1, fx: [{ t: 'prestige', x: 1.25 }] },
 ];

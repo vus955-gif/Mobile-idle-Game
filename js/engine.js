@@ -9,10 +9,13 @@ import { fmt, money, num } from './format.js';
 import { EARTH, LAYERS, LAYER_ORDER, ALL_CHALLENGES } from './layers.js';
 import { t, noun, getLang } from './i18n.js';
 import * as TX from './text.js';
+import { DEV_TOOLS } from './config.js';
 
 export const SAVE_VERSION = 3;
-export const BASE_OFFLINE_CAP = 6 * 3600;
-export const BASE_OFFLINE_EFF = 0.5;
+// Zarobki offline na start: limit czasu (s) i wydajność; premie z rady, biur i zarządu dokładają swoje.
+export const OFFLINE = { cap: 6 * 3600, eff: 0.5 };
+// Tryb deweloperski: dostępne mnożniki przychodu.
+export const DEV_MULTS = [1, 10, 100, 1000];
 export const ACH_BONUS = 0.01;
 export const MAX_SLOTS = 5;
 export const BUBBLE_LIFETIME = 13000;
@@ -143,7 +146,10 @@ export function createMeta(now = Date.now()) {
     // ile razy firma przeszła całą grę i zaczęła od zera (transcendencja)
     transcend: 0,
     stats: { zenTime: 0, musicTime: 0 },
-    settings: { sound: false, music: false, buyAmount: 1, lang: getLang(), layer: 'earth', cap: true },
+    settings: { sound: false, music: false, buyAmount: 1, lang: getLang(), layer: 'earth', cap: true, dev: false, devMult: 1 },
+    // przesunięcie zegara gry (ms) po „przewinięciu czasu” w trybie deweloperskim; zostaje w zapisie,
+    // bo znaczniki czasu w stanie są już przesunięte
+    clockOffset: 0,
   };
 }
 
@@ -188,6 +194,8 @@ export function createState(now = Date.now(), meta = createMeta(now), D = EARTH)
     },
     view: D.HQ,
     rdBudget: 0,
+    // budżet badawczy „Auto”: rośnie sam z kolejnymi erami (gracz nie musi o nim pamiętać)
+    rdAuto: true,
     feed: 0,
     // lobbing (poziomy w tej rundzie) i zdjęcie hamulca (raz na rundę)
     lobby: 0,
@@ -200,8 +208,20 @@ export function createState(now = Date.now(), meta = createMeta(now), D = EARTH)
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const fix = (v, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? v : (v === null ? Number.MAX_VALUE : d));
 
+// Zegar nie jest walutą: null nie oznacza przepełnienia i nie może zostać MAX_VALUE.
+export function sanitizeClockOffset(value) {
+  return Number.isSafeInteger(value) && value >= 0 && value <= 8.64e15 - Date.now() ? value : 0;
+}
+export function clockOffsetOf(raw) {
+  return sanitizeClockOffset((isObj(raw?.meta) ? raw.meta : raw)?.clockOffset);
+}
+function sanitizeDevSettings(settings, enabled) {
+  settings.dev = enabled && settings.dev === true;
+  if (!enabled || !DEV_MULTS.includes(settings.devMult)) settings.devMult = 1;
+}
+
 // Część wspólna zapisu. `raw` to meta z zapisu v3 albo płaski zapis v1/v2 (wtedy pola leżą na wierzchu).
-export function sanitizeMeta(raw, now = Date.now()) {
+export function sanitizeMeta(raw, now = Date.now(), devTools = DEV_TOOLS) {
   const base = createMeta(now);
   if (!isObj(raw)) return base;
   const m = { ...base };
@@ -221,6 +241,8 @@ export function sanitizeMeta(raw, now = Date.now()) {
   delete m.settings.rdBudget;
   if (!LAYERS[m.settings.layer] || !m.unlocked[m.settings.layer]) m.settings.layer = 'earth';
   m.settings.cap = m.settings.cap !== false;
+  sanitizeDevSettings(m.settings, devTools === true);
+  m.clockOffset = sanitizeClockOffset(raw.clockOffset);
   const ap = isObj(raw.autopilot) ? raw.autopilot : {};
   m.autopilot = { owned: isObj(ap.owned) ? { ...ap.owned } : {}, off: isObj(ap.off) ? { ...ap.off } : {} };
   const validExec = (e) => isObj(e) && ROLE_MAP[e.role] && Array.isArray(e.traits) && BOARD.rarity[e.r] && e.n >= 0;
@@ -240,10 +262,10 @@ export function sanitizeMeta(raw, now = Date.now()) {
 
 // Uzupełnia brakujące pola i odrzuca niepoprawne liczby (np. ze starego zapisu). Przyjmuje stan
 // warstwy z polem `meta` (v3) albo płaski zapis v1/v2; `meta` z opcji to wspólny obiekt firmy.
-export function sanitizeState(raw, now = Date.now(), D = EARTH, meta = null) {
+export function sanitizeState(raw, now = Date.now(), D = EARTH, meta = null, devTools = DEV_TOOLS) {
   if (!raw || typeof raw !== 'object') return createState(now, meta || createMeta(now), D);
   const flat = !isObj(raw.meta);
-  const base = createState(now, meta || sanitizeMeta(flat ? raw : raw.meta, now), D);
+  const base = createState(now, meta || sanitizeMeta(flat ? raw : raw.meta, now, devTools), D);
   const s = { ...base, ...raw, meta: base.meta, layer: D.id };
   for (const k of ['companyName', 'settings', 'flags', 'achievements', 'autopilot', 'board', 'candidates', 'execSeq',
     'nextCandidateAt', 'perks', 'shares', 'decision', 'nextDecisionAt', 'recentDecisions', 'scaleMax', 'challenges', 'rounds', 'unlocked']) delete s[k];
@@ -264,6 +286,8 @@ export function sanitizeState(raw, now = Date.now(), D = EARTH, meta = null) {
   s.view = D.OFFICE_MAP[view] && s.offices[view] ? view : D.HQ;
   const rd = flat && isObj(raw.settings) ? raw.settings.rdBudget : raw.rdBudget;
   s.rdBudget = D.RD_BUDGET.shares.includes(rd) ? rd : 0;
+  // starsze zapisy: kto ustawił budżet ręcznie, zostaje przy swoim; budżet 0% przechodzi na „Auto”
+  s.rdAuto = typeof raw.rdAuto === 'boolean' ? raw.rdAuto : !(s.rdBudget > 0);
   s.feed = FEED_SHARES.includes(raw.feed) ? raw.feed : 0;
   s.lobby = Math.max(0, Math.min((D.LOBBY || []).length, Math.floor(fix(raw.lobby, 0))));
   s.brakeUsed = !!raw.brakeUsed;
@@ -313,11 +337,14 @@ export class Game {
   // opts.co — koordynator warstw (Company), jeśli gra ma ich kilka.
   constructor(state, opts = {}) {
     this.now = opts.now ?? Date.now();
+    // Opcja programu/testu, nigdy pole odczytane z zapisu.
+    this.devTools = (opts.co ? opts.co.devTools : (opts.devTools ?? DEV_TOOLS)) === true;
     this.D = LAYERS[opts.layer] || (state && LAYERS[state.layer]) || EARTH;
     this.co = opts.co || null;
     // warstwa w tle liczy przychód, badania i autopilota, ale nie losuje bąbelków, trendów ani decyzji
     this.background = false;
-    this.s = state ? sanitizeState(state, this.now, this.D, opts.meta || null) : createState(this.now, opts.meta || createMeta(this.now), this.D);
+    this.s = state ? sanitizeState(state, this.now, this.D, opts.meta || null, this.devTools) : createState(this.now, opts.meta || createMeta(this.now), this.D);
+    sanitizeDevSettings(this.s.meta.settings, this.devTools);
     this.rng = opts.rng || Math.random;
     this.listeners = {};
     this.feedIn = 0;
@@ -411,7 +438,7 @@ export class Game {
       rp: 1, rpBase: 0, incomePct: 0,
       hireCost: 1, prodCost: 1, acqCost: 1, officeCost: 1, feedMult: 1,
       autoMult: 1, msAdd: 0, firstDept: 1, startLobby: 0, feedX: 1, upgradeCost: 1, brakeSec: 0, startReach: 0,
-      offlineCap: BASE_OFFLINE_CAP, offlineEff: BASE_OFFLINE_EFF,
+      offlineCap: OFFLINE.cap, offlineEff: OFFLINE.eff,
       eventFreq: 1, eventPower: 1, contract: 1, slots: 1, auto: 0,
       prestige: 1, investorPct: 0, startCash: 0, startLevels: 0, valMult: 0,
       unlockProduct: {}, unlockDept: {},
@@ -564,8 +591,10 @@ export class Game {
     const brake = capOn && this.brakeActive();
     const ceil = cap * BRAKE.ceiling;
     const capped = capIncome(raw, cap, this.D.MARKET_REACH);
-    const eff = !capOn ? raw : brake ? Math.max(capped, Math.min(raw, ceil)) : capped;
-    const factor = raw > 0 ? eff / raw : 1;
+    // tryb deweloperski: mnożnik działa już po nasyceniu rynku („bez kagańca”)
+    const dev = this.devMult();
+    const eff = Math.min(Number.MAX_VALUE, (!capOn ? raw : brake ? Math.max(capped, Math.min(raw, ceil)) : capped) * dev);
+    const factor = raw > 0 ? eff / raw : dev;
     if (factor !== 1) for (const id in this.prodIncome) this.prodIncome[id] *= factor;
     // przychód z auto-kliknięć (część przychodu); pojedyncze auto-kliknięcie jest warte tyle
     this.autoIncome = autoRaw * factor;
@@ -575,21 +604,22 @@ export class Game {
     this.incFactor = factor;
     this.brakeGain = capped > 0 ? Math.max(capped, Math.min(raw, ceil)) / capped : 1;
     // przychód bez lobbingu i hamulca: od niego liczy się budżet badawczy, żeby tempo drzewka się nie zmieniało
-    const lobbyFree = capOn ? Math.min(eff, capIncome(raw, Math.pow(10, this.marketCapLog(false)), this.D.MARKET_REACH)) : raw;
+    const lobbyFree = Math.min(Number.MAX_VALUE, dev * (capOn ? Math.min(eff / dev, capIncome(raw, Math.pow(10, this.marketCapLog(false)), this.D.MARKET_REACH)) : raw));
     this.incElastic = !capOn || raw <= cap ? 1 : brake ? (raw < ceil ? 1 : 0)
-      : eff >= cap * this.D.MARKET_REACH.maxOver ? 0 : this.D.MARKET_REACH.soft;
+      : eff / dev >= cap * this.D.MARKET_REACH.maxOver ? 0 : this.D.MARKET_REACH.soft;
     this.income = eff;
     if (noClick) {
       this.clickValue = 0;
     } else {
       // ręczne kodowanie: przy nasyceniu tanieje jak produkty, a jedno kliknięcie nie przyniesie
       // więcej niż sekunda całego rynku; do tego procent przychodu za kliknięcie
-      const base = capOn ? Math.min(brake ? ceil : cap, clickRaw * factor) : Math.min(Number.MAX_VALUE, clickRaw);
+      const base = Math.min(Number.MAX_VALUE, capOn ? Math.min((brake ? ceil : cap) * dev, clickRaw * factor) : clickRaw * dev);
       this.clickValue = (base + m.clickPct * this.income) * m.boostClick;
     }
     // budżet badawczy: część przychodu zamienia się w punkty badań
     const rd = this.D.RD_BUDGET;
-    const share = s.deptUnlocked[this.D.RD_DEPT] && rd.shares.includes(s.rdBudget) && !(ch && ch.rule === 'noBudget') ? s.rdBudget : 0;
+    const chosen = s.rdAuto ? this.autoRdShare() : s.rdBudget;
+    const share = s.deptUnlocked[this.D.RD_DEPT] && rd.shares.includes(chosen) && !(ch && ch.rule === 'noBudget') ? chosen : 0;
     m.rdShare = share;
     // zasilanie: część przychodu idzie do kolejnej warstwy (np. Ziemia finansuje program kosmiczny)
     const feed = this.feedTarget() && FEED_SHARES.includes(s.feed) ? s.feed : 0;
@@ -616,11 +646,29 @@ export class Game {
     this.refresh();
     return true;
   }
+  // Tryb deweloperski (do testów): mnożnik przychodu ponad limitem rynku. Szczyty zarobków, od których liczą się
+  // ceny lobbingu i hamulca, mierzą grę bez mnożnika. Nie cofamy już zapisanego postępu ani szczytów.
+  devMult() {
+    const st = this.s.meta.settings;
+    return this.devTools && st.dev === true && DEV_MULTS.includes(st.devMult) ? st.devMult : 1;
+  }
   setRdBudget(share) {
     if (!this.D.RD_BUDGET.shares.includes(share)) return false;
     this.s.rdBudget = share;
+    this.s.rdAuto = false;
     this.recalc();
     return true;
+  }
+  setRdAuto(on = true) {
+    this.s.rdAuto = !!on;
+    this.recalc();
+    return true;
+  }
+  // Budżet „Auto”: im dalej w drzewku, tym więcej przychodu idzie na badania (10% → 25% → 50%),
+  // bo pod koniec etapu technologie drożeją szybciej niż produkty.
+  autoRdShare() {
+    const f = this.techCount() / this.D.TECHS.length;
+    return f < 0.4 ? 0.1 : f < 0.7 ? 0.25 : 0.5;
   }
 
   // Przychód z jednego poziomu produktu (bez kamieni milowych), z premiami i trendem.
@@ -726,10 +774,11 @@ export class Game {
     return this.marginal(this.productUnit(id) * (f(l + n) - f(l)));
   }
 
-  earn(x) {
+  earn(x, base = x / this.devMult()) {
     if (!(x > 0)) return;
     const s = this.s;
-    this.earnAcc += x;
+    // Normalizacja w chwili zarobku, nie przy następnym ticku (mnożnik mógł się zmienić).
+    if (Number.isFinite(base) && base >= 0) this.earnAcc += base;
     s.cash = Math.min(Number.MAX_VALUE, s.cash + x);
     s.runEarned = Math.min(Number.MAX_VALUE, s.runEarned + x);
     s.totalEarned = Math.min(Number.MAX_VALUE, s.totalEarned + x);
@@ -757,7 +806,7 @@ export class Game {
     s.stats.rpTotal += rp;
 
     // auto-kliknięcia zarabiają w ramach przychodu (wyżej); tu tylko licznik i animacja
-    if (this.income > 0) this.clickAcc += this.netIncome * dt * (this.autoIncome / this.income);
+    if (this.income > 0) this.clickAcc += this.netIncome * dt * (this.autoIncome / this.income) / this.devMult();
     if (this.m.auto > 0) {
       this.autoAcc += this.m.auto * dt;
       const n = Math.floor(this.autoAcc);
@@ -802,7 +851,7 @@ export class Game {
     const v = this.clickValue;
     if (!(v > 0)) return 0;
     this.earn(v);
-    this.clickAcc += v;
+    this.clickAcc += v / this.devMult();
     s.stats.clicks++;
     s.stats.runClicks++;
     this.clickTimes.push(now);
@@ -1241,6 +1290,7 @@ export class Game {
   contractReward(o) {
     return {
       cash: Math.max(this.income, 1) * o.dur * o.f * this.m.contract,
+      baseCash: Math.max(this.income / this.devMult(), 1) * o.dur * o.f * this.m.contract,
       rp: o.rp && this.rpRate > 0 ? this.rpRate * o.dur * 0.5 : 0,
     };
   }
@@ -1252,7 +1302,7 @@ export class Game {
     const o = c.offers[i];
     c.offers.splice(i, 1);
     const rew = this.contractReward(o);
-    c.active.push({ ...o, start: now, end: now + o.dur * 1000, reward: rew.cash, rpReward: rew.rp });
+    c.active.push({ ...o, start: now, end: now + o.dur * 1000, reward: rew.cash, baseReward: rew.baseCash, rpReward: rew.rp });
     this.emit('contracts');
     return true;
   }
@@ -1271,7 +1321,8 @@ export class Game {
     let done = 0;
     c.active = c.active.filter((a) => {
       if (a.end > now) return true;
-      this.earn(a.reward);
+      // Stary zapis nie podaje bazowej kwoty. Wypłata zostaje, ale nie zgadujemy jej wpływu na szczyt.
+      this.earn(a.reward, a.baseReward ?? 0);
       this.s.rp += a.rpReward || 0;
       this.s.stats.contracts++;
       done++;
@@ -1743,7 +1794,7 @@ export class Game {
   updatePeak() {
     const st = this.s.stats;
     if (this.s.challenge || !this.m) return;
-    const inc = this.researchBase / Math.max(1, this.m.boostIncome);
+    const inc = this.researchBase / Math.max(1, this.m.boostIncome) / this.devMult();
     if (inc > st.peakIncome) st.peakIncome = inc;
   }
   // Średnia krocząca (30 min) wszystkich wpływów etapu: produkty, kliknięcia, kontrakty, bąbelki.
@@ -1762,16 +1813,20 @@ export class Game {
     const rest = st.earnRate - st.clickRate;
     if (rest > st.peakNoClick) st.peakNoClick = rest;
   }
-  // Cel poziomu: tyle, ile etap zarabiał w szczycie przez s sekund (bez kliknięć, gdy wyzwanie je wyłącza),
-  // razy współczynnik trudności wyzwania. Tempo nie spada poniżej najmniejszego rynku etapu.
+  // Cel poziomu: tyle, ile nasycony rynek etapu (sufit: maxOver × zasięg bez lobbingu) zarabia przez s sekund,
+  // razy współczynnik trudności wyzwania. Zasięg zależy od technologii, a nie od kapitału z rund, więc to samo
+  // wyzwanie jest podobnie trudne tuż po otwarciu etapu i w etapie z ogromnym kapitałem (dawny cel liczony od
+  // szczytu zarobków wahał się od kilku minut do kilkunastu sesji). W „Kryzysie” liczy się węższy rynek.
   challengeGoal(id) {
     const tier = this.s.meta.challenges[id] || 0;
     const T = CHALLENGE_TIERS[tier];
     const ch = CHALLENGE_MAP[id];
     if (!T || !ch) return null;
-    const st = this.s.stats;
-    const rate = Math.max(ch.rule === 'noclick' ? st.peakNoClick : st.peakEarn, Math.pow(10, this.D.MARKET_REACH.base));
-    return rate * T.s * (ch.goal || 1);
+    let log = this.marketCapLog(false);
+    const cur = this.s.challenge && CHALLENGE_MAP[this.s.challenge.id];
+    if (cur && cur.rule === 'halfCap') log += 0.5;
+    if (ch.rule === 'halfCap') log -= 0.5;
+    return Math.pow(10, log) * this.D.MARKET_REACH.maxOver * T.s * (ch.goal || 1);
   }
 
   // Rozpoczęcie wyzwania zaczyna firmę od nowa (z kapitałem z rundy, jeśli jest).
@@ -1856,7 +1911,8 @@ export class Game {
     if (fx.t === 'rpBoost' && noRp) f = { t: 'boost', x: 1.5, s: fx.s };
     const inc = Math.max(this.steadyIncome(), this.clickValue, 1);
     switch (f.t) {
-      case 'cash': case 'delayed': return { ...f, cash: inc * f.min * 60 };
+      case 'cash': case 'delayed': return { ...f, cash: inc * f.min * 60,
+        baseCash: Math.max(this.steadyIncome() / this.devMult(), this.clickValue / this.devMult(), 1) * f.min * 60 };
       case 'rp': return { ...f, rp: this.rpRate * f.min * 60 };
       default: return { ...f };
     }
@@ -1867,9 +1923,9 @@ export class Game {
     const d = DECISIONS[s.meta.decision.i];
     const e = this.decisionEffect(d[which].fx);
     switch (e.t) {
-      case 'cash': this.earn(e.cash); break;
+      case 'cash': this.earn(e.cash, e.baseCash); break;
       case 'rp': s.rp += e.rp; s.stats.rpTotal += e.rp; break;
-      case 'delayed': s.pending.push({ at: now + e.s * 1000, cash: e.cash, icon: d.icon, di: s.meta.decision.i }); break;
+      case 'delayed': s.pending.push({ at: now + e.s * 1000, cash: e.cash, baseCash: e.baseCash, icon: d.icon, di: s.meta.decision.i }); break;
       case 'boost': s.boosts.dIncome = { x: e.x, until: now + e.s * 1000, dur: e.s }; break;
       case 'click': s.boosts.dClick = { x: e.x, until: now + e.s * 1000, dur: e.s }; break;
       case 'rpBoost': s.boosts.dRp = { x: e.x, until: now + e.s * 1000, dur: e.s }; break;
@@ -1889,7 +1945,7 @@ export class Game {
     let paid = 0;
     s.pending = s.pending.filter((p) => {
       if (p.at > now) return true;
-      this.earn(p.cash);
+      this.earn(p.cash, p.baseCash ?? 0);
       paid++;
       const d = DECISIONS[p.di];
       this.toast(p.icon || '📨', t('dec.paid'), `${d ? TX.decisionTitle(p.di) : ''}: +${money(p.cash)}`, 'contract');
@@ -1937,6 +1993,7 @@ export class Company {
   constructor(raw = null, opts = {}) {
     this.rng = opts.rng || Math.random;
     this.listeners = {};
+    this.devTools = (opts.devTools ?? DEV_TOOLS) === true;
     this.load(raw, opts.now ?? Date.now());
   }
 
@@ -1947,7 +2004,7 @@ export class Company {
     let layersRaw = {};
     if (isObj(raw) && isObj(raw.layers)) { metaRaw = isObj(raw.meta) ? raw.meta : {}; layersRaw = raw.layers; }
     else if (isObj(raw)) { metaRaw = isObj(raw.meta) ? raw.meta : raw; layersRaw = { earth: raw }; }
-    this.meta = metaRaw ? sanitizeMeta(metaRaw, now) : createMeta(now);
+    this.meta = metaRaw ? sanitizeMeta(metaRaw, now, this.devTools) : createMeta(now);
     this.layers = {};
     for (const id of LAYER_ORDER) if (this.meta.unlocked[id] && LAYERS[id]) this.addLayer(id, layersRaw[id] || null);
     this.migrated = !!this.layers.earth.migrated;
@@ -1957,6 +2014,22 @@ export class Company {
     this.feedLinks();
     this.recalc();
     return this;
+  }
+  // Pełny reset: ustawienia zostają, ale zegar i wszystkie terminy zaczynają się od nowa.
+  reset(now = Date.now()) {
+    const { sound, music, lang, cap, buyAmount, dev, devMult } = this.meta.settings;
+    this.load(null, now);
+    Object.assign(this.meta.settings, { sound, music, lang, cap, buyAmount, dev, devMult });
+    sanitizeDevSettings(this.meta.settings, this.devTools);
+    this.recalc();
+  }
+  skipTime(sec, realNow = Date.now()) {
+    if (!this.devTools || this.meta.settings.dev !== true || !Number.isFinite(sec) || !(sec > 0)) return false;
+    const offset = this.meta.clockOffset + sec * 1000;
+    if (sanitizeClockOffset(offset) !== offset || !Number.isSafeInteger(realNow + offset)) return false;
+    this.meta.clockOffset = offset;
+    this.tick(realNow + offset);
+    return true;
   }
   addLayer(id, raw = null) {
     const g = new Game(raw, { now: this.now, rng: this.rng, layer: id, meta: this.meta, co: this });
@@ -2051,6 +2124,8 @@ export class Company {
     meta.stats = { ...old.stats };
     meta.challenges = { ...old.challenges };
     meta.execSeq = old.execSeq;
+    // zegar gry zostaje przesunięty (inaczej po przewinięciu czasu gra stanęłaby do chwili „dogonienia”)
+    meta.clockOffset = old.clockOffset || 0;
     meta.transcend = (old.transcend || 0) + 1;
     // flagi zabawnych osiągnięć i lobbingu zostają; komunikaty o kolejnych etapach i finał wracają
     meta.flags = Object.fromEntries(Object.entries(old.flags).filter(([k]) => !k.startsWith('ready_') && k !== 'finale'));

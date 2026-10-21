@@ -93,8 +93,9 @@ export const UNIVERSE_DEPTS = [
 ];
 
 // ---------------------------------------------------------------------------
-// TECHNOLOGIE — trzy ostatnie ery. Koszty rosną ×3,1 na technologię (2000 × 3,1^i), szybciej niż
-// wcześniej, bo szerszy rynek szybciej podnosi budżet badawczy. Tunele
+// TECHNOLOGIE — trzy ostatnie ery. Koszty rosną ×2,9 na technologię (2000 × 2,9^i), szybciej niż
+// wcześniej, bo szerszy rynek szybciej podnosi budżet badawczy (do 2026-10 było ×3,1, ale Wszechświat
+// był wtedy najdłuższym etapem: 1,5–2 doby gracza zaangażowanego). Tunele
 // czasoprzestrzenne otwierają Grupę Lokalną (Kardaszow 3,5), ciemna energia — typ IV,
 // a wszechświaty potomne — multiwersum (Kardaszow 5).
 // ---------------------------------------------------------------------------
@@ -108,47 +109,47 @@ export const UNIVERSE_TECHS = [
   // Era 14: Grupa Lokalna
   { id: 'intergalactic', era: 14, name: 'Napęd międzygalaktyczny', icon: '🚀', cost: 2000, req: [], fx: [{ t: 'prod', id: 'quasars', x: 3 }, { t: 'click', x: 3 }],
     desc: 'Dwa i pół miliona lat świetlnych do Andromedy. Z tym napędem — przed obiadem.' },
-  { id: 'wormholes', era: 14, name: 'Stabilne tunele czasoprzestrzenne', icon: '🕳️', cost: 6200, req: ['intergalactic'], fx: [{ t: 'unlockProduct', id: 'gates' }],
+  { id: 'wormholes', era: 14, name: 'Stabilne tunele czasoprzestrzenne', icon: '🕳️', cost: 5800, req: ['intergalactic'], fx: [{ t: 'unlockProduct', id: 'gates' }],
     desc: 'Tunel podtrzymywany egzotyczną materią. Nie zamyka się, nawet gdy ktoś trzaśnie drzwiami.' },
-  { id: 'galaxyMergers', era: 14, name: 'Inżynieria zderzeń', icon: '💞', cost: 19000, req: ['intergalactic'], fx: [{ t: 'unlockProduct', id: 'mergers' }, { t: 'unlockDept', id: 'replicators' }],
+  { id: 'galaxyMergers', era: 14, name: 'Inżynieria zderzeń', icon: '💞', cost: 17000, req: ['intergalactic'], fx: [{ t: 'unlockProduct', id: 'mergers' }, { t: 'unlockDept', id: 'replicators' }],
     desc: 'Galaktyki zderzają się tak, jak chcesz, a gwiazdy prawie nigdy się nie stykają.' },
-  { id: 'andromedaLink', era: 14, name: 'Most do Andromedy', icon: '🌉', cost: 60000, req: ['wormholes'], fx: [{ t: 'prod', id: 'gates', x: 4 }, { t: 'rp', x: 1.5 }],
+  { id: 'andromedaLink', era: 14, name: 'Most do Andromedy', icon: '🌉', cost: 49000, req: ['wormholes'], fx: [{ t: 'prod', id: 'gates', x: 4 }, { t: 'rp', x: 1.5 }],
     desc: 'Stałe połączenie z sąsiednią galaktyką. Bilion gwiazd po drugiej stronie czeka na ofertę.' },
-  { id: 'darkMatterTech', era: 14, name: 'Detektory ciemnej materii', icon: '🌑', cost: 1.8e5, req: ['galaxyMergers'], fx: [{ t: 'unlockProduct', id: 'darkmatter' }],
+  { id: 'darkMatterTech', era: 14, name: 'Detektory ciemnej materii', icon: '🌑', cost: 1.4e5, req: ['galaxyMergers'], fx: [{ t: 'unlockProduct', id: 'darkmatter' }],
     desc: 'Po stu latach szukania: jest. I to dużo. Bardzo dużo.' },
-  { id: 'darkEnergy', era: 14, name: 'Okiełznana ciemna energia', icon: '🌌', cost: 5.7e5, req: ['andromedaLink', 'darkMatterTech'], fx: [{ t: 'cat', cat: 'clusters', x: 3 }, { t: 'rp', x: 2 }],
+  { id: 'darkEnergy', era: 14, name: 'Okiełznana ciemna energia', icon: '🌌', cost: 4.1e5, req: ['andromedaLink', 'darkMatterTech'], fx: [{ t: 'cat', cat: 'clusters', x: 3 }, { t: 'rp', x: 2 }],
     desc: 'Siła, która rozpycha cały wszechświat, pracuje teraz dla Ciebie. Cywilizacja typu IV.' },
-  { id: 'hubbleBrake', era: 14, name: 'Hamulec Hubble’a', icon: '🛑', cost: 1.8e6, req: ['darkEnergy'], fx: [{ t: 'prodCost', x: 0.85 }, { t: 'all', x: 1.5 }],
+  { id: 'hubbleBrake', era: 14, name: 'Hamulec Hubble’a', icon: '🛑', cost: 1.2e6, req: ['darkEnergy'], fx: [{ t: 'prodCost', x: 0.85 }, { t: 'all', x: 1.5 }],
     desc: 'Spowalniasz rozszerzanie się wszechświata, żeby klienci nie odpływali za horyzont.' },
   // Era 15: kosmiczna sieć
-  { id: 'filamentRails', era: 15, name: 'Koleje po włóknach', icon: '🕸️', cost: 5.5e6, req: ['hubbleBrake'], fx: [{ t: 'unlockProduct', id: 'filaments' }],
+  { id: 'filamentRails', era: 15, name: 'Koleje po włóknach', icon: '🕸️', cost: 3.4e6, req: ['hubbleBrake'], fx: [{ t: 'unlockProduct', id: 'filaments' }],
     desc: 'Tory układane wzdłuż włókien gazu między gromadami. Najdłuższa linia kolejowa w historii.' },
-  { id: 'laniakea', era: 15, name: 'Supergromada Laniakea', icon: '🌊', cost: 1.7e7, req: ['filamentRails'], fx: [{ t: 'hireCost', x: 0.8 }, { t: 'prod', id: 'filaments', x: 3 }],
+  { id: 'laniakea', era: 15, name: 'Supergromada Laniakea', icon: '🌊', cost: 1e7, req: ['filamentRails'], fx: [{ t: 'hireCost', x: 0.8 }, { t: 'prod', id: 'filaments', x: 3 }],
     desc: 'Sto tysięcy galaktyk w jednym „niezmierzonym niebie”. Twój nowy rynek wewnętrzny.' },
-  { id: 'greatAttractor', era: 15, name: 'Wielki Atraktor', icon: '🧲', cost: 5.3e7, req: ['laniakea'], fx: [{ t: 'all', x: 2 }, { t: 'cat', cat: 'fabric', x: 2 }],
+  { id: 'greatAttractor', era: 15, name: 'Wielki Atraktor', icon: '🧲', cost: 2.9e7, req: ['laniakea'], fx: [{ t: 'all', x: 2 }, { t: 'cat', cat: 'fabric', x: 2 }],
     desc: 'Coś ciągnie wszystkie galaktyki w okolicy. Teraz ciągnie je do Twoich sklepów.' },
-  { id: 'vacuumEnergy', era: 15, name: 'Energia próżni', icon: '⚡', cost: 1.6e8, req: ['laniakea'], fx: [{ t: 'unlockProduct', id: 'vacuum' }],
+  { id: 'vacuumEnergy', era: 15, name: 'Energia próżni', icon: '⚡', cost: 8.4e7, req: ['laniakea'], fx: [{ t: 'unlockProduct', id: 'vacuum' }],
     desc: 'Kwantowe fluktuacje w pustej przestrzeni zamienione w prąd. Nic jeszcze nie było tak cenne.' },
-  { id: 'chronoTech', era: 15, name: 'Inżynieria czasu', icon: '⏳', cost: 5.1e8, req: ['greatAttractor'], fx: [{ t: 'unlockProduct', id: 'timeloops' }, { t: 'unlockDept', id: 'chrononauts' }],
+  { id: 'chronoTech', era: 15, name: 'Inżynieria czasu', icon: '⏳', cost: 2.4e8, req: ['greatAttractor'], fx: [{ t: 'unlockProduct', id: 'timeloops' }, { t: 'unlockDept', id: 'chrononauts' }],
     desc: 'Czas to tylko jeszcze jeden wymiar. Da się go zwinąć, zapętlić i wynająć.' },
-  { id: 'bootesVoid', era: 15, name: 'Zasiedlenie Pustki Wolarza', icon: '⬛', cost: 1.6e9, req: ['vacuumEnergy'], fx: [{ t: 'cat', cat: 'fabric', x: 2 }, { t: 'unlockDept', id: 'voidwalkers' }],
+  { id: 'bootesVoid', era: 15, name: 'Zasiedlenie Pustki Wolarza', icon: '⬛', cost: 7.1e8, req: ['vacuumEnergy'], fx: [{ t: 'cat', cat: 'fabric', x: 2 }, { t: 'unlockDept', id: 'voidwalkers' }],
     desc: 'Trzysta milionów lat świetlnych niczego. Najlepsza działka pod nową inwestycję.' },
-  { id: 'ftlThought', era: 15, name: 'Myśl szybsza niż światło', icon: '💭', cost: 4.9e9, req: ['greatAttractor', 'vacuumEnergy'], fx: [{ t: 'click', x: 4 }, { t: 'auto', v: 8 }],
+  { id: 'ftlThought', era: 15, name: 'Myśl szybsza niż światło', icon: '💭', cost: 2.1e9, req: ['greatAttractor', 'vacuumEnergy'], fx: [{ t: 'click', x: 4 }, { t: 'auto', v: 8 }],
     desc: 'Pomysł dociera na drugi koniec kosmosu, zanim skończysz go wymyślać.' },
   // Era 16: poza czasem
-  { id: 'pocketUniverses', era: 16, name: 'Wszechświaty kieszonkowe', icon: '🫧', cost: 1.5e10, req: ['ftlThought'], fx: [{ t: 'unlockProduct', id: 'pocket' }],
+  { id: 'pocketUniverses', era: 16, name: 'Wszechświaty kieszonkowe', icon: '🫧', cost: 6e9, req: ['ftlThought'], fx: [{ t: 'unlockProduct', id: 'pocket' }],
     desc: 'Odrobina fałszywej próżni w butelce. Po otwarciu powstaje nowy kosmos.' },
-  { id: 'falseVacuum', era: 16, name: 'Kontrola fałszywej próżni', icon: '🫙', cost: 4.7e10, req: ['chronoTech', 'pocketUniverses'], fx: [{ t: 'prodCost', x: 0.8 }, { t: 'cat', cat: 'creation', x: 3 }],
+  { id: 'falseVacuum', era: 16, name: 'Kontrola fałszywej próżni', icon: '🫙', cost: 1.7e10, req: ['chronoTech', 'pocketUniverses'], fx: [{ t: 'prodCost', x: 0.8 }, { t: 'cat', cat: 'creation', x: 3 }],
     desc: 'Rzecz, która mogłaby zniszczyć wszystko, zamknięta w bezpiecznym słoiku. Z etykietą.' },
-  { id: 'theoryOfEverything', era: 16, name: 'Teoria wszystkiego', icon: '📜', cost: 1.5e11, req: ['bootesVoid', 'pocketUniverses'], fx: [{ t: 'all', x: 2 }, { t: 'rp', x: 1.5 }],
+  { id: 'theoryOfEverything', era: 16, name: 'Teoria wszystkiego', icon: '📜', cost: 5e10, req: ['bootesVoid', 'pocketUniverses'], fx: [{ t: 'all', x: 2 }, { t: 'rp', x: 1.5 }],
     desc: 'Jedno równanie na koszulce. Wreszcie wiadomo, o co w tym wszystkim chodziło.' },
-  { id: 'inflationEngine', era: 16, name: 'Silnik inflacji', icon: '🎈', cost: 4.5e11, req: ['falseVacuum'], fx: [{ t: 'cat', cat: 'creation', x: 3 }, { t: 'all', x: 1.5 }],
+  { id: 'inflationEngine', era: 16, name: 'Silnik inflacji', icon: '🎈', cost: 1.5e11, req: ['falseVacuum'], fx: [{ t: 'cat', cat: 'creation', x: 3 }, { t: 'all', x: 1.5 }],
     desc: 'Rozdmuchuje maleńki zarodek do rozmiarów kosmosu w 10⁻³² sekundy. Ekonomiści też się boją.' },
-  { id: 'babyUniverse', era: 16, name: 'Wszechświaty potomne', icon: '✨', cost: 1.4e12, req: ['inflationEngine'], fx: [{ t: 'unlockProduct', id: 'genesis' }, { t: 'all', x: 3 }],
+  { id: 'babyUniverse', era: 16, name: 'Wszechświaty potomne', icon: '✨', cost: 4.2e11, req: ['inflationEngine'], fx: [{ t: 'unlockProduct', id: 'genesis' }, { t: 'all', x: 3 }],
     desc: 'Nowe wszechświaty z własnymi prawami fizyki. Multiwersum otwarte dla klientów.' },
-  { id: 'heatDeath', era: 16, name: 'Odwrócenie śmierci cieplnej', icon: '🔥', cost: 4.3e12, req: ['babyUniverse'], fx: [{ t: 'all', x: 3 }],
+  { id: 'heatDeath', era: 16, name: 'Odwrócenie śmierci cieplnej', icon: '🔥', cost: 1.2e12, req: ['babyUniverse'], fx: [{ t: 'all', x: 3 }],
     desc: 'Entropia już nie musi rosnąć. Gwiazdy mogą świecić dalej, a sklepy być otwarte.' },
-  { id: 'lastQuestion', era: 16, name: 'Ostatnie pytanie', icon: '❓', cost: 1.3e13, req: ['babyUniverse', 'theoryOfEverything'], fx: [{ t: 'rp', x: 2 }, { t: 'all', x: 2 }],
+  { id: 'lastQuestion', era: 16, name: 'Ostatnie pytanie', icon: '❓', cost: 3.5e12, req: ['babyUniverse', 'theoryOfEverything'], fx: [{ t: 'rp', x: 2 }, { t: 'all', x: 2 }],
     desc: 'Czy da się odwrócić entropię? Wreszcie jest dość danych na sensowną odpowiedź.' },
 ];
 
@@ -301,9 +302,9 @@ export const UNIVERSE_LOBBY = [
 // Wyzwania Wszechświata (po transcendencji).
 export const UNIVERSE_CHALLENGES = [
   { id: 'entropy', icon: '🌡️', rule: 'noMilestones', name: 'Entropia',
-    desc: 'Kamienie milowe produktów nic nie dają.', goal: 2, fx: [{ t: 'startLevels', v: 25 }] },
+    desc: 'Kamienie milowe produktów nic nie dają.', goal: 1, fx: [{ t: 'startLevels', v: 25 }] },
   { id: 'noexpansion', icon: '🏚️', rule: 'noOffices', name: 'Bez ekspansji',
-    desc: 'Galaktyki i gromady nie dają żadnych premii.', goal: 2, fx: [{ t: 'officeCost', x: 0.7 }] },
+    desc: 'Galaktyki i gromady nie dają żadnych premii.', goal: 1, fx: [{ t: 'officeCost', x: 0.7 }] },
   { id: 'onestar', icon: '⭐', rule: 'maxProducts', v: 3, name: 'Jedna gwiazda',
-    desc: 'Możesz wydać najwyżej 3 różne produkty.', goal: 2, fx: [{ t: 'startReach', v: 600 }] },
+    desc: 'Możesz wydać najwyżej 3 różne produkty.', goal: 1, fx: [{ t: 'startReach', v: 600 }] },
 ];

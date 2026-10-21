@@ -1,28 +1,43 @@
 // Start gry: wczytanie zapisu, pętla, autozapis, service worker.
-import { Company } from './engine.js';
+import { Company, clockOffsetOf } from './engine.js';
+import { DEV_TOOLS } from './config.js';
 import { UI } from './ui.js';
 import { setLang, detectLang } from './i18n.js';
 import { startMusic, stopMusic } from './music.js';
 
-export const VERSION = '2.3.0';
+export const VERSION = '2.4.0';
+export { DEV_TOOLS } from './config.js';
 const SAVE_KEY = 'krzemowe-imperium-save';
 const BACKUP_KEY = 'krzemowe-imperium-backup';
 
+const isRecord = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+function isGameSave(data) {
+  if (!isRecord(data)) return false;
+  if ('layers' in data) return isRecord(data.meta) && isRecord(data.layers) && isRecord(data.layers.earth);
+  // v1/v2 i samodzielna Game; null to historyczne kodowanie przepełnienia waluty.
+  return typeof data.cash === 'number' || data.cash === null;
+}
+
 function readSave() {
-  try {
-    const raw = localStorage.getItem(SAVE_KEY) || localStorage.getItem(BACKUP_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
+  for (const key of [SAVE_KEY, BACKUP_KEY]) {
+    try {
+      const raw = localStorage.getItem(key);
+      const data = raw ? JSON.parse(raw) : null;
+      if (isGameSave(data)) return data;
+    } catch { /* uszkodzony zapis główny nie blokuje odczytu kopii */ }
   }
+  return null;
 }
 
 const saved = readSave();
 // Język: zapisany w grze (v3: w meta, starsze zapisy: na wierzchu), a przy pierwszym uruchomieniu — język telefonu.
 const savedLang = (s) => s?.meta?.settings?.lang || s?.settings?.lang;
 setLang(savedLang(saved) || detectLang());
+// Zegar gry: czas rzeczywisty plus przesunięcie po „przewinięciu czasu” w trybie deweloperskim
+// (przesunięcie jest w zapisie, bo znaczniki czasu w stanie gry już je uwzględniają).
 // Firma ze wszystkimi warstwami (Ziemia, Kosmos…); co.g to warstwa na ekranie.
-const co = new Company(saved, { now: Date.now() });
+const co = new Company(saved, { now: Date.now() + clockOffsetOf(saved), devTools: DEV_TOOLS });
+const clock = () => Date.now() + (co.meta.clockOffset || 0);
 let lastSaveJson = '';
 
 function save() {
@@ -58,10 +73,9 @@ const ui = new UI(co, {
   importSave: (text) => {
     try {
       const data = decodeSave(text);
-      const ok = data && typeof data === 'object' && (typeof data.layers === 'object' || typeof data.cash === 'number');
-      if (!ok) return false;
+      if (!isGameSave(data)) return false;
       if (savedLang(data)) setLang(savedLang(data));
-      const now = Date.now();
+      const now = Date.now() + clockOffsetOf(data);
       co.load(data, now);
       for (const g of Object.values(co.layers)) g.s.lastTick = now;
       co.recalc();
@@ -73,15 +87,17 @@ const ui = new UI(co, {
   },
   reset: () => {
     try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(BACKUP_KEY); } catch { /* ignoruj */ }
-    // ustawienia (język, dźwięk, limit rynku) przechodzą do nowej gry
-    const { sound, music, lang, cap, buyAmount } = co.meta.settings;
-    co.load(null, Date.now());
-    Object.assign(co.meta.settings, { sound, music, lang, cap, buyAmount });
-    co.recalc();
+    // ustawienia (język, dźwięk, limit rynku, tryb deweloperski) przechodzą do nowej gry; zegar wraca do zwykłego
+    co.reset(Date.now());
     lastSaveJson = '';
     ui.fullRender();
     ui.showWelcome();
     save();
+  },
+  devTools: co.devTools,
+  // Przewinięcie czasu: zegar gry skacze do przodu, a najbliższy tick nalicza przerwę jak po powrocie do gry.
+  skipTime: (sec) => {
+    if (co.skipTime(sec)) save();
   },
 });
 
@@ -89,7 +105,7 @@ ui.init();
 if (!saved) ui.showWelcome();
 
 // Pierwszy tick nalicza zarobki offline (UI pokaże podsumowanie).
-co.tick(Date.now());
+co.tick(clock());
 // Zapis sprzed nowej ekonomii albo sprzed warstw: krótko wyjaśniamy, co się zmieniło.
 if (co.migrated) ui.showMigration();
 else if (co.converted) setTimeout(() => ui.showLayersIntro(), 600);
@@ -99,7 +115,7 @@ let lastLoop = 0;
 function loop(ts) {
   if (ts - lastLoop >= 50) {
     lastLoop = ts;
-    co.tick(Date.now());
+    co.tick(clock());
     ui.frame(performance.now());
   }
   requestAnimationFrame(loop);
@@ -112,7 +128,7 @@ document.addEventListener('visibilitychange', () => {
     save();
     stopMusic(false);
   } else {
-    co.tick(Date.now());
+    co.tick(clock());
     if (co.meta.settings.music) startMusic();
   }
 });

@@ -191,13 +191,17 @@ test('wyzwania: cel daje trwałą, odczuwalną nagrodę, poszerza rynek etapu i 
   const cap = g.marketCapLog();
   const st = g.s.stats;
   assert.ok(st.peakEarn > st.peakNoClick && st.peakNoClick > 0, 'szczyt wpływów z kliknięciami i bez');
+  // cel: nasycony rynek etapu (maxOver × zasięg bez lobbingu) × czas poziomu × współczynnik wyzwania
+  const k = (id) => ALL_CHALLENGES.find((c) => c.id === id).goal || 1;
+  const full = (log) => Math.pow(10, log) * g.D.MARKET_REACH.maxOver;
+  const before = g.challengeGoal('noclick');
+  g.s.investors = 1e9;
+  g.recalc();
+  assert.equal(g.challengeGoal('noclick'), before, 'kapitał z rund nie podnosi poprzeczki');
+  assert.ok(Math.abs(g.challengeGoal('crisis') / (full(cap - 0.5) * CHALLENGE_TIERS[0].s * k('crisis')) - 1) < 1e-9, 'Kryzys: węższy rynek');
   g.startChallenge('noclick', now);
   const goal = g.s.challenge.goal;
-  // bez kodowania cel nie liczy kliknięć
-  const floor = Math.pow(10, g.D.MARKET_REACH.base);
-  const rate = (r) => Math.max(r, floor);
-  const k = (id) => ALL_CHALLENGES.find((c) => c.id === id).goal || 1;
-  assert.ok(Math.abs(goal / (rate(st.peakNoClick) * CHALLENGE_TIERS[0].s * k('noclick')) - 1) < 1e-9, 'cel = szczytowe zarobki etapu × czas');
+  assert.ok(Math.abs(goal / (full(cap) * CHALLENGE_TIERS[0].s * k('noclick')) - 1) < 1e-9, 'cel = nasycony rynek etapu × czas');
   g.s.runEarned = goal;
   assert.ok(g.updateChallenge(T0));
   assert.equal(g.s.meta.challenges.noclick, 1);
@@ -206,9 +210,9 @@ test('wyzwania: cel daje trwałą, odczuwalną nagrodę, poszerza rynek etapu i 
   assert.equal(g.m.autoMult, 2, 'nagroda: auto-kliknięcia ×2');
   assert.ok(Math.abs(g.marketCapLog() - cap - CHALLENGE_REACH) < 1e-9, 'rynek etapu szerszy');
   // kolejne poziomy: dłuższy czas, kliknięcia liczą się w innych wyzwaniach, lobbing nie podnosi poprzeczki, są tylko 3
-  assert.ok(Math.abs(g.challengeGoal('noclick') / (rate(st.peakNoClick) * CHALLENGE_TIERS[1].s * k('noclick')) - 1) < 1e-9);
+  assert.ok(Math.abs(g.challengeGoal('noclick') / (full(g.marketCapLog(false)) * CHALLENGE_TIERS[1].s * k('noclick')) - 1) < 1e-9);
   const focus = g.challengeGoal('focus');
-  assert.ok(Math.abs(focus / (rate(st.peakEarn) * CHALLENGE_TIERS[0].s * k('focus')) - 1) < 1e-9);
+  assert.ok(Math.abs(focus / (full(g.marketCapLog(false)) * CHALLENGE_TIERS[0].s * k('focus')) - 1) < 1e-9);
   g.s.cash = 1e300;
   g.buyLobby();
   g.recalc();

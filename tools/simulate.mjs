@@ -2,8 +2,10 @@
 // Użycie: node tools/simulate.mjs [profil] [dni] [-v] [--no=budget,offices,cap,lobby,brake,...] [--chal] [--only=earth]
 //   TRANSCEND=n — po przejściu gry zaczyna od zera (n razy); SAVE_STATE/LOAD_STATE — zapis i odczyt stanu,
 //   SAVE_TIMES="5.8,6.4" — dodatkowe zapisy w tych dniach
-//   profil: active (ciągła gra), casual (sesje 20 min co ~3 h), idle (bez klikania)
-import { Company, Game, milestoneCount, kardashev } from '../js/engine.js';
+//   profil: active (ciągła gra), casual (sesje 20 min co ~3 h), idle (bez klikania),
+//   human (człowiek: SESS_PER_DAY sesji po SESS_MIN min między 7 a 23, HUMAN_CPS kliknięć/s,
+//   łapie część bąbelków HUMAN_BUBBLE, zagląda do sklepu i kontraktów co HUMAN_LOOK s)
+import { Company, Game, milestoneCount, kardashev, OFFLINE } from '../js/engine.js';
 import { LAYERS, LAYER_ORDER } from '../js/layers.js';
 import { PERKS, AUTOPILOT, COMPETITORS, MARKET, CHALLENGE_TIERS, LOBBY_RULES, BRAKE } from '../js/data.js';
 import { fmt, fmtTime } from '../js/format.js';
@@ -51,10 +53,45 @@ if (process.env.LOBBY) {
   Object.assign(LOBBY_RULES, { step: st, growth: gr }, sec ? { costSeconds: sec } : {});
 }
 if (process.env.BRAKE_CEIL) BRAKE.ceiling = Number(process.env.BRAKE_CEIL);
+// OFFLINE="10:0.75" — limit zarobku offline (h) i wydajność na start gry
+if (process.env.OFFLINE) {
+  const [h, eff] = process.env.OFFLINE.split(':').map(Number);
+  Object.assign(OFFLINE, { cap: h * 3600 }, eff ? { eff } : {});
+}
+// CHAL_GOAL="1.2" (wszystkie wyzwania) albo "crisis:0.8,entropy:1.5" — współczynniki trudności wyzwań
+for (const pair of (process.env.CHAL_GOAL || '').split(',').filter(Boolean)) {
+  const [a, b] = pair.split(':');
+  for (const id of LAYER_ORDER) for (const ch of LAYERS[id].CHALLENGES) if (b === undefined || ch.id === a) ch.goal = Number(b ?? a);
+}
 if (off.has('lobby')) Game.prototype.buyLobby = () => false;
 
 let seed = Number(process.env.SEED || 12345);
 const rng = () => { seed = (seed * 1664525 + 1013904223) % 4294967296; return seed / 4294967296; };
+// Zachowanie człowieka losuje osobny generator, żeby nie przestawiać losowości samej gry.
+let hseed = seed ^ 0x5bd1e995;
+const hrng = () => { hseed = (hseed * 1664525 + 1013904223) % 4294967296; return hseed / 4294967296; };
+
+// Profil „human”: człowiek nie klika 4×/s przez całą sesję, nie łapie każdego bąbelka i nie przelicza
+// zakupów co 5 sekund. Sesje są rozłożone w ciągu dnia (7:00–23:00), noc offline.
+const HUMAN = {
+  sessMin: Number(process.env.SESS_MIN || 20),
+  perDay: Math.max(1, Number(process.env.SESS_PER_DAY || 5)),
+  cps: Number(process.env.HUMAN_CPS ?? 1),
+  bubble: Number(process.env.HUMAN_BUBBLE ?? 0.5),
+  look: Math.max(1, Number(process.env.HUMAN_LOOK || 30)),
+};
+const human = profile === 'human';
+// Początek kolejnej sesji człowieka po chwili t (ms od T0): dzień zaczyna się o 7:00 (= T0).
+function humanNextStart(t) {
+  const day = 86400e3;
+  const step = HUMAN.perDay > 1 ? (16 * 3600e3 - HUMAN.sessMin * 60e3) / (HUMAN.perDay - 1) : day;
+  const d = Math.floor(t / day);
+  for (let k = 0; k < HUMAN.perDay; k++) {
+    const s = d * day + k * step;
+    if (s >= t) return s;
+  }
+  return (d + 1) * day;
+}
 
 const T0 = 1_700_000_000_000;
 let now = T0;
@@ -67,6 +104,81 @@ const tag = (g) => g.D.icon;
 const seen = {};
 const seenOf = (g) => (seen[g.D.id] ||= { products: new Set(), depts: new Set([g.D.FIRST_DEPT]), eras: new Set() });
 const lastPrestigeAt = {};
+
+// Tempo z perspektywy gracza: kiedy przybywa technologii, nowych produktów i działów, biur i rund.
+// Z tego liczymy najdłuższe przerwy między technologiami i sesje, w których w najnowszym etapie nic nie przybyło.
+const track = {};
+let sessions = [];
+let curSession = null;
+let passStart = T0;
+function trackOf(g) {
+  return (track[g.D.id] ||= {
+    openedAt: now, fullAt: null, techTimes: [], prods: new Set(), depts: new Set(), offices: 0, rounds: g.s.prestigeCount,
+    techs: new Set(Object.keys(g.s.techs).filter((k) => g.s.techs[k])),
+  });
+}
+// Najnowszy otwarty etap — tam gracz czeka na postęp.
+function frontierId() {
+  let f = 'earth';
+  for (const id of LAYER_ORDER) if (co.layers[id]) f = id;
+  // po finale (pełne drzewko ostatniego etapu) sesje nie liczą się do tempa
+  return f === LAYER_ORDER[LAYER_ORDER.length - 1] && co.layers[f].allTechs() ? 'finał' : f;
+}
+function startSession() {
+  curSession = { start: now, frontier: frontierId(), events: 0 };
+  sessions.push(curSession);
+}
+function scanProgress() {
+  for (const g of Object.values(co.layers)) {
+    const tr = trackOf(g);
+    const s = g.s;
+    let ev = 0;
+    for (const tch of g.D.TECHS) if (s.techs[tch.id] && !tr.techs.has(tch.id)) { tr.techs.add(tch.id); tr.techTimes.push([now, tch.id]); ev++; }
+    if (!tr.fullAt && g.allTechs()) tr.fullAt = now;
+    for (const p of g.D.PRODUCTS) if ((s.products[p.id] || 0) > 0 && !tr.prods.has(p.id)) { tr.prods.add(p.id); ev++; }
+    for (const d of g.D.DEPTS) if (s.deptUnlocked[d.id] && !tr.depts.has(d.id)) { tr.depts.add(d.id); ev++; }
+    const offices = Object.values(s.offices).reduce((a, b) => a + b, 0);
+    if (offices > tr.offices) { ev += offices - tr.offices; tr.offices = offices; }
+    if (s.prestigeCount > tr.rounds) { ev += s.prestigeCount - tr.rounds; tr.rounds = s.prestigeCount; }
+    if (ev && curSession && curSession.frontier === g.D.id) curSession.events += ev;
+  }
+}
+function paceReport(label = '') {
+  const d = (ms) => fmtTime(ms / 1000);
+  const who = human
+    ? `człowiek: ${HUMAN.perDay} × ${HUMAN.sessMin} min dziennie, ${HUMAN.cps} klik./s, łapie ${Math.round(HUMAN.bubble * 100)}% bąbelków, zagląda co ${HUMAN.look} s`
+    : `bot, profil ${profile}`;
+  console.log(`\nTempo z perspektywy gracza${label ? ` — ${label}` : ''} (${who}):`);
+  const gaps = [];
+  const ids = LAYER_ORDER.filter((id) => track[id]);
+  ids.forEach((id, i) => {
+    const tr = track[id];
+    const g = co.layers[id];
+    let prev = tr.openedAt;
+    let worst = { gap: 0 };
+    for (const [at, tid] of tr.techTimes) {
+      const gap = at - prev;
+      const n = sessions.filter((x) => x.start > prev && x.start <= at).length;
+      gaps.push({ id, icon: g.D.icon, gap, at, tid, n });
+      if (gap > worst.gap) worst = { gap, at, tid, n };
+      prev = at;
+    }
+    const mine = sessions.filter((x) => x.frontier === id);
+    let streak = 0;
+    let maxStreak = 0;
+    for (const x of mine) { streak = x.events ? 0 : streak + 1; maxStreak = Math.max(maxStreak, streak); }
+    const next = ids[i + 1] && track[ids[i + 1]];
+    console.log(`${g.D.icon} ${id.padEnd(8)} otwarty po ${d(tr.openedAt - passStart)}, pełne drzewko po ${tr.fullAt ? d(tr.fullAt - passStart) : '—'}`
+      + ` (etap trwał ${tr.fullAt ? d(tr.fullAt - tr.openedAt) : '—'}), technologie ${tr.techTimes.length}/${g.D.TECHS.length}`);
+    console.log(`   najdłuższa przerwa między technologiami: ${d(worst.gap)}${worst.tid ? ` (${worst.n} sesji, przed „${TX.techName(worst.tid)}”)` : ''}`
+      + ` · puste sesje: ${mine.filter((x) => !x.events).length}/${mine.length}, najwięcej z rzędu ${maxStreak}`
+      + (tr.fullAt && next ? ` · od pełnego drzewka do kolejnego etapu ${d(next.openedAt - tr.fullAt)}` : ''));
+  });
+  console.log('   5 najdłuższych przerw między technologiami:');
+  for (const x of gaps.sort((a, b) => b.gap - a.gap).slice(0, 5)) {
+    console.log(`     ${x.icon} ${d(x.gap).padStart(10)} (${x.n} sesji) przed „${TX.techName(x.tid)}” (po ${d(x.at - passStart)})`);
+  }
+}
 
 function deltaIncome(g, fn, undo) {
   const before = g.income;
@@ -169,12 +281,8 @@ function decide(g) {
     }
     if (best && best.cost <= s.cash) { const c0 = s.cash; best.act(); bought = s.cash !== c0; }
   }
-  // budżet badawczy rośnie z kolejnymi erami (gracz podkręca go, gdy gotówka się przelewa)
-  if (!off.has('budget')) {
-    const f = g.techCount() / D.TECHS.length;
-    const want = f < 0.4 ? 0.1 : f < 0.7 ? 0.25 : 0.5;
-    if (s.rdBudget !== want) g.setRdBudget(want);
-  }
+  // budżet badawczy: bot zostawia „Auto” (rośnie z kolejnymi erami); --no=budget to gracz, który ustawił 0%
+  if (off.has('budget') && (s.rdAuto || s.rdBudget !== 0)) g.setRdBudget(0);
 }
 
 // Wspólne dla firmy: decyzje, autopilot, zarząd, rada nadzorcza.
@@ -205,8 +313,14 @@ function decideCompany() {
   }
   // TRANSCEND=n: po przejściu gry bot zaczyna od zera (najwyżej n razy) i gra dalej
   if (co.canTranscend() && (m.transcend || 0) < Number(process.env.TRANSCEND || 0)) {
+    scanProgress();
+    paceReport(`przejście #${(m.transcend || 0) + 1}`);
     co.transcend(now);
     note(`### TRANSCENDENCJA #${co.meta.transcend}`);
+    for (const k of Object.keys(track)) delete track[k];
+    sessions = [];
+    passStart = now;
+    startSession();
     for (const k of Object.keys(seen)) delete seen[k];
     for (const k of Object.keys(lastPrestigeAt)) delete lastPrestigeAt[k];
     return;
@@ -270,8 +384,11 @@ if (process.env.LOAD_STATE) {
 }
 const end = process.env.LOAD_STATE ? now : T0 + days * 86400 * 1000;
 let nextReport = T0;
-let sessionEnd = profile === 'casual' ? T0 + 20 * 60000 : end;
+let sessionEnd = profile === 'casual' ? T0 + 20 * 60000 : human ? T0 + HUMAN.sessMin * 60000 : end;
 let decideTimer = 0;
+let clickAcc = 0;
+let lastBubble = null;
+if (!process.env.LOAD_STATE) startSession();
 
 // SAVE_TIMES="5.8,6.4" (dni) — dodatkowe zapisy stanu w tych chwilach: <SAVE_STATE bez .json>-<dzień>.json
 const saveTimes = (process.env.SAVE_TIMES || '').split(',').filter(Boolean).map(Number).sort((a, b) => a - b);
@@ -286,26 +403,52 @@ while (now < end) {
   maybeSave();
   const active = now < sessionEnd;
   if (!active) {
-    // przerwa offline 3 h (noc: 8 h co 5 sesji)
-    const sessionIdx = Math.round((now - T0) / (3.33 * 3600 * 1000));
-    const gap = sessionIdx % 5 === 4 ? 8 * 3600 : 3 * 3600;
-    now += gap * 1000;
+    if (human) {
+      // człowiek: następna sesja według planu dnia (noc offline)
+      now = T0 + humanNextStart(now - T0);
+      sessionEnd = now + HUMAN.sessMin * 60000;
+    } else {
+      // przerwa offline 3 h (noc: 8 h co 5 sesji)
+      const sessionIdx = Math.round((now - T0) / (3.33 * 3600 * 1000));
+      const gap = sessionIdx % 5 === 4 ? 8 * 3600 : 3 * 3600;
+      now += gap * 1000;
+      sessionEnd = now + 20 * 60000;
+    }
     co.tick(now);
-    sessionEnd = now + 20 * 60000;
+    startSession();
     decideAll();
+    scanProgress();
     continue;
   }
   now += 1000;
   co.tick(now);
   const g = co.g;
-  if (profile !== 'idle') {
+  if (human) {
+    // kliknięcia w średnim tempie człowieka; bąbelek łapie tylko czasem (raz o nim decyduje)
+    clickAcc += HUMAN.cps;
+    for (; clickAcc >= 1; clickAcc--) g.click(now);
+    if (g.s.bubble && g.s.bubble !== lastBubble) {
+      lastBubble = g.s.bubble;
+      if (hrng() < HUMAN.bubble) g.popBubble(now);
+    }
+  } else if (profile !== 'idle') {
     for (let i = 0; i < 4; i++) g.click(now);
     if (g.s.bubble) g.popBubble(now);
   }
-  for (const L of Object.values(co.layers)) for (const o of [...L.s.contracts.offers]) L.acceptContract(o.id, now);
+  // bot przyjmuje kontrakty co sekundę i co 5 s przelicza zakupy; człowiek robi jedno i drugie, gdy zagląda
+  const look = human ? HUMAN.look : 5;
   decideTimer++;
-  if (decideTimer >= 5) { decideTimer = 0; decideAll(); report(); }
-  for (const L of Object.values(co.layers)) maybePrestige(L);
+  if (!human || decideTimer >= look) {
+    for (const L of Object.values(co.layers)) for (const o of [...L.s.contracts.offers]) L.acceptContract(o.id, now);
+  }
+  if (decideTimer >= look) {
+    decideTimer = 0;
+    decideAll();
+    report();
+    scanProgress();
+    if (human) for (const L of Object.values(co.layers)) maybePrestige(L);
+  }
+  if (!human) for (const L of Object.values(co.layers)) maybePrestige(L);
   if (now >= nextReport) {
     nextReport += (verbose ? 10 : (now - T0 < 3 * 3600e3 ? 15 : 120)) * 60000;
     for (const L of Object.values(co.layers)) status(L);
@@ -319,6 +462,7 @@ for (const g of Object.values(co.layers)) {
   console.log(`${tag(g)} techs ${g.techCount()}/${g.D.TECHS.length}, rundy ${g.s.prestigeCount}, kapitał ${fmt(g.s.investors)}, biura ${Object.keys(g.s.offices).length}/${g.D.OFFICES.length}, przychód $${fmt(g.income)}/s`);
 }
 console.log(`firma: osiągnięcia ${co.g.achCount()}, zarząd ${Object.keys(co.meta.board).length}, skala ${co.meta.scaleMax}`);
+if (!process.env.LOAD_STATE) { scanProgress(); paceReport(co.meta.transcend ? `przejście #${co.meta.transcend + 1}` : ''); }
 
 // --chal[=etap]: po przejściu gry bot dostaje transcendencję (etapy zostają w obecnym stanie) i w każdym
 // etapie próbuje po kolei poziomów każdego wyzwania, grając aktywnie (najwyżej CHAL_HOURS h na poziom).
@@ -329,8 +473,11 @@ if (chalArg) {
   co.recalc();
   const saved = co.serialize();
   const tStart = now;
-  const LIMIT = Number(process.env.CHAL_HOURS || 8) * 3600e3;
-  console.log('\nWyzwania (gra aktywna, od stanu po przejściu gry):');
+  // człowiek gra wyzwanie w swoich sesjach, a offline też się liczy — limit to czas zegarowy (domyślnie 3 doby)
+  const LIMIT = Number(process.env.CHAL_HOURS || (human ? 72 : 8)) * 3600e3;
+  console.log(human
+    ? `\nWyzwania (człowiek: ${HUMAN.perDay} × ${HUMAN.sessMin} min dziennie, czas zegarowy z przerwami; od stanu po przejściu gry):`
+    : '\nWyzwania (gra aktywna, od stanu po przejściu gry):');
   for (const id of LAYER_ORDER) {
     if (onlyLayer && onlyLayer !== id) continue;
     for (const ch of LAYERS[id].CHALLENGES) {
@@ -346,17 +493,44 @@ if (chalArg) {
         const t0 = tnow;
         let ok = false;
         let k = 0;
+        let nSess = 1;
+        let sessEnd = human ? tnow + HUMAN.sessMin * 60000 : Infinity;
         while (tnow - t0 < LIMIT) {
-          tnow += 5000;
-          now = tnow;
-          co.tick(tnow);
-          for (let c = 0; c < 20; c++) g.click(tnow);
-          if (g.s.bubble) g.popBubble(tnow);
-          for (const o of [...g.s.contracts.offers]) g.acceptContract(o.id, tnow);
-          if (k++ % 3 === 0) decide(g);
+          if (tnow >= sessEnd) {
+            // człowiek odkłada telefon; wraca na następną sesję i od razu robi zakupy
+            tnow = T0 + humanNextStart(tnow - T0);
+            sessEnd = tnow + HUMAN.sessMin * 60000;
+            nSess++;
+            now = tnow;
+            co.tick(tnow);
+            decide(g);
+          } else if (human) {
+            tnow += 1000;
+            now = tnow;
+            co.tick(tnow);
+            clickAcc += HUMAN.cps;
+            for (; clickAcc >= 1; clickAcc--) g.click(tnow);
+            if (g.s.bubble && g.s.bubble !== lastBubble) {
+              lastBubble = g.s.bubble;
+              if (hrng() < HUMAN.bubble) g.popBubble(tnow);
+            }
+            if (++k % HUMAN.look === 0) {
+              for (const o of [...g.s.contracts.offers]) g.acceptContract(o.id, tnow);
+              decide(g);
+            }
+          } else {
+            tnow += 5000;
+            now = tnow;
+            co.tick(tnow);
+            for (let c = 0; c < 20; c++) g.click(tnow);
+            if (g.s.bubble) g.popBubble(tnow);
+            for (const o of [...g.s.contracts.offers]) g.acceptContract(o.id, tnow);
+            if (k++ % 3 === 0) decide(g);
+          }
           if (!g.s.challenge) { ok = (co.meta.challenges[ch.id] || 0) > tier; break; }
         }
-        times.push(ok ? fmtTime((tnow - t0) / 1000) : `NIE w ${LIMIT / 3600e3} h (${fmt(g.s.runEarned)} z ${fmt(goal)})`);
+        const took = fmtTime((tnow - t0) / 1000) + (human ? ` (${nSess} ${nSess === 1 ? 'sesja' : 'sesji'})` : '');
+        times.push(ok ? took : `NIE w ${LIMIT / 3600e3} h (${fmt(g.s.runEarned)} z ${fmt(goal)})`);
         if (!ok) break;
       }
       console.log(`${tag(g)} ${ch.id.padEnd(12)} ${times.map((x, i) => `P${i + 1}: ${x}`).join(' · ')}`);

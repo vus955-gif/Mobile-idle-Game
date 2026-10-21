@@ -6,7 +6,7 @@ import {
 } from './data.js';
 import {
   ACH_BONUS, nextMilestone, prevMilestone, nextDeptMilestone, deptMilestoneMult, MAX_SLOTS,
-  CHALLENGE_MAP, SCALE_THRESHOLDS, ROLE_MAP, QUIRK_MAP, scaleTrait, FEED_SHARES, LAYER_GRANT_SECONDS,
+  CHALLENGE_MAP, SCALE_THRESHOLDS, ROLE_MAP, QUIRK_MAP, scaleTrait, FEED_SHARES, LAYER_GRANT_SECONDS, DEV_MULTS,
 } from './engine.js';
 import { avatar, emptyAvatar } from './avatar.js';
 import { WORLD } from './worldmap.js';
@@ -262,19 +262,20 @@ export class UI {
       case 'research': g.research(id); this.updateAll(true); break;
       case 'research-repeat': g.researchRepeat(id); this.updateAll(true); break;
       case 'rd-budget': g.setRdBudget(Number(el.dataset.v)); this.updateAll(true); break;
+      case 'rd-auto': g.setRdAuto(true); this.updateAll(true); break;
       case 'buy-upgrade': g.buyUpgrade(id); this.updateAll(true); break;
       case 'buy-all': { const n = g.buyAllUpgrades(); if (n) this.toast('⬆️', t('up.bought', { n, noun: noun('upgrades', n) }), '', 'info'); this.updateAll(true); break; }
       case 'buy-perk': g.buyPerk(id); this.updateAll(true); break;
       case 'buy-acq': g.buyAcq(id); this.updateAll(true); break;
       case 'buy-lobby': g.buyLobby(); this.updateAll(true); break;
-      case 'release-brake': if (g.releaseBrake(Date.now())) play('prestige'); this.updateAll(true); break;
-      case 'accept-contract': if (g.acceptContract(Number(id), Date.now())) play('coin'); this.updateAll(true); break;
+      case 'release-brake': if (g.releaseBrake(this.now())) play('prestige'); this.updateAll(true); break;
+      case 'accept-contract': if (g.acceptContract(Number(id), this.now())) play('coin'); this.updateAll(true); break;
       case 'decline-contract': g.declineContract(Number(id)); this.updateAll(true); break;
       case 'company-sub': this.companySub = el.dataset.sub; this.renderCompanyTabs(); this.updateAll(true); break;
       case 'team-sub': this.teamSub = el.dataset.sub; this.renderTeamTabs(); this.updateAll(true); $('view-team').scrollTop = 0; break;
       case 'open-office': if (g.openOffice(id)) { play('unlock'); this.scene.render(g); } this.updateAll(true); break;
       case 'set-view': if (g.setView(id)) { this.scene.render(g, true); this.toast(this.g.D.OFFICE_MAP[id].icon, t('off.viewing'), TX.officeName(id), 'info'); } this.updateAll(true); break;
-      case 'hire-exec': if (g.hireExec(Number(id), Date.now())) { play('unlock'); const e = Object.values(s.meta.board).find((x) => x.id === Number(id)); if (e) this.toast(ROLE_MAP[e.role].icon, t('bd.hired', { name: TX.execName(e.n) }), TX.describeFx(e.traits), 'achievement'); } this.updateAll(true); break;
+      case 'hire-exec': if (g.hireExec(Number(id), this.now())) { play('unlock'); const e = Object.values(s.meta.board).find((x) => x.id === Number(id)); if (e) this.toast(ROLE_MAP[e.role].icon, t('bd.hired', { name: TX.execName(e.n) }), TX.describeFx(e.traits), 'achievement'); } this.updateAll(true); break;
       case 'dismiss-cand': g.dismissCandidate(Number(id)); this.updateAll(true); break;
       case 'fire-exec': this.confirmFire(id); break;
       case 'fire-confirm': this.closeModal(); g.fireExec(id); this.updateAll(true); break;
@@ -289,7 +290,7 @@ export class UI {
       }
       case 'prestige': this.confirmPrestige(); break;
       case 'prestige-confirm': {
-        const gain = g.doPrestige(Date.now());
+        const gain = g.doPrestige(this.now());
         this.closeModal();
         if (gain) {
           this.scene.render(g, true);
@@ -305,7 +306,7 @@ export class UI {
       case 'transcend': this.confirmTranscend(); break;
       case 'transcend-confirm': {
         this.closeModal();
-        if (this.co.transcend(Date.now())) {
+        if (this.co.transcend(this.now())) {
           play('prestige');
           this.switchLayer('earth', true);
           this.fullRender();
@@ -317,7 +318,7 @@ export class UI {
       case 'layer-start-confirm': {
         this.closeModal();
         const next = this.co.nextLayer();
-        if (this.co.unlockLayer(next, Date.now())) {
+        if (this.co.unlockLayer(next, this.now())) {
           play('prestige');
           this.switchLayer(next, true);
           this.toast(LAYERS[next].icon, this.lt('space.welcome', next), this.lt('space.welcomeText', next), 'achievement');
@@ -370,7 +371,7 @@ export class UI {
       case 'chal-start': this.confirmChallenge(id); break;
       case 'chal-confirm': {
         this.closeModal();
-        if (g.startChallenge(id, Date.now())) {
+        if (g.startChallenge(id, this.now())) {
           this.scene.render(g, true);
           this.showTab('office');
           this.hooks.save?.();
@@ -381,7 +382,7 @@ export class UI {
       case 'decision-open': this.showDecision(); break;
       case 'decide': {
         this.closeModal();
-        if (g.chooseDecision(el.dataset.v, Date.now())) play('coin');
+        if (g.chooseDecision(el.dataset.v, this.now())) play('coin');
         this.updateAll(true);
         this.hooks.save?.();
         break;
@@ -393,6 +394,24 @@ export class UI {
         this.updateAll(true);
         break;
       }
+      case 'toggle-dev': {
+        if (!this.co.devTools) break;
+        s.meta.settings.dev = !s.meta.settings.dev;
+        this.co.recalc();
+        this.hooks.save?.();
+        this.sigs.company = '';
+        this.updateAll(true);
+        break;
+      }
+      case 'dev-mult': {
+        if (!this.co.devTools || !s.meta.settings.dev || !DEV_MULTS.includes(Number(el.dataset.v))) break;
+        s.meta.settings.devMult = Number(el.dataset.v);
+        this.co.recalc();
+        this.hooks.save?.();
+        this.updateAll(true);
+        break;
+      }
+      case 'dev-skip': this.hooks.skipTime?.(Number(el.dataset.v)); this.updateAll(true); break;
       case 'toggle-music': {
         s.meta.settings.music = !s.meta.settings.music;
         if (s.meta.settings.music) startMusic(); else stopMusic();
@@ -469,7 +488,7 @@ export class UI {
 
   doClick(x, y) {
     const g = this.g;
-    const v = g.click(Date.now());
+    const v = g.click(this.now());
     play('click');
     const app = $('app').getBoundingClientRect();
     const px = x - app.left;
@@ -765,6 +784,9 @@ export class UI {
     if (rpVis) this.setText($('hud-rp'), fmt(s.rp));
     $('hud-inv-chip').hidden = !(s.investors > 0);
     if (s.investors > 0) this.setText($('hud-inv'), fmt(s.investors));
+    const dev = !!this.hooks.devTools && !!s.meta.settings.dev;
+    $('hud-dev-chip').hidden = !dev;
+    if (dev) this.setText($('hud-dev-chip'), t('dev.badge', { x: s.meta.settings.devMult }));
     const noClick = !(g.clickValue > 0);
     this.setText($('click-value'), noClick ? this.tl('tap.off') : '+' + money(g.clickValue));
     $('tap-btn').classList.toggle('hack', !!g.boostActive('click') || !!g.boostActive('dClick'));
@@ -804,7 +826,7 @@ export class UI {
     const gain = g.prestigeGain();
     const offers = s.contracts.offers.length;
     if (g.brakeActive()) {
-      right += `<div class="mini-stat">${this.tl('brake.icon')} ${t('brake.hud')}<b>${fmtClock((s.brakeUntil - Date.now()) / 1000)}</b></div>`;
+      right += `<div class="mini-stat">${this.tl('brake.icon')} ${t('brake.hud')}<b>${fmtClock((s.brakeUntil - this.now()) / 1000)}</b></div>`;
     } else if (gain >= 1 && gain >= Math.max(1, s.investors * 0.5)) {
       right += `<button class="mini-btn glow" data-act="goto" data-tab="company" data-sub="investors">${this.lu.cur} +${fmt(gain)}</button>`;
     } else if (g.contractsUnlocked() && offers > 0) {
@@ -820,7 +842,7 @@ export class UI {
   updateSceneBadges() {
     const g = this.g;
     const s = g.s;
-    const now = Date.now();
+    const now = this.now();
     const parts = [];
     const bi = g.boostActive('income');
     if (bi) parts.push(`<span class="scene-badge hot">🔥 Viral ×${bi.x} · ${fmtClock((bi.until - now) / 1000)}</span>`);
@@ -877,7 +899,7 @@ export class UI {
       e.preventDefault();
       e.stopPropagation();
       unlockAudio();
-      const res = this.g.popBubble(Date.now());
+      const res = this.g.popBubble(this.now());
       if (res) {
         play('bubble');
         const app = $('app').getBoundingClientRect();
@@ -1176,7 +1198,7 @@ export class UI {
     }
     const vals = {
       bdshares: t('inv.shares', { n: fmt(s.meta.shares) }),
-      bdwait: s.meta.candidates.length >= BOARD.poolMax ? t('bd.poolFull') : t('bd.waiting', { t: fmtTime(Math.max(0, (s.meta.nextCandidateAt - Date.now()) / 1000)) }),
+      bdwait: s.meta.candidates.length >= BOARD.poolMax ? t('bd.poolFull') : t('bd.waiting', { t: fmtTime(Math.max(0, (s.meta.nextCandidateAt - this.now()) / 1000)) }),
     };
     for (const c of s.meta.candidates) vals[`hire-${c.id}`] = { off: s.meta.shares < g.candidateCost(c) };
     for (const e of Object.values(s.meta.board)) {
@@ -1184,7 +1206,7 @@ export class UI {
       if (lvl < BOARD.maxLevel) {
         const fast = e.q === 'fast' ? 2 : 1;
         const nextAt = e.hiredAt + ((Math.pow(2, lvl) - 1) / fast) * 3.6e6;
-        vals[`lvl-${e.id}`] = t('bd.next', { t: fmtTime((nextAt - Date.now()) / 1000) });
+        vals[`lvl-${e.id}`] = t('bd.next', { t: fmtTime((nextAt - this.now()) / 1000) });
       } else vals[`lvl-${e.id}`] = t('bd.maxLevel');
     }
     this.patch(vals, root);
@@ -1442,7 +1464,7 @@ export class UI {
     // Nagłówek budujemy raz (przyciski budżetu muszą przetrwać odświeżanie), a liczby podmieniamy.
     const rnd = !!s.deptUnlocked[g.D.RD_DEPT];
     const share = g.m.rdShare || 0;
-    const headSig = `rh|${getLang()}|${rnd}|${share}`;
+    const headSig = `rh|${getLang()}|${rnd}|${share}|${s.rdAuto}`;
     if (this.sigs.researchHead !== headSig) {
       this.sigs.researchHead = headSig;
       head.innerHTML = `
@@ -1453,7 +1475,7 @@ export class UI {
       ${!rnd ? `<div class="hint" style="margin-top:10px">${t('rs.needRnd')}</div>` : `
       <div class="budget-card">
         <div class="budget-head"><b>🧪 ${t('rs.budget')}</b>
-          <div class="seg">${this.g.D.RD_BUDGET.shares.map((v) => `<button data-act="rd-budget" data-v="${v}" class="${v === share ? 'on' : ''}">${Math.round(v * 100)}%</button>`).join('')}</div>
+          <div class="seg"><button data-act="rd-auto" class="${s.rdAuto ? 'on' : ''}">${t('rs.auto')}${s.rdAuto ? ` · ${Math.round(share * 100)}%` : ''}</button>${this.g.D.RD_BUDGET.shares.map((v) => `<button data-act="rd-budget" data-v="${v}" class="${!s.rdAuto && v === share ? 'on' : ''}">${Math.round(v * 100)}%</button>`).join('')}</div>
         </div>
         <div class="card-sub" data-v="rdinfo" style="margin-top:6px"></div>
         <div class="card-sub" style="margin-top:4px;color:var(--faint)">${t('rs.budgetHint')}</div>
@@ -1845,7 +1867,7 @@ export class UI {
   renderContracts() {
     const g = this.g;
     const s = g.s;
-    const now = Date.now();
+    const now = this.now();
     if (!g.contractsUnlocked()) {
       this.setBody(`con-locked|${getLang()}`, `<div class="hint">${t('con.locked')}</div>`);
       return;
@@ -1947,7 +1969,7 @@ export class UI {
           ${next && !noLobby ? `<div class="card-foot"><div class="prog"></div><button class="btn violet" data-act="buy-lobby" data-v="lob-btn"><span>${t('lob.buy')}</span><small>${money(g.lobbyCost())}</small></button></div>` : ''}
         </div>`;
   }).join('')}</div>`);
-    const left = Math.max(0, (s.brakeUntil - Date.now()) / 1000);
+    const left = Math.max(0, (s.brakeUntil - this.now()) / 1000);
     this.patch({
       'brk-now': active ? t('brake.active', { t: fmtClock(left), x: fmt(g.brakeGain) }) : inChal ? t('brake.chal') : s.brakeUsed ? t('brake.used') : t('brake.now', { x: fmt(g.brakeGain) }),
       'brk-btn': { off: s.cash < g.brakeCost() },
@@ -2108,8 +2130,28 @@ export class UI {
       <div class="setting"><div>${t('set.export')}<p>${t('set.exportHint')}</p></div><button class="btn btn-small ghost" data-act="export">${t('set.exportBtn')}</button></div>
       <div class="setting"><div>${t('set.import')}<p>${t('set.importHint')}</p></div><button class="btn btn-small ghost" data-act="import">${t('set.importBtn')}</button></div>
       <div class="setting"><div>${t('set.reset')}<p>${t('set.resetHint')}</p></div><button class="btn btn-small danger" data-act="reset">${t('set.resetBtn')}</button></div>
+      ${this.devSettings()}
       <p class="card-sub" style="text-align:center;margin-top:18px">${esc(t('appName'))} · ${t('set.footer', { v: esc(this.hooks.version || '1.0') })}</p>`;
-    this.setBody(`settings|${s.meta.settings.sound}|${s.meta.settings.music}|${this.g.capOn()}|${getLang()}`, html);
+    const st = s.meta.settings;
+    this.setBody(`settings|${st.sound}|${st.music}|${this.g.capOn()}|${getLang()}|${st.dev}|${st.devMult}`, html);
+  }
+
+  // Zegar gry: czas rzeczywisty plus przesunięcie po przewinięciu czasu w trybie deweloperskim.
+  now() { return Date.now() + (this.co.meta.clockOffset || 0); }
+
+  // Tryb deweloperski (tylko gdy config.js włącza DEV_TOOLS): mnożnik przychodu i przewijanie czasu.
+  devSettings() {
+    if (!this.hooks.devTools) return '';
+    const st = this.g.s.meta.settings;
+    const skips = [[600, '+10 min'], [3600, '+1 h'], [8 * 3600, '+8 h']];
+    return `
+      <div class="section-title">${t('set.devTitle')}</div>
+      <div class="setting"><div>${t('set.dev')}<p>${t('set.devHint')}</p></div><button class="switch ${st.dev ? 'on' : ''}" data-act="toggle-dev" aria-label="${t('set.dev')}"></button></div>
+      ${st.dev ? `
+      <div class="setting"><div>${t('set.devMult')}<p>${t('set.devMultHint')}</p></div>
+        <div class="seg">${DEV_MULTS.map((x) => `<button data-act="dev-mult" data-v="${x}" class="${x === st.devMult ? 'on' : ''}">×${x}</button>`).join('')}</div></div>
+      <div class="setting"><div>${t('set.devSkip')}<p>${t('set.devSkipHint')}</p></div>
+        <div class="seg">${skips.map(([sec, label]) => `<button data-act="dev-skip" data-v="${sec}">${label}</button>`).join('')}</div></div>` : ''}`;
   }
 
   rename() {
