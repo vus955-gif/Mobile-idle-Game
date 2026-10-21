@@ -2,7 +2,7 @@
 // i z każdą działką wydłuża się dziobem o segment; rufa z mostkiem i napędem stoi w miejscu, więc pokłady (działki
 // SLOTS.galaxy na wysokości kadłuba) nie przeskakują. Części liczymy od rogu miejsca w doku 5,5 × 2,85 (róg w siatce
 // wyspy: −2,75; −1,65); statek z rufą, gondolami i dziobem celowo wystaje poza dok, cienie przycinamy do doku.
-import { PALETTES, CREW, SIDE_ART, drive, person, seeded } from './parts.js';
+import { PALETTES, CREW, SIDE_ART, B, C, S, L, F, when, drive, spot as footSpot, person, seeded } from './parts.js';
 import { iso, pt, shadowOffset } from './iso.js';
 import { SLOTS } from './layout.js';
 
@@ -12,8 +12,7 @@ const coreForm = (n) => (n > 1 ? 'mothership' : 'shuttle');
 const coreFoot = () => ({ w: 5.5, d: D, h: H }); // miejsce w doku (obrys do układu), nie zasięg statku
 const SUIT = PALETTES.galaxy.glass; // turkusowe mundury
 
-const B = (...a) => ['box', ...a], C = (...a) => ['cyl', ...a], S = (z) => ['sign', 0.5, 0.5, z], L = (...a) => ['strut', ...a];
-const G = (x, y, z, r, m = 'glass') => ['glow', x, y, z, r, m], F = 'flush', X = 'x flush', when = (on, parts) => (on ? parts : []);
+const G = (x, y, z, r, m = 'glass') => ['glow', x, y, z, r, m], X = 'x flush';
 
 // Prom o środku (x, y) na wysokości z w skali s, dziobem w stronę +x: dysza, skrzydła, kadłub, dziób, kabina, statecznik.
 const shuttle = (x, y, z, s) => {
@@ -33,7 +32,8 @@ const pods = (s, p, len) => Array.from({ length: p }, (_, j) => {
 })[s < 0 ? 'reverse' : 'slice']().flat();
 
 // Statek-matka przy k działkach: cień kadłuba i dziobu (tylko na doku między x0 i x1), poświata napędu, obręcz wokół rufy
-// (płaszczyzna y–z, za kadłubem), gondole, stępka, kadłub z oknami, pasem i szwami segmentów, dziób, kołyski, mostek.
+// (płaszczyzna y–z, za kadłubem), gondole, stępka, kadłub z oknami, pasem i szwami segmentów, dziób, kołyski, mostek
+// (maszt w przednim rogu dachu: na środku lampka migała na emblemacie nawigatorów).
 const ship = (o, k, x0, x1) => {
   const e = XE(k), len = e - XS, p = (k > 2) + !!o.nacelles, a = Math.max(XS, x0), b = Math.min(e + 1, x1);
   return [
@@ -47,7 +47,7 @@ const ship = (o, k, x0, x1) => {
     ...[0.6, 2.4, 4.2].filter((x) => x < e - 0.4).map((x) => L(x, D + 0.3, 0, x, D - 0.35, 0.55, 'metal', 2)),
     ...pods(1, p, len),
     B(-0.45, 1, H, 0.42, 0.85, 1.1, 'wall', 'win'), B(-0.52, 0.85, H + 1.1, 0.58, 1.15, 0.28, 'glass', F), B(-0.49, 0.9, H + 1.38, 0.52, 1.05, 0.06, 'metal', F),
-    ['dome', -0.23, 1.06, H + 1.44, 0.11, 'metal'], ['dome', -0.23, 1.79, H + 1.44, 0.11, 'metal'], ['mast', -0.32, Y, H + 1.44, 0.8],
+    ['dome', -0.23, 1.06, H + 1.44, 0.11, 'metal'], ['dome', -0.23, 1.79, H + 1.44, 0.11, 'metal'], ['mast', -0.1, 1.85, H + 1.44, 0.8],
     ['mast', e + 1.47, Y, 1.5, 0.45], ['sign', -0.2, Y, H + 1.95],
   ];
 };
@@ -118,8 +118,10 @@ const DEPTS = {
 // Załoga pokładu (j-ta z k) stoi na kadłubie tam, gdzie nie zasłoni jej pokład rysowany później. Przedni rząd (działki
 // nieparzyste) stoi na pasie kadłuba przed sobą. Tylny rząd zasłaniają przednie pokłady, więc jego załoga stoi przy mostku
 // (działka 0, wzdłuż y), na początku pasa (2) albo w pierwszym szeregu przed wcześniej rysowanym pokładem przednim (4 → 1, 6 → 3).
+// Obrys spoza pokładów (rdzeń, gdyby dostał obsadę) dostaje domyślne miejsce przed ścianami.
 const spot = (r, j, k) => {
   const i = SLOTS.galaxy.findIndex((s) => s.gx === r.gx), u = (j + 0.5) / k, o = j % 2;
+  if (i < 0) return footSpot(r, j, k);
   if (!i) return [-3.12 + 0.18 * o, 0.35 + 0.7 * u];
   const x = i === 2 ? -2.58 : SLOTS.galaxy[i % 2 ? i : i - 3].gx + 0.12, w = i === 2 ? 0.42 : 0.76;
   return [x + w * u, (i % 2 ? 0.98 : 1.1) + 0.05 * o];

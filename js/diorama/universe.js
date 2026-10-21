@@ -1,17 +1,16 @@
 // Wszechświat: rdzeń (kartografowie) rośnie z działami: iskra kreacji → kryształowa iglica → cytadela z kręgami i portalem.
 // Wokół na odłamku materii kręgi działów; obsadę pokazują świetliste drobiny. Rdzeń od rogu obrysu 2,5 × 2,5 (środek K).
-import { PALETTES } from './parts.js';
+import { PALETTES, ER, STEM, B, C, S, L, F, when } from './parts.js';
 import { TW, TH, LV, n as r1, pt } from './iso.js';
 import { SLOTS } from './layout.js';
 
-const K = 1.25, UP = 17 / 12; // środek obrysu; środek emblematu jest UP poziomu nad punktem sign
+const K = 1.25, UP = (STEM + ER) / LV; // środek obrysu; środek emblematu jest UP poziomu nad punktem sign
 const coreForm = (n) => (n > 4 ? 'citadel' : n > 1 ? 'spire' : 'spark');
 // Wierzchołek iglicy rośnie z działami (rundy dokładają pierścienie, nie wysokość: emblematy na SE).
 const top = (n) => (n > 4 ? 4.4 + 0.15 * n : 3.4 + 0.3 * n);
 const coreFoot = (n) => ({ w: 2.5, d: 2.5, h: n > 1 ? top(n) : 2.2 });
 
-const B = (...a) => ['box', ...a], C = (...a) => ['cyl', ...a], S = (z) => ['sign', 0.5, 0.5, z], L = (...a) => ['strut', ...a];
-const G = (x, y, z, r, m = 'crystal') => ['glow', x, y, z, r, m], F = 'flush', when = (on, parts) => (on ? parts : []);
+const G = (x, y, z, r, m = 'crystal') => ['glow', x, y, z, r, m];
 const ring = (z, r, m, pose = 'flat', u) => ['ring', K, K, z, r, m, pose, ...(u ? [{ u }] : [])];
 const gem = (x, y, z, s, h, m = 'crystal') => ['pyr', x - s / 2, y - s / 2, z, s, s, h, m, F]; // kryształ bez własnego cienia
 

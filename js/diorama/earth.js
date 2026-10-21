@@ -1,6 +1,6 @@
 // Ziemia: siedziba (dział dev) rośnie z działami: garaż → biuro → wieżowiec → kampus; wokół budynki działów, drzewa, droga, auta i drony.
 // Części od rogu obrysu; działki przed rdzeniem z emblematami zasłaniają dół, więc tabliczki i ozdoby rund są wysoko.
-import { PALETTES, CREW, SIDE_ART, drive, tree, seeded } from './parts.js';
+import { PALETTES, CREW, SIDE_ART, B, C, S, F, when, drive, tree, seeded } from './parts.js';
 import { iso, pt, tones } from './iso.js';
 import { LAYERS } from '../layers.js';
 
@@ -12,9 +12,6 @@ const coreFoot = (n) => {
   return { w, d: w, h: n > 4 ? 1.25 : n > 1 ? 4 + n / 4 : 1.3 };
 };
 
-const B = (...a) => ['box', ...a], C = (...a) => ['cyl', ...a], S = (z, y = 0.5) => ['sign', 0.5, y, z];
-const F = 'flush';
-const when = (on, parts) => (on ? parts : []);
 const heli = (x, y, z) => [['cyl', x, y, z, 0.4, 0.05, 'dark'], ['ring', x, y, z + 0.05, 0.27, 'wall', 'flat']];
 const neon = (o, x, y, z, w = 1.7) => when(o.neon, [['label', x, y, z, w, 10, o.neon, '#c4b5fd']]);
 
@@ -99,9 +96,9 @@ const DEPTS = {
   sales: [B(0.12, 0.08, 0, 0.76, 0.72, 2.2, 'wall', 'win ledge'), B(0.36, 0.8, 0, 0.28, 0.03, 0.8, 'glass', F), B(0.3, 0.8, 0.8, 0.4, 0.15, 0.05, 'accent', F),
     B(0.02, 0.94, 0, 0.03, 0.03, 2.5, 'metal', F), B(0.05, 0.945, 2.12, 0.3, 0.02, 0.34, 'accent', F),
     B(0.94, 0.02, 0, 0.03, 0.03, 2.5, 'metal', F), B(0.945, 0.05, 2.12, 0.02, 0.3, 0.34, 'crystal', F), S(2.55, 0.44)],
-  // Budynek z anteną: talerz i maszt.
+  // Budynek z anteną: talerz i maszt (niski, w prawym rogu dachu, żeby lampka nie migała na emblemacie).
   support: [B(0.1, 0.1, 0, 0.8, 0.8, 1.4, 'wall', 'win'), B(0.08, 0.08, 1.4, 0.84, 0.84, 0.12, 'accent'), ['dish', 0.32, 0.66, 1.52, 0.24],
-    ['mast', 0.74, 0.26, 1.52, 1.1], S(1.9)],
+    ['mast', 0.82, 0.18, 1.52, 0.7], S(1.9)],
   // Pawilon z zielonym dachem i drzewkami.
   hr: [B(0.05, 0.12, 0, 0.9, 0.76, 1, 'glass', 'win'), B(0.36, 0.86, 0, 0.28, 0.03, 0.7, 'accent', F), B(0.02, 0.09, 1, 0.96, 0.82, 0.1, 'wall'),
     B(0.06, 0.13, 1.1, 0.88, 0.74, 0.04, 'green'), ...[[0.28, 0.35], [0.7, 0.38], [0.48, 0.7]].map(([u, v]) => ['dome', u, v, 1.14, 0.14, 'green']), S(1.8)],

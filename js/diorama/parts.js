@@ -19,6 +19,11 @@ export function esc(s) {
   return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 }
 
+// Skróty części dla opraw etapów: bryła, walec, kotwica emblematu (domyślnie nad środkiem działki), zastrzał,
+// flaga detalu bez cienia i część warunkowa (when(on, parts) → parts albo nic).
+export const B = (...a) => ['box', ...a], C = (...a) => ['cyl', ...a], S = (z, y = 0.5) => ['sign', 0.5, y, z], L = (...a) => ['strut', ...a];
+export const F = 'flush', when = (on, parts) => (on ? parts : []);
+
 // Palety etapów: materiały brył i podłoże wyspy.
 
 export const PALETTES = {
@@ -35,6 +40,13 @@ export const tierFor = (heads) => SEATS.filter((t) => heads >= t).length; // 0..
 // Gęstość obsady według progu (lit = udział świecących okien nocą).
 export const CREW = [[0, 0.15, 0], [1, 0.35, 0], [2, 0.55, 0], [3, 0.75, 1], [4, 0.9, 1], [5, 1, 2]]
   .map(([people, lit, vehicles]) => ({ people, lit, vehicles }));
+
+// Domyślne miejsce j-tej z k postaci: na ścieżce tuż przed przednimi ścianami obrysu r, na zmianę przed lewą i prawą
+// ścianą (hook StageArt.spot może je zmienić albo do niego wrócić).
+export const spot = (r, j, k) => {
+  const u = 1 - (Math.floor(j / 2) + 0.5) / Math.ceil(k / 2);
+  return j % 2 ? [r.gx + r.w * u, r.gy + r.d + 0.22] : [r.gx + r.w + 0.22, r.gy + r.d * u];
+};
 
 export const MAX_ANIM = 40; // elementów animowanych w całej dioramie
 export function budget(max = MAX_ANIM) {
@@ -149,8 +161,8 @@ export function assemble(parts, ctx) {
   return { svg, anim, anchor, box: fin };
 }
 
-export const ER = 11; // promień emblematu
-const STEM = 5; // trzonek między kołem a punktem zaczepienia
+export const ER = 12; // promień emblematu (czytelny na iPhonie SE); z niego i trzonka Wszechświat liczy portal cytadeli
+export const STEM = 5; // trzonek między kołem a punktem zaczepienia
 
 // Środek koła emblematu zaczepionego w `at` (kotwica z assemble): nad nim o trzonek i promień.
 export const emblemCenter = ([x, y], r = ER) => [r1(x), r1(y - STEM - r)];

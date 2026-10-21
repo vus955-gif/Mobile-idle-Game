@@ -33,6 +33,15 @@ test('słowniki interfejsu PL i EN mają te same klucze i kształty', () => {
   }
 });
 
+test('teksty działów Ziemi mówią o budynkach na wyspie, nie o piętrach (każdy dział ma w dioramie własny budynek)', () => {
+  for (const [lang, building, floor, dept] of [['pl', /budyn/i, /piętr/i, 'Działy'], ['en', /building/i, /floor/i, 'Departments']]) {
+    const d = DICT[lang], tip = d['w.tips'].find((x) => x.includes(dept));
+    for (const [k, v] of [['team.newFloor', d['team.newFloor']], ['team.openHint', d['team.openHint']], ['toast.newDeptText', d['toast.newDeptText']], ['w.tips', tip]]) {
+      assert.ok(building.test(v) && !floor.test(v), `${lang} ${k}: „${v}”`);
+    }
+  }
+});
+
 test('angielska treść obejmuje każdy element gry', () => {
   for (const id of LAYER_ORDER) {
     const D = LAYERS[id];

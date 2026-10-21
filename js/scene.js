@@ -10,6 +10,11 @@ import { skyline } from './diorama/skyline.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const CLOUD = { night: 0.18, dawn: 0.7, day: 0.95, dusk: 0.6 }; // krycie chmur wg pory dnia
+// Wyrastanie nowego działu (floor-new, 0,8 s w css/style.css) w scenie wstrzymanej poza Biurem stoi, a dział otwiera się
+// w zakładce Zespół i pierwsze zatrudnienie przerysowuje dioramę. Dlatego nowe działy etapu czekają w growing i dostają
+// floor-new przy każdym renderze, aż scena będzie aktywna przez GROW_MS: tyle musi trwać ciąg aktywnych wywołań render
+// bez przerwy dłuższej niż GAP_MS (przy dłuższej, np. w ukrytej karcie bez klatek, nie wiadomo, co widział gracz).
+const GROW_MS = 800, GAP_MS = 1000;
 
 export function phaseFor(date = new Date()) {
   const h = date.getHours() + date.getMinutes() / 60;
@@ -131,10 +136,14 @@ function overlayInsets(root) {
 }
 
 export class Scene {
-  // insets() → { top, bottom }: wcięcia pasa dioramy w px (domyślnie z nakładek nad sceną).
-  constructor(root, { insets } = {}) {
-    Object.assign(this, { root, layers: {}, known: new Map(), sig: '', sw: 0, sh: 0, bbox: null, sky: null, lastMs: 0 });
+  // insets() → { top, bottom }: wcięcia pasa dioramy w px (domyślnie z nakładek nad sceną); isActive() → czy scenę widać
+  // (nie jest wstrzymana i karta jest widoczna); now() → czas w ms dla wyrastania. Testy podmieniają wszystkie trzy.
+  constructor(root, { insets, isActive, now } = {}) {
+    Object.assign(this, { root, layers: {}, known: new Map(), growing: new Map(), sig: '', sw: 0, sh: 0, bbox: null, sky: null, lastMs: 0 });
     this.insets = insets || (() => overlayInsets(root));
+    const sceneWrap = root.closest?.('.scene-wrap');
+    this.isActive = isActive || (() => !sceneWrap?.classList.contains('paused') && !globalThis.document?.hidden);
+    this.now = now || (() => performance.now());
     // Tło Canvas (obraz i animacja) z budowlami miasta w opakowaniu z powolnym najazdem kamery.
     const wrap = this.backdropWrap = document.createElement('div');
     wrap.className = 'backdrop-wrap';
@@ -142,10 +151,9 @@ export class Scene {
     this.backdrop = null;
     try {
       const [main, anim] = ['backdrop', 'backdrop-anim'].map((c) => wrap.appendChild(Object.assign(document.createElement('canvas'), { className: c })));
-      const sceneWrap = root.closest('.scene-wrap');
       this.backdrop = new Backdrop(root, {
         canvases: { main, anim },
-        isActive: () => !(sceneWrap && sceneWrap.classList.contains('paused')) && !document.hidden,
+        isActive: () => this.isActive(),
         dpr: () => Math.min(window.devicePixelRatio || 1, 2),
       });
     } catch {
@@ -176,11 +184,12 @@ export class Scene {
 
   // Nigdy nie rzuca: błąd budowy dioramy zostawia jej poprzednią zawartość.
   render(game, force = false) {
-    const t0 = performance.now(), phase = phaseFor(), earth = game.D.id === 'earth', view = game.s.view || game.D.HQ;
+    const t0 = performance.now(), phase = phaseFor(), stage = game.D.id, earth = stage === 'earth', view = game.s.view || game.D.HQ;
     let env = envFor();
     // Poza Ziemią nie ma pór roku ani pogody, ale święta zostają.
     if (!earth) env = { season: 'space', weather: 'clear', holiday: env.holiday, newYear: false, snowCover: false };
     this.env = env;
+    const t = this.now(), on = this.isActive(), wait = this.watchGrowth(stage, t, on);
     const sig = this.signature(game, phase);
     if (!force && sig === this.sig) return;
     this.sig = sig;
@@ -193,21 +202,38 @@ export class Scene {
     const light = bd?.light ?? recipeFor(view).light(bdEnv);
     this.sky = { earth, view, env, phase, light, flat: !bd };
     try {
-      // Znane działy zapisujemy dopiero po udanej budowie, żeby błąd nie zjadł animacji nowego działu.
-      const known = new Map(this.known), fresh = newIds(known, game.D.id, game.D.DEPTS.filter((d) => s.deptUnlocked[d.id]).map((d) => d.id));
-      const d = buildDiorama(modelFor(game, { view, env: { ...env, phase }, light, isNew: (id) => fresh.has(id) }));
+      // Znane i czekające działy zapisujemy dopiero po udanej budowie, żeby błąd nie zjadł animacji nowego działu.
+      // Wyrastają nowe od poprzedniej budowy etapu i te, które jeszcze czekają (o ile wciąż są otwarte).
+      const ids = game.D.DEPTS.filter((d) => s.deptUnlocked[d.id]).map((d) => d.id), known = new Map(this.known);
+      const fresh = newIds(known, stage, ids), grow = new Set([...fresh, ...ids.filter((id) => wait?.ids.has(id))]);
+      const d = buildDiorama(modelFor(game, { view, env: { ...env, phase }, light, isNew: (id) => grow.has(id) }));
       this.layers.front.innerHTML = d.front;
       this.layers.frontAnim.innerHTML = d.frontAnim;
       this.bbox = d.bbox;
       this.known = known;
+      // Nowy dział dostaje pełne GROW_MS: jego odliczanie startuje od tej budowy.
+      if (!grow.size) this.growing.delete(stage);
+      else this.growing.set(stage, { ids: grow, since: fresh.size ? (on ? t : null) : wait.since, last: t });
     } catch { /* zostaje poprzednia diorama */ }
     this.paint();
     this.lastMs = performance.now() - t0;
   }
 
+  // Odliczanie wyrastania etapu w chwili t (on: scenę widać). Zwraca czekające działy albo nic, gdy już wyrosły.
+  watchGrowth(stage, t, on) {
+    const w = this.growing.get(stage);
+    if (!w) return null;
+    if (!on) w.since = null;
+    else if (w.since === null || t - w.last > GAP_MS) w.since = t;
+    w.last = t;
+    if (on && t - w.since >= GROW_MS) { this.growing.delete(stage); return null; }
+    return w;
+  }
+
   // Po zmianie rozmiaru: tło, a przy zmianie o ≥ 2 px warstwy sceny i kadr (bez przebudowy dioramy).
   resize() {
-    this.backdrop?.resize();
+    // Błąd tła (np. iOS odmówi płótna przy braku pamięci) nie może zablokować nowego kadru dioramy.
+    try { this.backdrop?.resize(); } catch { /* tło zostaje, jakie było */ }
     const { clientWidth: w, clientHeight: h } = this.root;
     if (Math.abs(w - this.sw) >= 2 || Math.abs(h - this.sh) >= 2) this.paint();
   }

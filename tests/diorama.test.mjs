@@ -252,7 +252,13 @@ test('parts: emblemat ma ikonę i kolor działu', () => {
   const e = emblem({ icon: '🚀', color: '#ff6b8a' }, [100, 50]);
   checkSvg(e);
   assert.ok(e.includes('🚀') && e.includes('#ff6b8a') && e.includes('#fff'));
-  assert.equal(ER, 11);
+  // Jeden promień: ER z parts.js rysuje buildDiorama, a Wszechświat liczy z niego (i trzonka) portal wokół emblematu cytadeli.
+  assert.equal(ER, 12);
+  for (const stage of LAYER_ORDER) assert.ok(buildDiorama(maxModel(stage)).lots.every((l) => l.emblem.r === ER), `${stage}: promień emblematu`);
+  const um = maxModel('universe'), uv = STAGE_ART.universe, lay = layout('universe', um.depts.length, 8, uv.coreFoot(um.depts.length, 8));
+  const portal = uv.core(um, lay).parts.find((p) => p[0] === 'glow' && p[5] === 'glass' && p[4] === 0.28);
+  const [px, py] = iso(lay.core.gx + portal[1], lay.core.gy + portal[2], portal[3]), ce = buildDiorama(um).lots[0].emblem;
+  assert.ok(Math.abs(ce.x - px) < 0.1 && Math.abs(ce.y - py) < 0.1, `emblemat cytadeli w środku portalu (${ce.x}, ${ce.y} wobec ${px}, ${py})`);
   const fs = (s) => +s.match(/font-size="([\d.]+)"/)[1];
   assert.ok(Math.abs(fs(e) - 1.15 * ER) < 0.1);
   assert.ok(Math.abs(fs(emblem({ icon: '🚀', color: '#fff' }, [0, 0], 20)) - 23) < 0.1, 'rozmiar ikony rośnie z promieniem');
@@ -427,6 +433,19 @@ test('island: wspólne pomocnicze (n, RX, poly) są w iso.js i nie ma ich kopii 
   const src = (f) => readFileSync(new URL(`../js/diorama/${f}`, import.meta.url), 'utf8');
   for (const f of ['island.js', 'parts.js']) assert.ok(!/^const RX\b/m.test(src(f)), `${f}: bez własnej kopii RX`);
   assert.ok(!/^const n = /m.test(src('island.js')), 'island.js: bez własnej kopii n');
+});
+
+test('parts: skróty części (B, C, S, L, F, when) i domyślne miejsce postaci są w parts.js, oprawy etapów nie mają ich kopii', async () => {
+  const P = await import('../js/diorama/parts.js');
+  assert.deepEqual([P.B(1, 2), P.C(3), P.S(2), P.S(2, 0.3), P.L(4), P.F], [['box', 1, 2], ['cyl', 3], ['sign', 0.5, 0.5, 2], ['sign', 0.5, 0.3, 2], ['strut', 4], 'flush']);
+  assert.deepEqual([P.when(true, [1]), P.when(false, [1])], [[1], []]);
+  assert.equal(typeof P.spot, 'function', 'domyślne miejsce postaci (index.js i galaxy.js)');
+  const src = (f) => readFileSync(new URL(`../js/diorama/${f}`, import.meta.url), 'utf8');
+  for (const f of ['earth.js', 'space.js', 'galaxy.js', 'universe.js', 'index.js']) {
+    const s = src(f);
+    for (const copy of ["['box', ...a]", "['cyl', ...a]", "['strut', ...a]", "['sign', 0.5,", '(on ? parts : [])', "F = 'flush'"]) assert.ok(!s.includes(copy), `${f}: kopia ${copy}`);
+    assert.ok(!/^const spot = \(r, j, k\) => \{\n {2}const u = 1 -/m.test(s), `${f}: kopia domyślnego miejsca postaci`);
+  }
 });
 
 test('parts: shade przyjmuje dowolny zapis barwy, a dla #rrggbb daje wynik jak dotąd', () => {
@@ -609,6 +628,28 @@ test('diorama: wszystkie działy każdego etapu mieszczą się i są czytelne na
       assert.deepEqual(d.lots.map((l) => l.id).sort(), full.depts.slice(0, n).map((x) => x.id).sort(), `${at}: każdy dział ma element`);
       assertSE(d, at);
     }
+  }
+});
+
+// Warstwa animacji leży nad emblematami, więc migająca lampa masztu (koło r 1,8 w #ff4d4d) nie może wchodzić na koło
+// emblematu z ciemnym obrysem (r + 1,7); statyczne lampy sprawdzamy tak samo.
+const mastLamps = (d) => [...(d.front + d.frontAnim).matchAll(/<circle(?: class="blink"[^>]*?)? cx="([-\d.]+)" cy="([-\d.]+)" r="1\.8" fill="#ff4d4d"/g)].map((m) => [+m[1], +m[2]]);
+
+test('diorama: lampy masztów nie wchodzą na emblematy (każdy etap i widok przy max, każde n przy rundach 0 i 8)', () => {
+  const views = { earth: EARTH_RECIPES, space: SPACE_RECIPES, galaxy: GALAXY_RECIPES, universe: UNIVERSE_RECIPES };
+  for (const stage of LAYER_ORDER) {
+    const full = maxModel(stage), light = (v) => recipeFor(v).light(stage === 'earth' ? { phase: 'night', weather: 'snow' } : {});
+    const models = [...Object.keys(views[stage]).map((view) => [`${view} max`, { ...full, view, light: light(view) }]),
+      ...full.depts.flatMap((_, i) => [0, 8].map((rounds) => [`n=${i + 1} r=${rounds}`, { ...full, depts: full.depts.slice(0, i + 1), rounds }]))];
+    let seen = 0;
+    for (const [at, m] of models) {
+      const d = buildDiorama(m);
+      for (const [x, y] of mastLamps(d)) {
+        seen++;
+        for (const l of d.lots) assert.ok(Math.hypot(x - l.emblem.x, y - l.emblem.y) >= l.emblem.r + 1.7 + 1.8, `${stage} ${at}: lampa (${x}, ${y}) na emblemacie ${l.id}`);
+      }
+    }
+    assert.ok(stage === 'universe' ? seen === 0 : seen > 0, `${stage}: lampy masztów w przeglądzie (${seen})`);
   }
 });
 
@@ -1049,6 +1090,11 @@ test('galaxy: załoga pokładów stoi na kadłubie poza obrysami innych działek
   assert.equal(d.stats.people, 9);
 });
 
+test('galaxy: spot obrysu spoza pokładów SLOTS (np. rdzeń z obsadą) nie rzuca, tylko daje domyślne miejsce', async () => {
+  const { spot } = await import('../js/diorama/parts.js'), lay = layout('galaxy', 9, 0, GX().coreFoot(9, 0));
+  for (let j = 0; j < 3; j++) assert.deepEqual(GX().spot(lay.core, j, 3), spot(lay.core, j, 3), `postać ${j}`);
+});
+
 test('galaxy: okna pokładów świecą według progu obsady także przy ambient 0,45 (orion, pleiades, omega)', () => {
   const glow = (view, tier) => {
     const d = buildDiorama(galaxyModel(9, { view, depts: galaxyModel(9).depts.map((x) => ({ ...x, tier })) }));
@@ -1200,14 +1246,15 @@ test('sw.js: pamięć offline zawiera każdy moduł dioram (poza galerią)', () 
   assert.deepEqual(missing, []);
 });
 
-// Scena bez przeglądarki: najmniejszy DOM (elementy z atrybutami i innerHTML), bez Canvas (createElement('canvas') rzuca).
-function fakeScene(w, h) {
+// Scena bez przeglądarki: najmniejszy DOM (elementy z atrybutami i innerHTML), bez Canvas (createElement('canvas') rzuca);
+// opts trafia do konstruktora Scene (np. zegar now i isActive).
+function fakeScene(w, h, opts = {}) {
   const el = () => ({ attrs: {}, innerHTML: '', clientWidth: 0, clientHeight: 0, setAttribute(k, v) { this.attrs[k] = String(v); }, getAttribute(k) { return this.attrs[k] ?? null; }, appendChild: (c) => c, closest: () => null });
   const prev = globalThis.document;
   globalThis.document = { createElement: (t) => { if (t === 'canvas') throw new Error('bez Canvas'); return el(); }, createElementNS: () => el() };
   try {
     const root = Object.assign(el(), { clientWidth: w, clientHeight: h });
-    return { root, sc: new Scene(root, { insets: () => SE_INSETS }) };
+    return { root, sc: new Scene(root, { insets: () => SE_INSETS, ...opts }) };
   } finally {
     globalThis.document = prev;
   }
@@ -1233,7 +1280,8 @@ test('scena: po powrocie z zerowego rozmiaru (także do tego samego) warstwy i k
 });
 
 test('scena: bez tła Canvas niebo leży pod budowlami miasta, a nieudana budowa dioramy nie zjada animacji nowego działu', () => {
-  const { sc } = fakeScene(SE.w, SE.h), g = new Company(null, { now: 1_700_000_000_000, rng: () => 0.5 }).layers.earth;
+  let t = 0;
+  const { sc } = fakeScene(SE.w, SE.h, { now: () => t }), g = new Company(null, { now: 1_700_000_000_000, rng: () => 0.5 }).layers.earth;
   sc.render(g, true);
   const sk = sc.layers.skyline.innerHTML;
   assert.ok(sk.startsWith('<defs><linearGradient id="skyG"') && sk.includes('url(#d-lm)'), 'gradient przed budowlami w jednej warstwie');
@@ -1249,6 +1297,64 @@ test('scena: bez tła Canvas niebo leży pod budowlami miasta, a nieudana budowa
   }
   sc.render(g, true);
   assert.ok(sc.layers.front.innerHTML.includes('class="floor-new"'), 'nowy dział wyrasta po udanej budowie');
+  t = 800; sc.render(g, true);
+  assert.ok(!sc.layers.front.innerHTML.includes('class="floor-new"'), 'i tylko raz (po 0,8 s aktywnej sceny)');
+});
+
+// Wyrastanie (floor-new, 0,8 s) w scenie wstrzymanej poza Biurem stoi: działy otwiera się w zakładce Zespół, a pierwsze
+// zatrudnienie zmienia podpis i przerysowuje dioramę, zanim gracz ją zobaczy.
+test('scena: dział otwarty przy wstrzymanej scenie wyrasta dopiero na oczach gracza — zatrudnienie nie zjada animacji', () => {
+  let t = 0, active = false;
+  const { sc } = fakeScene(SE.w, SE.h, { now: () => t, isActive: () => active }), g = new Company(null, { now: 1_700_000_000_000, rng: () => 0.5 }).layers.earth;
+  const grows = (ms, change) => { t = ms; change?.(); sc.render(g); return sc.layers.front.innerHTML.includes('class="floor-new"'); };
   sc.render(g, true);
-  assert.ok(!sc.layers.front.innerHTML.includes('class="floor-new"'), 'i tylko raz');
+  // Zakładka Zespół: otwarcie działu, potem pierwsze zatrudnienie (nowy próg obsady) — wciąż przy wstrzymanej scenie.
+  assert.ok(grows(100, () => { g.s.deptUnlocked.rnd = true; }), 'po otwarciu działu');
+  assert.ok(grows(5000, () => { g.s.depts.rnd = 1; }), 'po zatrudnieniu przy wstrzymanej scenie nadal wyrasta');
+  // Powrót do Biura: animacja rusza; przerysowanie przed upływem 0,8 s aktywnej sceny znów ją pokazuje.
+  active = true;
+  assert.ok(grows(6000));
+  assert.ok(grows(6500, () => { g.s.depts.rnd = 5; }), 'po 0,5 s aktywnej sceny');
+  // Wstrzymanie przerywa odliczanie; po powrocie liczy się od nowa.
+  active = false; grows(6600); active = true; grows(6700);
+  assert.ok(grows(7400, () => { g.s.depts.rnd = 15; }), 'po 0,7 s od powrotu do Biura');
+  grows(7500);
+  assert.ok(!grows(7600, () => { g.s.depts.rnd = 40; }), 'po 0,8 s aktywnej sceny kolejny render już nie wyrasta');
+});
+
+test('scena: wejście na etap i powrót nic nie animują, po resecie dział znów wyrasta, niewidziany wzrost czeka na swój etap', () => {
+  let t = 0, active = true;
+  const co = new Company(null, { now: 1_700_000_000_000, rng: () => 0.5 }), earth = co.layers.earth, space = co.addLayer('space');
+  const { sc } = fakeScene(SE.w, SE.h, { now: () => t, isActive: () => active });
+  const grows = (g, ms, force = false) => { t = ms; sc.render(g, force); return sc.layers.front.innerHTML.includes('class="floor-new"'); };
+  for (const id of ['rnd', 'design']) earth.s.deptUnlocked[id] = true;
+  assert.ok(!grows(earth, 0), 'pierwsze wejście na etap');
+  assert.ok(!grows(space, 100), 'wejście na kolejny etap');
+  assert.ok(!grows(earth, 200), 'powrót na etap');
+  // Reset rundy zostawia pierwszy dział; ponownie otwarty dział wyrasta znowu.
+  for (const id of ['rnd', 'design']) delete earth.s.deptUnlocked[id];
+  assert.ok(!grows(earth, 300));
+  earth.s.deptUnlocked.rnd = true;
+  assert.ok(grows(earth, 400), 'po resecie dział znów wyrasta');
+  // Przerwa w klatkach dłuższa niż sekunda (ukryta karta) zaczyna odliczanie od nowa.
+  earth.s.depts.rnd = 1;
+  assert.ok(grows(earth, 10_000), 'po przerwie w klatkach');
+  assert.ok(!grows(earth, 10_800, true), 'po 0,8 s od przerwy');
+  // Dział otwarty przy wstrzymanej scenie, a gracz przełącza etap: wzrost czeka, aż zobaczy ten etap.
+  active = false; earth.s.deptUnlocked.design = true;
+  assert.ok(grows(earth, 11_000));
+  active = true;
+  assert.ok(!grows(space, 11_100), 'inny etap');
+  assert.ok(grows(earth, 20_000), 'po powrocie na etap');
+  assert.ok(!grows(earth, 20_800, true));
+});
+
+test('scena: błąd tła przy zmianie rozmiaru nie blokuje nowego kadru dioramy', () => {
+  const { root, sc } = fakeScene(SE.w, SE.h), g = new Company(null, { now: 1_700_000_000_000, rng: () => 0.5 }).layers.earth;
+  sc.render(g, true);
+  sc.backdrop = { resize() { throw new Error('Canvas odmówiony'); } };
+  Object.assign(root, { clientWidth: 400, clientHeight: 500 });
+  assert.doesNotThrow(() => sc.resize());
+  assert.equal(sc.layers.front.getAttribute('viewBox'), viewBoxAttr(frameFor(sc.bbox, { w: 400, h: 500 }, SE_INSETS)));
+  assert.equal(sc.layers.back.getAttribute('viewBox'), '0 0 400 500');
 });

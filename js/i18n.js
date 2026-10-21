@@ -57,7 +57,7 @@ const PL = {
   'prod.milestone': '{n}/{m} · kamień milowy ×2', 'prod.allMilestones': 'Wszystkie kamienie milowe!',
   'prod.release': 'Wydaj', 'prod.buy': 'Kup ×{n}', 'prod.requires': 'Wymaga technologii:', goResearch: 'Badania →',
 
-  'team.newFloor': 'Nowe piętro', 'team.openHint': 'Otwórz nowy dział — w budynku pojawi się kolejne piętro.',
+  'team.newFloor': 'Nowy budynek', 'team.openHint': 'Otwórz nowy dział — na wyspie stanie kolejny budynek.',
   'team.open': 'Otwórz dział', 'team.hireFirst': 'Zatrudnij pierwszą osobę!', 'team.milestone': '{n}/{m} · efekty ×{x}',
   'team.full': 'Pełna obsada!', 'team.hire': 'Zatrudnij ×{n}',
 
@@ -161,7 +161,7 @@ const PL = {
   'noun.modules': { one: 'moduł', few: 'moduły', many: 'modułów' },
 
   'toast.milestone': 'Kamień milowy: {name}', 'toast.milestoneText': 'Poziom {n} — przychód ×{x}',
-  'toast.newDept': 'Nowy dział: {name}', 'toast.newDeptText': 'W budynku pojawiło się nowe piętro!',
+  'toast.newDept': 'Nowy dział: {name}', 'toast.newDeptText': 'Na wyspie stanął nowy budynek!',
   'toast.deptMilestone': '{name}: {n} {noun}', 'toast.deptMilestoneText': 'Efekty działu ×{x}',
   'toast.researched': 'Odkryto: {name}',
   'bubble.viralText': 'Przychód ×7 przez {n} s', 'bubble.angelText': 'Inwestor wpłaca {v}',
@@ -190,7 +190,7 @@ const PL = {
   'w.tips': [
     '<b>Koduj</b> — stukaj w fioletowy przycisk, żeby zarobić pierwsze pieniądze.',
     '<b>Produkty</b> zarabiają same, nawet gdy gra jest zamknięta.',
-    '<b>Działy</b> to nowe piętra budynku i potężne bonusy.',
+    '<b>Działy</b> to nowe budynki na wyspie i potężne bonusy.',
     '<b>Badania</b> odblokowują kolejne technologie — od HTML po superinteligencję.',
     'Łap płonące <b>bąbelki</b> — to virale, inwestorzy i hackathony!',
   ],
@@ -547,7 +547,7 @@ const EN = {
   'prod.milestone': '{n}/{m} · milestone ×2', 'prod.allMilestones': 'Every milestone reached!',
   'prod.release': 'Launch', 'prod.buy': 'Buy ×{n}', 'prod.requires': 'Requires:', goResearch: 'Research →',
 
-  'team.newFloor': 'New floor', 'team.openHint': 'Open a new department and your building gets another floor.',
+  'team.newFloor': 'New building', 'team.openHint': 'Open a new department and another building goes up on your island.',
   'team.open': 'Open department', 'team.hireFirst': 'Make your first hire!', 'team.milestone': '{n}/{m} · effects ×{x}',
   'team.full': 'Fully staffed!', 'team.hire': 'Hire ×{n}',
 
@@ -651,7 +651,7 @@ const EN = {
   'noun.modules': { one: 'module', other: 'modules' },
 
   'toast.milestone': 'Milestone: {name}', 'toast.milestoneText': 'Level {n}: revenue ×{x}',
-  'toast.newDept': 'New department: {name}', 'toast.newDeptText': 'A new floor just went up on your building!',
+  'toast.newDept': 'New department: {name}', 'toast.newDeptText': 'A new building just went up on your island!',
   'toast.deptMilestone': '{name}: {n} {noun}', 'toast.deptMilestoneText': 'Department effects ×{x}',
   'toast.researched': 'Researched: {name}',
   'bubble.viralText': 'Revenue ×7 for {n}s', 'bubble.angelText': 'An investor wires you {v}',
@@ -680,7 +680,7 @@ const EN = {
   'w.tips': [
     '<b>Code</b>: tap the purple button to earn your first dollars.',
     '<b>Products</b> make money on their own, even when the game is closed.',
-    '<b>Departments</b> add floors to your building and powerful bonuses.',
+    '<b>Departments</b> add buildings to your island and powerful bonuses.',
     '<b>Research</b> unlocks new technology, from HTML all the way to superintelligence.',
     'Catch the glowing <b>bubbles</b>: viral hits, angel investors and hackathons!',
   ],

@@ -1,6 +1,6 @@
 // Diorama etapu: model ze stanu gry i budowa warstw SVG (statycznej i animowanej) z oprawy etapu.
 import { TW, iso } from './iso.js';
-import { CREW, MAX_ANIM, tierFor, budget, assemble, emblem, emblemCenter, person, pumpkin, xmasTree, stringLights, seeded } from './parts.js';
+import { CREW, MAX_ANIM, ER, tierFor, budget, assemble, emblem, emblemCenter, spot, person, pumpkin, xmasTree, stringLights, seeded } from './parts.js';
 import { PLACES, island } from './island.js';
 import { layout } from './layout.js';
 import { LAYERS } from '../layers.js';
@@ -29,20 +29,15 @@ export function newIds(known, stage, ids) {
 // Oprawa etapów.
 export const STAGE_ART = { earth: EARTH_ART, space: SPACE_ART, galaxy: GALAXY_ART, universe: UNIVERSE_ART };
 
-const R = 12;    // promień emblematu (czytelny na iPhonie SE)
 const PS = 0.45; // skala postaci
 // Kolejność rysowania: najpierw to, co stoi niżej (działka na kadłubie po kadłubie), potem od tyłu ku przodowi.
 const depth = (r) => r.gx + r.gy + (r.w + r.d) / 2;
-// j-ta z k postaci stoi na ścieżce tuż przed przednimi ścianami obrysu r (na jego wysokości gz); oprawa etapu może to
-// zmienić hookiem art.spot(r, j, k) (np. gdy budynki stoją ciasno i ścieżkę zasłania sąsiad): [gx, gy] stawia postać na
-// wysokości r.gz, a [gx, gy, gz] na bezwzględnej wysokości gz (r.gz pominięte). Samą postać zmienia hook
-// art.figure(x, y, rnd, s, delay, suit) zamiast person (świetliste drobiny Wszechświata).
-const spot = (r, j, k) => {
-  const u = 1 - (Math.floor(j / 2) + 0.5) / Math.ceil(k / 2);
-  return j % 2 ? [r.gx + r.w * u, r.gy + r.d + 0.22] : [r.gx + r.w + 0.22, r.gy + r.d * u];
-};
 
-// Wyspa, extras.back, budynki od tyłu (ludzie i ozdoby świąt zaraz po swoim), extras.svg, na końcu emblematy.
+// Wyspa, extras.back, budynki od tyłu (ludzie i ozdoby świąt zaraz po swoim), extras.svg, na końcu emblematy o promieniu ER.
+// j-ta z k postaci stoi w miejscu spot(r, j, k) z parts.js (ścieżka przed przednimi ścianami, na wysokości r.gz); oprawa
+// etapu może to zmienić hookiem art.spot(r, j, k) (np. gdy budynki stoją ciasno i ścieżkę zasłania sąsiad): [gx, gy]
+// stawia postać na wysokości r.gz, a [gx, gy, gz] na bezwzględnej wysokości gz (r.gz pominięte). Samą postać zmienia hook
+// art.figure(x, y, rnd, s, delay, suit) zamiast person (świetliste drobiny Wszechświata).
 export function buildDiorama(model) {
   const { stage, env, light, depts } = model, art = STAGE_ART[stage], n = depts.length, earth = stage === 'earth';
   // Działka = pozycja działu w DEPTS (0 = rdzeń): odblokowanie poza kolejnością nic nie przesuwa.
@@ -71,7 +66,7 @@ export function buildDiorama(model) {
     .sort((a, b) => a.r.gz - b.r.gz || depth(a.r) - depth(b.r))
     .map((o) => ({ ...o, a: assemble(o.parts, { at: [o.r.gx, o.r.gy, o.r.gz], palette: art.palette, accent: o.d.color, light, lit: CREW[o.d.tier].lit, snow: env.snowCover, seed: o.seed, company: model.company, budget: bud }) }));
   // Koła emblematów są znane przed extras, bo warstwa animacji (pojazdy) leży nad nimi.
-  const marks = items.map(({ d, a }) => { const [x, y] = emblemCenter(a.anchor, R); return { id: d.id, x, y, r: R }; });
+  const marks = items.map(({ d, a }) => { const [x, y] = emblemCenter(a.anchor, ER); return { id: d.id, x, y, r: ER }; });
   // extras: back pod budynkami, svg nad nimi, anim z budżetu przed postaciami, box powiększa kadr.
   const ex = { back: '', svg: '', anim: [], decor: [], vehicles: 0, people: 0, ...art.extras?.(model, lay, marks) };
   take(ex.anim);
@@ -97,9 +92,9 @@ export function buildDiorama(model) {
   // Emblematy na wierzchu.
   const lots = items.map(({ d, r, a }, i) => {
     const { x, y } = marks[i];
-    grow([x - R - 2, y - R - 2, x + R + 2, y]);
-    front += emblem(d, a.anchor, R);
-    return { id: d.id, emblem: { x, y, r: R }, box: a.box, foot: (r.w + r.d) * TW / 2 };
+    grow([x - ER - 2, y - ER - 2, x + ER + 2, y]);
+    front += emblem(d, a.anchor, ER);
+    return { id: d.id, emblem: { x, y, r: ER }, box: a.box, foot: (r.w + r.d) * TW / 2 };
   });
   const elements = (front.match(/<(?!\/)[a-zA-Z]/g) || []).length;
   return {

@@ -1,7 +1,7 @@
 // Kosmos: rdzeń (inżynierowie) rośnie z działami: kapsuła → węzeł → stacja; wokół moduły działów, rakiety rund i łazik.
 // Na wyspach z powierzchnią stacja stoi na nogach lądownika, na platformie i aerostacie jest przycumowana do pokładu.
 // Części od rogu obrysu 2,5 × 2,5 (środek K); działki przed rdzeniem z emblematami zasłaniają dół, więc tabliczka jest wysoko.
-import { PALETTES, SIDE_ART, drive } from './parts.js';
+import { PALETTES, SIDE_ART, B, C, S, L, F, when, drive } from './parts.js';
 import { iso, pt } from './iso.js';
 import { PLACES } from './island.js';
 
@@ -11,8 +11,6 @@ const coreForm = (n) => (n > 4 ? 'station' : n > 1 ? 'hub' : 'capsule');
 const top = (n, r) => (n > 4 ? 5.4 + 0.08 * n : 4.7 + 0.15 * n) + (r > 3) * 0.3;
 const coreFoot = (n, r) => ({ w: 2.5, d: 2.5, h: n > 1 ? top(n, r) : 3 });
 
-const B = (...a) => ['box', ...a], C = (...a) => ['cyl', ...a], S = (z) => ['sign', 0.5, 0.5, z], L = (...a) => ['strut', ...a];
-const F = 'flush', when = (on, parts) => (on ? parts : []);
 const dot = (x, y, z) => ['glow', x, y, z, 0.04, 'crystal']; // bursztynowe światło modułu
 const surfaceOf = (m) => (PLACES[m.view] ?? PLACES.waw).base === 'island';
 // Walec z pasów [wysokość, materiał, flagi] jeden na drugim, bez własnych cieni (pas w akcencie lekko wystaje);
@@ -52,7 +50,8 @@ const FORMS = {
     ['label', K + 1.7, K + 1.7, 0.05, 3.4, 24], ...when(o.wing && s, [['panel', K - 1.3, K + 0.35, 0.05, 0.8, 0.55], ['panel', K + 0.35, K - 1.3, 0.05, 0.55, 0.8]]),
     ...when(o.torus, [['ring', K, K, 0.1, 1.1, 'wall2', 'flat']]),
   ],
-  // Węzeł i stacja: moduł centralny na podstawie, port z boku, węzeł z anteną na szczycie; stacja ma skrzydła paneli.
+  // Węzeł i stacja: moduł centralny na podstawie, port z boku, węzeł z anteną na szczycie (z prawej, niska: lampka obok
+  // emblematu, nie na nim); stacja ma skrzydła paneli.
   hub: (o, s, n, r) => {
     const T = top(n, r), q = R(n), z0 = s ? 0.55 : 0.3, k = (n > 4 ? Math.min(3, Math.ceil(n / 3)) : 0) + !!o.wing, [back, front] = base(s, z0, q);
     return [
@@ -61,7 +60,7 @@ const FORMS = {
       B(K + q - 0.1, K - 0.22, T - 1.6, 0.45, 0.44, 0.44, 'metal', F), ['ring', K + q + 0.35, K, T - 1.38, 0.18, 'accent', 'upright'],
       dot(K + q * 0.7, K + q * 0.7, z0 + 0.8), dot(K + q * 0.7, K + q * 0.7, T - 0.6),
       ...when(o.torus, [['ring', K, K, T, q + 0.75, 'wall2', 'flat'], ['ring', K, K, T + 0.12, q + 0.75, 'wall', 'flat']]),
-      C(K, K, T, 0.38, 0.45, 'metal'), ['ring', K, K, T + 0.45, 0.24, 'accent', 'flat'], ['mast', K + 0.12, K - 0.12, T + 0.45, 0.9],
+      C(K, K, T, 0.38, 0.45, 'metal'), ['ring', K, K, T + 0.45, 0.24, 'accent', 'flat'], ['mast', K + 0.25, K - 0.25, T + 0.45, 0.7],
       ['label', K + 0.6, K + 0.6, 4.45, 3.4, 24], ['sign', K, K, T + 1],
     ];
   },
@@ -88,9 +87,10 @@ function core(m, lay) {
 // Moduły działów na działce 1×1, emblemat ≤ 3 poziomy. W kolumnie ekranu (tylny/przedni: robots/medics, logistics/spacelaw,
 // mission/miners, astronauts/terraformers) emblemat przedniego zasłania środek tylnego, więc tylne mają wyróżnik u góry.
 const DEPTS = {
-  // Centrum łączności: moduł z oknami, duża czasza na trzpieniu, mała czasza i maszt.
+  // Centrum łączności: moduł z oknami, duża czasza na trzpieniu, mała czasza i maszt w lewym rogu dachu (z tylnego
+  // rogu lampka migała na emblemacie).
   mission: [B(0.1, 0.12, 0, 0.8, 0.76, 1.8, 'wall', 'win'), B(0.08, 0.1, 1.8, 0.84, 0.8, 0.12, 'accent'), C(0.7, 0.3, 1.92, 0.07, 0.35, 'metal'),
-    ['dish', 0.7, 0.3, 2.27, 0.3], ['dish', 0.3, 0.72, 1.92, 0.2], ['mast', 0.22, 0.22, 1.92, 1], dot(0.5, 0.88, 1.2), S(2.75)],
+    ['dish', 0.7, 0.3, 2.27, 0.3], ['dish', 0.3, 0.72, 1.92, 0.2], ['mast', 0.14, 0.86, 1.92, 1], dot(0.5, 0.88, 1.2), S(2.75)],
   // Habitat: walec z pasem i śluzą, kopuła obserwacyjna na szczycie.
   astronauts: [shade(0.5, 0.5, 0.42, 2.15), ...stack(0.5, 0.5, 0, 0.42, [[0.3, 'wall'], [0.14, 'accent'], [1.46, 'wall', 'win'], [0.25, 'wall2']]), B(0.38, 0.9, 0, 0.24, 0.04, 0.44, 'dark', F),
     ['dome', 0.5, 0.5, 2.15, 0.32, 'glass'], dot(0.8, 0.8, 1.6), S(2.8)],
