@@ -295,6 +295,7 @@ test('parts: grafika przeniesiona ze sceny zwraca poprawny SVG bez efektów uboc
   l.blink.forEach(checkSvg);
   assert.ok(!l.svg.includes('blink'));
   for (const k of ['car', 'rover']) assert.ok(checkSvg(`<g>${SIDE_ART[k]('#ff0000')}</g>`).elements >= 5 && !SIDE_ART[k]('#ff0000').includes('class='), k);
+  assert.ok(checkSvg(`<g>${SIDE_ART.shuttle()}</g>`).elements >= 4 && !SIDE_ART.shuttle().includes('class='), 'shuttle');
   assert.ok(SIDE_ART.car('#12ab34').includes('#12ab34'));
   const a = seeded(9), b = seeded(9);
   assert.deepEqual([a(), a()], [b(), b()]);
@@ -903,6 +904,99 @@ test('space: każdy moduł działu ma okna, które nocą świecą według progu 
     assert.equal(glow(parts, 0), 0, `${id}: przy udziale 0 nic nie świeci`);
     assert.ok(glow(parts, 1) >= 2, `${id}: przy pełnej obsadzie świeci ${glow(parts, 1)} okien`);
   }
+});
+
+// --- Galaktyka: prom → statek-matka w doku (Zadanie 11) ---
+
+const GX = () => STAGE_ART.galaxy;
+// Galaktyka z n pierwszymi działami w widoku view (domyślnie siedziba), bez rund i świąt.
+const galaxyModel = (n, o = {}) => {
+  const view = o.view ?? LAYERS.galaxy.HQ, m = maxModel('galaxy', { env: { ...ENV, season: 'space' }, light: recipeFor(view).light({}), rounds: 0, ...o });
+  return { ...m, depts: m.depts.slice(0, n) };
+};
+
+test('galaxy: forma rdzenia; kadłub rośnie z działami', () => {
+  assert.deepEqual([1, 2, 4, 9].map((n) => GX().coreForm(n)), ['shuttle', 'mothership', 'mothership', 'mothership']);
+  // Kadłub wydłuża się o segment z każdym działem; rufa z mostkiem (emblemat rdzenia) stoi w miejscu, więc rośnie dziobem.
+  let prev = null;
+  for (let n = 2; n <= 9; n++) {
+    const { box: b, emblem } = buildDiorama(galaxyModel(n)).lots.find((l) => l.id === 'navigators');
+    if (prev) {
+      assert.ok(b[2] - b[0] > prev.b[2] - prev.b[0], `n=${n}: szerokość ${b[2] - b[0]} ≤ ${prev.b[2] - prev.b[0]}`);
+      assert.deepEqual(emblem, prev.emblem, `n=${n}: mostek na rufie w miejscu`);
+    }
+    prev = { b, emblem };
+  }
+  // Gondole napędu (z poświatą dysz) od n ≥ 4.
+  const glows = (n) => GX().core(galaxyModel(n), layout('galaxy', n, 0, GX().coreFoot(n, 0))).parts.filter((p) => p[0] === 'glow' && p[4] >= 0.06).length;
+  assert.ok(glows(4) > glows(3) && glows(3) === glows(2), `poświaty: ${[2, 3, 4].map(glows)}`);
+});
+
+test('galaxy: każdy dział ma własną nadbudówkę na kadłubie z jednym emblematem, nadbudówki się różnią', () => {
+  const depts = GX().depts, top = (p) => (p[0] === 'strut' ? Math.max(p[3], p[6]) : p[3] + ({ box: p[6], pyr: p[6], gable: p[6], cyl: p[5], dome: p[4], mast: p[4] }[p[0]] ?? 0));
+  assert.deepEqual(Object.keys(depts).sort(), LAYERS.galaxy.DEPTS.slice(1).map((d) => d.id).sort());
+  for (const [id, parts] of Object.entries(depts)) {
+    assert.equal(parts.filter((p) => p[0] === 'sign').length, 1, `${id}: jeden sign`);
+    assert.ok(Math.max(...parts.map(top)) <= LOT_MAX_H.galaxy, `${id}: nadbudówka i emblemat na wysokości ≤ ${LOT_MAX_H.galaxy}`);
+    assert.ok(parts.some((p) => p.includes('accent')), `${id}: akcent w kolorze działu`);
+    assert.ok(parts.some((p) => p.some((v) => typeof v === 'string' && /\bwin\b/.test(v))), `${id}: okna`);
+  }
+  assert.equal(new Set(Object.values(depts).map((p) => JSON.stringify(p))).size, 8);
+  // Pokłady stoją na kadłubie (gz = wysokość kadłuba), a kadłub rysuje się przed nimi.
+  const hull = GX().coreFoot(9, 8).h;
+  assert.ok(hull > 0 && SLOTS.galaxy.every((s) => s.gz === hull), 'działki na wysokości kadłuba');
+  assert.equal(buildDiorama(maxModel('galaxy')).lots[0].id, 'navigators', 'kadłub przed pokładami');
+  // Załoga pokładu stoi na kadłubie, przy przedniej krawędzi działki (a nie na doku pod nim).
+  const m = galaxyModel(2), d = buildDiorama({ ...m, depts: [{ ...m.depts[0], tier: 0 }, { ...m.depts[1], tier: 5 }] });
+  const feet = [...(d.front + d.frontAnim).matchAll(/translate\(([-\d.]+) ([-\d.]+)\) scale\(0\.45\)">(?:<g [^>]*>)?<rect x="-5" y="-15"/g)].map((x) => +x[2]);
+  const astro = d.lots.find((l) => l.id === 'astro').box;
+  assert.ok(feet.length === CREW[5].people && feet.every((y) => y < astro[3] + 8), `stopy ${feet} przy dolnej krawędzi ${astro[3]}`);
+});
+
+test('galaxy: ozdoby rund', () => {
+  const orn = (rounds, n = 9) => buildDiorama(galaxyModel(n, { rounds })).stats.ornaments;
+  assert.deepEqual(orn(0), []);
+  assert.deepEqual([...orn(8)].sort(), ['beacons', 'drones', 'escort', 'nacelles', 'ring']);
+  assert.deepEqual([...orn(3)].sort(), ['beacons', 'escort', 'ring']);
+  for (const n of [1, 3, 6]) assert.equal(orn(8, n).length, 5, `n=${n}`);
+  // Każdy próg rund coś dokłada do obrazu (także przy promie).
+  for (const n of [1, 3, 9]) assert.equal(new Set([0, 1, 2, 3, 5, 8].map((rounds) => buildDiorama(galaxyModel(n, { rounds })).front)).size, 6, `n=${n}`);
+});
+
+test('galaxy: brak zastępczej dioramy', () => {
+  assert.ok(!GX().placeholder);
+  for (const d of LAYERS.galaxy.DEPTS.slice(1)) assert.notEqual(GX().depts[d.id], GENERIC.galaxy.depts[d.id], d.id);
+  assert.notEqual(GX().core, GENERIC.galaxy.core);
+});
+
+test('galaxy: promy wzdłuż krawędzi doku, załoga w mundurach w barwie palety, każdy widok czytelny na SE', () => {
+  const build = (view, o) => buildDiorama(galaxyModel(9, { view, ...o }));
+  for (const { id } of LAYERS.galaxy.OFFICES) {
+    const d = build(id, { rounds: 8 });
+    assert.ok(d.frontAnim.includes('class="car"') && d.stats.vehicles >= 1, `${id}: prom (${d.stats.vehicles})`);
+    for (const rounds of [0, 8]) assertSE(build(id, { rounds }), `galaxy/${id} r=${rounds}`);
+  }
+  assert.ok(buildDiorama(galaxyModel(9, { rounds: 8 })).stats.vehicles > buildDiorama(galaxyModel(2)).stats.vehicles, 'więcej promów przy większej flocie');
+  const d = build('sol'), suits = [...(d.front + d.frontAnim).matchAll(/scale\(0\.45\)">(?:<g [^>]*>)?<rect x="-5" y="-15"[^>]* fill="([^"]+)"/g)].map((x) => x[1]);
+  assert.ok(suits.length === d.stats.people && suits.length > 20 && new Set(suits).size === 1, `mundury: ${new Set(suits).size} barw`);
+  assert.ok(Object.values(PALETTES.galaxy).includes(suits[0]), `mundur w barwie palety (${suits[0]})`);
+});
+
+test('galaxy: cień statku, promu i radiolatarni leży na doku (każdy widok, każde n), dziób na boku nie ma własnego cienia', () => {
+  for (const { id: view } of LAYERS.galaxy.OFFICES) for (let n = 1; n <= 9; n++) {
+    const m = galaxyModel(n, { view, rounds: 8 }), lay = layout('galaxy', n, 8, GX().coreFoot(n, 8)), hs = lay.size / 2;
+    // Cienie na płaszczyźnie doku: części 'shadow' (prostokąt; statek i prom mają własny) i walce (kwadrat wpisany), przesunięte o shadowOffset.
+    const flat = GX().core(m, lay).parts.filter((q) => q[3] < 0.1 && ((q[0] === 'shadow' && q[6]) || (q[0] === 'cyl' && q[4] >= 0.06)));
+    assert.ok(flat.some((q) => q[0] === 'shadow'), `${view} n=${n}: cień statku lub promu na doku`);
+    for (const p of flat) {
+      const c = p[0] === 'cyl', [w, d] = c ? [1.4 * p[4], 1.4 * p[4]] : [p[4], p[6]], x = lay.core.gx + p[1] - c * 0.7 * p[4], y = lay.core.gy + p[2] - c * 0.7 * p[4];
+      const [dx, dy] = shadowOffset(m.light, p[5]), sx = dx / 40 + dy / 20, sy = dy / 20 - dx / 40;
+      const box = [x + Math.min(0, sx), y + Math.min(0, sy), x + w + Math.max(0, sx), y + d + Math.max(0, sy)];
+      assert.ok(box.every((v) => Math.abs(v) <= hs + 1e-9), `${view} n=${n}: cień ${p[0]} ${box.map((v) => v.toFixed(2))} poza dokiem ±${hs}`);
+    }
+  }
+  const nose = assemble([['pyr', 0, 0, 1, 1.5, 2, 1, 'metal', 'x flush']], CTX()), shaded = assemble([['pyr', 0, 0, 1, 1.5, 2, 1, 'metal', 'x']], CTX());
+  assert.ok(!nose.svg.includes('#0b1020') && shaded.svg.includes('#0b1020') && nose.svg === shaded.svg.replace(/<path[^>]*#0b1020[^>]*\/>/, ''));
 });
 
 test('sw.js: pamięć offline zawiera każdy moduł dioram (poza galerią)', () => {

@@ -6,10 +6,12 @@
 const grid = (at, cells) => cells.map(([i, j]) => ({ gx: at[i], gy: at[j], w: 1, d: 1 }));
 const EARTH = grid([-3.5, -2, -0.5, 1, 2.5], [[3, 2], [2, 3], [3, 1], [1, 3], [4, 2], [2, 4], [3, 0], [0, 3], [4, 1], [1, 4], [4, 3], [3, 4]]);
 const SMALL = grid([-2.75, -1.25, 0.25, 1.75], [[2, 1], [1, 2], [2, 0], [0, 2], [3, 1], [1, 3], [3, 2], [2, 3]]);
+// Galaktyka: pokłady na kadłubie statku (gz = jego wysokość) w zygzaku wzdłuż osi x, od rufy co 0,6 kafelka, na zmianę z tyłu i z przodu.
+const GALAXY = [-2.6, -2, -1.4, -0.8, -0.2, 0.4, 1, 1.6].map((gx, i) => ({ gx, gy: i % 2 ? -0.1 : -1.5, gz: 2, w: 1, d: 1 }));
 
-export const SLOTS = { earth: EARTH, space: SMALL, galaxy: SMALL, universe: SMALL };
+export const SLOTS = { earth: EARTH, space: SMALL, galaxy: GALAXY, universe: SMALL };
 // Środek obrysu rdzenia.
-export const CORE_AT = { earth: { gx: -1, gy: -1 }, space: { gx: -1.5, gy: -1.5 }, galaxy: { gx: -1.5, gy: -1.5 }, universe: { gx: -1.5, gy: -1.5 } };
+export const CORE_AT = { earth: { gx: -1, gy: -1 }, space: { gx: -1.5, gy: -1.5 }, galaxy: { gx: 0, gy: -0.225 }, universe: { gx: -1.5, gy: -1.5 } };
 export const LOT_MAX_H = { earth: 3, space: 3, galaxy: 3, universe: 3 };
 
 const MARGIN = 0.25; // trawa między obrysem a brzegiem wyspy

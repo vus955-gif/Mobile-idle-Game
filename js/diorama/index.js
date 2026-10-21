@@ -6,6 +6,7 @@ import { layout, LOT_MAX_H } from './layout.js';
 import { LAYERS, LAYER_ORDER } from '../layers.js';
 import { EARTH_ART } from './earth.js';
 import { SPACE_ART } from './space.js';
+import { GALAXY_ART } from './galaxy.js';
 
 // Odblokowane działy w kolejności DEPTS z progiem obsady; rundy do 8.
 export function modelFor(game, { view, env, light, isNew = () => false }) {
@@ -40,13 +41,14 @@ export const GENERIC = Object.fromEntries(LAYER_ORDER.map((id) => {
   }];
 }));
 
-// Oprawa etapów; pozostałe etapy na razie zastępcze.
-export const STAGE_ART = { earth: EARTH_ART, space: SPACE_ART, galaxy: GENERIC.galaxy, universe: GENERIC.universe };
+// Oprawa etapów; Wszechświat na razie zastępczy.
+export const STAGE_ART = { earth: EARTH_ART, space: SPACE_ART, galaxy: GALAXY_ART, universe: GENERIC.universe };
 
 const R = 12;    // promień emblematu (czytelny na iPhonie SE)
 const PS = 0.45; // skala postaci
+// Kolejność rysowania: najpierw to, co stoi niżej (działka na kadłubie po kadłubie), potem od tyłu ku przodowi.
 const depth = (r) => r.gx + r.gy + (r.w + r.d) / 2;
-// j-ta z k postaci stoi na ścieżce tuż przed przednimi ścianami obrysu r.
+// j-ta z k postaci stoi na ścieżce tuż przed przednimi ścianami obrysu r (na jego wysokości gz).
 const spot = (r, j, k) => {
   const u = 1 - (Math.floor(j / 2) + 0.5) / Math.ceil(k / 2);
   return j % 2 ? [r.gx + r.w * u, r.gy + r.d + 0.22] : [r.gx + r.w + 0.22, r.gy + r.d * u];
@@ -78,7 +80,7 @@ export function buildDiorama(model) {
     return pumpkin(...at(c.w + 0.45, c.d + 0.2), 0.6) + pumpkin(...at(c.w + 0.2, c.d + 0.45), 0.6);
   };
   const items = depts.map((d, i) => { const p = pos[i]; return { d, r: p ? lay.lots[p - 1] : lay.core, parts: p ? art.depts[d.id] : core.parts, seed: p + 1 }; })
-    .sort((a, b) => depth(a.r) - depth(b.r))
+    .sort((a, b) => a.r.gz - b.r.gz || depth(a.r) - depth(b.r))
     .map((o) => ({ ...o, a: assemble(o.parts, { at: [o.r.gx, o.r.gy, o.r.gz], palette: art.palette, accent: o.d.color, light, lit: CREW[o.d.tier].lit, snow: env.snowCover, seed: o.seed, company: model.company, budget: bud }) }));
   // Koła emblematów są znane przed extras, bo warstwa animacji (pojazdy) leży nad nimi.
   const marks = items.map(({ d, a }) => { const [x, y] = emblemCenter(a.anchor, R); return { id: d.id, x, y, r: R }; });
@@ -99,7 +101,7 @@ export function buildDiorama(model) {
     const later = items.slice(k + 1).map((o) => o.a.box), crew = (r === lay.core ? core.people : null) ?? CREW[d.tier].people;
     const h = Math.imul(seed, 2654435761), rnd = seeded(h ^ (h >>> 15));
     for (let j = 0; j < crew; j++, people++) {
-      const [x, y] = iso(...spot(r, j, crew)), hid = later.some((b) => b[0] < x + 3 && b[2] > x - 3 && b[1] < y && b[3] > y - 11);
+      const [x, y] = iso(...spot(r, j, crew), r.gz), hid = later.some((b) => b[0] < x + 3 && b[2] > x - 3 && b[1] < y && b[3] > y - 11);
       if (!hid && bud.take()) anim.push(person(x, y, rnd, PS, (seed * 0.29 + j * 0.37) % 1.6, art.suit)); else front += person(x, y, rnd, PS, undefined, art.suit);
     }
   });

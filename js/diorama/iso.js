@@ -96,8 +96,13 @@ export function box(b, t, { rim = true, faces = 'lrt' } = {}) {
 }
 
 // Ostrosłup / dach czterospadowy: romb podstawy w tonie góry (widoczny tylko przy niskim szczycie) i dwie ściany z przodu.
-export function pyr(b, t) {
+// axis 'x' kładzie go na boku (dziób): podstawa to ściana x = gx, szczyt w (gx + w, środek, pół wysokości); widać wierzch i lewy bok.
+export function pyr(b, t, axis) {
   const { gx, gy, gz = 0, w, d, h } = b;
+  if (axis === 'x') {
+    const a = iso(gx + w, gy + d / 2, gz + h / 2), q = iso(gx, gy + d, gz + h);
+    return poly([iso(gx, gy, gz + h), q, a], t.top) + poly([q, iso(gx, gy + d, gz), a], t.left);
+  }
   const top = iso(gx, gy, gz), r = iso(gx + w, gy, gz), f = iso(gx + w, gy + d, gz), l = iso(gx, gy + d, gz);
   const apex = iso(gx + w / 2, gy + d / 2, gz + h);
   return poly([top, r, f, l], t.top) + poly([l, f, apex], t.left) + poly([f, r, apex], t.right);
@@ -137,13 +142,14 @@ export function dome({ gx, gy, gz = 0, r }, t) {
 }
 
 // Pierścień o środku (gx, gy): pose 'flat' leży na ziemi (krąg, halo), 'upright' stoi w płaszczyźnie x–z (portal).
-// Dwie kreski: szeroka w tonie lewym i węższa w tonie góry, co daje wrażenie grubości.
-export function ring({ gx, gy, gz = 0, r }, t, pose) {
+// Dwie kreski: szeroka w tonie lewym i węższa w tonie góry, co daje wrażenie grubości. Stojący z u = −1 leży w płaszczyźnie
+// y–z (obręcz wokół kadłuba wzdłuż x), a v to jego pionowa półoś w jednostkach rysunku.
+export function ring({ gx, gy, gz = 0, r }, t, pose, { u = 1, v = r * RZ } = {}) {
   const [cx, cy] = iso(gx, gy, gz);
   const stroke = (el) => `${el} fill="none" stroke="${t.left}" stroke-width="3.2"/>${el} fill="none" stroke="${t.top}" stroke-width="1.4"/>`;
   if (pose === 'flat') return stroke(`<ellipse cx="${n(cx)}" cy="${n(cy)}" rx="${n(r * RX)}" ry="${n(r * RY)}"`);
   // Okrąg stojący to obraz afiniczny okręgu: cztery krzywe Béziera po sprzężonych średnicach (u w prawo-dół, v w górę).
-  const k = 0.5523, ux = r * TW / 2, uy = r * TH / 2, vy = -r * RZ;
+  const k = 0.5523, ux = u * r * TW / 2, uy = r * TH / 2, vy = -v;
   const P = (a, b) => `${n(cx + a * ux)} ${n(cy + a * uy + b * vy)}`;
   const d = `M${P(1, 0)}C${P(1, k)} ${P(k, 1)} ${P(0, 1)}C${P(-k, 1)} ${P(-1, k)} ${P(-1, 0)}`
     + `C${P(-1, -k)} ${P(-k, -1)} ${P(0, -1)}C${P(k, -1)} ${P(1, -k)} ${P(1, 0)}Z`;

@@ -70,16 +70,18 @@ export function assemble(parts, ctx) {
     const tops = (list) => { for (const [u, v, e] of list) grow(...P(x + u, y + v, z + e)); };
     const sq = (h) => ({ gx: gx - 0.7 * r, gy: gy - 0.7 * r, gz, w: 1.4 * r, d: 1.4 * r, h }); // kwadrat wpisany w okrąg
     if (kind === 'box' || kind === 'pyr' || kind === 'gable') {
-      const [, , , , w, d, h, m, extra = ''] = part, b = { gx, gy, gz, w, d, h }, t = tone(m);
+      // ax: pierwsze słowo flag to oś dachu (gable) albo ostrosłupa na boku (pyr 'x', np. 'x flush' — dziób bez własnego cienia).
+      const [, , , , w, d, h, m, extra = ''] = part, b = { gx, gy, gz, w, d, h }, t = tone(m), ax = extra.split(' ')[0];
       const ledge = kind === 'box' && extra.includes('ledge'), pd = ledge ? 0.08 : 0;
       // Cienki detal na ścianie ('flush', grubość ≤ 0,05): tylko ściana widoczna od frontu, bez wierzchu i kreski krawędzi.
       const thin = extra.includes('flush') && Math.min(w, d) <= 0.05 && { rim: false, faces: Math.max(w, d) <= 0.05 ? 'lr' : d < w ? 'l' : 'r' };
       if (!extra.includes('flush')) svg += shadow(b, light);
       if (kind === 'box') svg += box(b, t, thin || {}) + (extra.includes('win') ? wins(b, i, (thin || {}).faces) : ''); // cienki: okna tylko na jego ścianie
-      else svg += kind === 'pyr' ? pyr(b, t) : gable(b, t, extra);
+      else svg += (kind === 'pyr' ? pyr : gable)(b, t, ax);
       if (ledge) svg += box({ gx: gx - pd, gy: gy - pd, gz: gz + h - 0.25, w: w + 2 * pd, d: d + 2 * pd, h: 0.25 }, paint(mixRgb(col(m), [255, 255, 255], 0.25), m), { rim: false });
       if (kind === 'box') tops(cub(w, d, h, pd));
-      else tops([...cub(w, d, 0), ...(kind === 'pyr' ? [[w / 2, d / 2, h]] : extra === 'x' ? [[0, d / 2, h], [w, d / 2, h]] : [[w / 2, 0, h], [w / 2, d, h]])]);
+      else if (kind === 'pyr' && ax === 'x') tops([[0, 0, h], [0, d, h], [0, d, 0], [w, d / 2, h / 2]]); // dziób na boku
+      else tops([...cub(w, d, 0), ...(kind === 'pyr' ? [[w / 2, d / 2, h]] : ax === 'x' ? [[0, d / 2, h], [w, d / 2, h]] : [[w / 2, 0, h], [w / 2, d, h]])]);
     } else if (kind === 'cyl') {
       const [, , , , , h, m, extra = ''] = part, [cx, yb] = P(x, y, z), yt = P(x, y, z + h)[1];
       // Cienki walec (kolumna, rura, r < 0,06) i walec 'flush' (pas na innym walcu) bez cienia.
@@ -90,8 +92,9 @@ export function assemble(parts, ctx) {
       svg += shadow(sq(rx / LV), light) + dome({ gx, gy, gz, r }, tone(part[5]));
       grow(cx - rx, cy - rx, cx + rx, cy + rx / 2);
     } else if (kind === 'ring') {
-      const [cx, cy] = P(x, y, z), flat = part[6] === 'flat', rx = flat ? r * RX : r * TW / 2, ry = flat ? r * RX / 2 : r * RX;
-      svg += ring({ gx, gy, gz, r }, tone(part[5]), part[6]);
+      // part[7]: opcje stojącego pierścienia (u, v jak w iso.ring); v rozciąga prostokąt w pionie.
+      const [cx, cy] = P(x, y, z), flat = part[6] === 'flat', o = part[7], rx = flat ? r * RX : r * TW / 2, ry = flat ? r * RX / 2 : o ? o.v + r * TW / 4 : r * RX;
+      svg += ring({ gx, gy, gz, r }, tone(part[5]), part[6], o);
       grow(cx - rx, cy - ry, cx + rx, cy + ry);
     } else if (kind === 'dish') {
       const t = tone('metal'), [cx, cy] = P(x, y, z), R = r * RX, dy = r1(cy - 1.3 * R), c = `${cx} ${dy}`;
@@ -134,8 +137,10 @@ export function assemble(parts, ctx) {
       const [, , , , x2, y2, z2, m, sw = 1.6] = part, a = P(x, y, z), b = P(x2, y2, z2);
       svg += `<path d="M${a.join(' ')}L${b.join(' ')}" stroke="${tone(m).left}" stroke-width="${sw}" stroke-linecap="round"/>`;
       grow(Math.min(a[0], b[0]) - 1, Math.min(a[1], b[1]) - 1, Math.max(a[0], b[0]) + 1, Math.max(a[1], b[1]) + 1);
-    } else if (kind === 'shadow') svg += shadow(sq(part[5]), light); // sam cień walca r o wysokości part[5] na płaszczyźnie z (np. pod nogami)
-    else if (kind === 'sign') anchor = P(x, y, z);
+    } else if (kind === 'shadow') {
+      // Sam cień bryły o wysokości part[5] na płaszczyźnie z: walca r (np. pod nogami) albo prostokąta r × part[6] od rogu (x, y).
+      svg += shadow(part[6] ? { gx, gy, gz, w: r, d: part[6], h: part[5] } : sq(part[5]), light);
+    } else if (kind === 'sign') anchor = P(x, y, z);
     else throw new TypeError(`assemble: nieznana część „${kind}”`);
   }
   const fin = bb[0] === Infinity ? [0, 0, 0, 0] : [Math.floor(bb[0]), Math.floor(bb[1]), Math.ceil(bb[2]), Math.ceil(bb[3])];
@@ -167,10 +172,11 @@ export function drive({ gx, gy, gz = 0, axis, len }, art, { dur, delay, id }) {
     + `<g class="car" style="animation-duration:${dur}s;animation-delay:${delay}s">${art}</g></g>`;
 }
 
-// Pojazdy z boku bez opakowania: grunt w y = 0, początek w x = 0 (auto 34 × 17, łazik 28 × 23).
+// Pojazdy z boku bez opakowania: grunt w y = 0, początek w x = 0 (auto 34 × 17, łazik 28 × 23, prom 33 × 9 w zawisie).
 export const SIDE_ART = {
   car: (color = '#ff6b6b') => `<rect x="0" y="-9" width="34" height="9" rx="3" fill="${color}"/><path d="M7 -9 l4 -6 h11 l5 6z" fill="${color}"/><path d="M12 -14 h4.5 v4.5 h-7.5z M18 -14 h3.6 l3.2 4.5 h-6.8z" fill="#cfe9ff" opacity=".85"/><circle cx="8" cy="0" r="3.2" fill="#1d1f2e"/><circle cx="26" cy="0" r="3.2" fill="#1d1f2e"/><rect x="31" y="-7" width="3" height="2" rx="1" fill="#fff5b0"/>`,
   rover: () => `<rect x="2" y="-10" width="26" height="7" rx="2" fill="#e5e7eb"/><rect x="8" y="-15" width="10" height="5" rx="1" fill="#93c5fd"/><line x1="22" y1="-10" x2="25" y2="-20" stroke="#cbd5e1" stroke-width="1"/><circle cx="25" cy="-21" r="1.6" fill="#f87171"/><circle cx="7" cy="-1" r="3" fill="#374151"/><circle cx="16" cy="-1" r="3" fill="#374151"/><circle cx="25" cy="-1" r="3" fill="#374151"/>`,
+  shuttle: () => `<ellipse cx="2" cy="-8" rx="3.4" ry="2.2" fill="#f0abfc" opacity=".85"/><path d="M3 -10Q7 -16 17 -16L30 -11Q33 -9.5 30 -8L4 -7Z" fill="#ece8ff"/><path d="M18 -15.2L26 -11.8H18Z" fill="#4fd6d0"/><path d="M5 -9H29" stroke="#c05fb8" stroke-width="1.3"/>`,
 };
 
 // Ludzie, drzewa i ozdoby ze sceny: stopa lub pień w (x, y), s = skala.
