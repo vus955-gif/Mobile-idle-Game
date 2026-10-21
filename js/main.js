@@ -1,22 +1,32 @@
 // Start gry: wczytanie zapisu, pętla, autozapis, service worker.
-import { Company } from './engine.js';
+import { Company, clockOffsetOf } from './engine.js';
+import { DEV_TOOLS } from './config.js';
 import { UI } from './ui.js';
 import { setLang, detectLang } from './i18n.js';
 import { startMusic, stopMusic } from './music.js';
 
 export const VERSION = '2.4.0';
-// Tryb deweloperski w ustawieniach (mnożnik przychodu, przewijanie czasu). Przed wydaniem w sklepach: false.
-export const DEV_TOOLS = true;
+export { DEV_TOOLS } from './config.js';
 const SAVE_KEY = 'krzemowe-imperium-save';
 const BACKUP_KEY = 'krzemowe-imperium-backup';
 
+const isRecord = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+function isGameSave(data) {
+  if (!isRecord(data)) return false;
+  if ('layers' in data) return isRecord(data.meta) && isRecord(data.layers) && isRecord(data.layers.earth);
+  // v1/v2 i samodzielna Game; null to historyczne kodowanie przepełnienia waluty.
+  return typeof data.cash === 'number' || data.cash === null;
+}
+
 function readSave() {
-  try {
-    const raw = localStorage.getItem(SAVE_KEY) || localStorage.getItem(BACKUP_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
+  for (const key of [SAVE_KEY, BACKUP_KEY]) {
+    try {
+      const raw = localStorage.getItem(key);
+      const data = raw ? JSON.parse(raw) : null;
+      if (isGameSave(data)) return data;
+    } catch { /* uszkodzony zapis główny nie blokuje odczytu kopii */ }
   }
+  return null;
 }
 
 const saved = readSave();
@@ -25,9 +35,8 @@ const savedLang = (s) => s?.meta?.settings?.lang || s?.settings?.lang;
 setLang(savedLang(saved) || detectLang());
 // Zegar gry: czas rzeczywisty plus przesunięcie po „przewinięciu czasu” w trybie deweloperskim
 // (przesunięcie jest w zapisie, bo znaczniki czasu w stanie gry już je uwzględniają).
-const offsetOf = (data) => Math.max(0, Number(data?.meta?.clockOffset) || 0);
 // Firma ze wszystkimi warstwami (Ziemia, Kosmos…); co.g to warstwa na ekranie.
-const co = new Company(saved, { now: Date.now() + offsetOf(saved) });
+const co = new Company(saved, { now: Date.now() + clockOffsetOf(saved), devTools: DEV_TOOLS });
 const clock = () => Date.now() + (co.meta.clockOffset || 0);
 let lastSaveJson = '';
 
@@ -64,10 +73,9 @@ const ui = new UI(co, {
   importSave: (text) => {
     try {
       const data = decodeSave(text);
-      const ok = data && typeof data === 'object' && (typeof data.layers === 'object' || typeof data.cash === 'number');
-      if (!ok) return false;
+      if (!isGameSave(data)) return false;
       if (savedLang(data)) setLang(savedLang(data));
-      const now = Date.now() + offsetOf(data);
+      const now = Date.now() + clockOffsetOf(data);
       co.load(data, now);
       for (const g of Object.values(co.layers)) g.s.lastTick = now;
       co.recalc();
@@ -80,22 +88,16 @@ const ui = new UI(co, {
   reset: () => {
     try { localStorage.removeItem(SAVE_KEY); localStorage.removeItem(BACKUP_KEY); } catch { /* ignoruj */ }
     // ustawienia (język, dźwięk, limit rynku, tryb deweloperski) przechodzą do nowej gry; zegar wraca do zwykłego
-    const { sound, music, lang, cap, buyAmount, dev, devMult } = co.meta.settings;
-    co.load(null, Date.now());
-    Object.assign(co.meta.settings, { sound, music, lang, cap, buyAmount, dev, devMult });
-    co.recalc();
+    co.reset(Date.now());
     lastSaveJson = '';
     ui.fullRender();
     ui.showWelcome();
     save();
   },
-  devTools: DEV_TOOLS,
+  devTools: co.devTools,
   // Przewinięcie czasu: zegar gry skacze do przodu, a najbliższy tick nalicza przerwę jak po powrocie do gry.
   skipTime: (sec) => {
-    if (!DEV_TOOLS || !(sec > 0)) return;
-    co.meta.clockOffset = (co.meta.clockOffset || 0) + sec * 1000;
-    co.tick(clock());
-    save();
+    if (co.skipTime(sec)) save();
   },
 });
 

@@ -395,15 +395,19 @@ export class UI {
         break;
       }
       case 'toggle-dev': {
+        if (!this.co.devTools) break;
         s.meta.settings.dev = !s.meta.settings.dev;
         this.co.recalc();
+        this.hooks.save?.();
         this.sigs.company = '';
         this.updateAll(true);
         break;
       }
       case 'dev-mult': {
+        if (!this.co.devTools || !s.meta.settings.dev || !DEV_MULTS.includes(Number(el.dataset.v))) break;
         s.meta.settings.devMult = Number(el.dataset.v);
         this.co.recalc();
+        this.hooks.save?.();
         this.updateAll(true);
         break;
       }
@@ -2135,7 +2139,7 @@ export class UI {
   // Zegar gry: czas rzeczywisty plus przesunięcie po przewinięciu czasu w trybie deweloperskim.
   now() { return Date.now() + (this.co.meta.clockOffset || 0); }
 
-  // Tryb deweloperski (tylko gdy main.js włącza DEV_TOOLS): mnożnik przychodu i przewijanie czasu.
+  // Tryb deweloperski (tylko gdy config.js włącza DEV_TOOLS): mnożnik przychodu i przewijanie czasu.
   devSettings() {
     if (!this.hooks.devTools) return '';
     const st = this.g.s.meta.settings;

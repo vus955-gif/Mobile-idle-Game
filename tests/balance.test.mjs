@@ -32,7 +32,7 @@ test('budżet badań: domyślnie „Auto”, rośnie z kolejnymi erami, a ręczn
 });
 
 test('tryb deweloperski: mnożnik działa ponad limitem rynku, a szczyty zarobków liczą grę bez niego', () => {
-  const g = new Game(null, { now: T0, rng });
+  const g = new Game(null, { now: T0, rng, devTools: true });
   g.s.products[g.D.PRODUCTS[0].id] = 400;
   g.recalc();
   assert.ok(g.rawIncome > g.marketCap, 'rynek nasycony');
@@ -58,10 +58,10 @@ test('tryb deweloperski: mnożnik działa ponad limitem rynku, a szczyty zarobk�
 });
 
 test('zegar gry: przesunięcie po przewinięciu czasu zostaje w zapisie i po transcendencji', () => {
-  const co = new Company(null, { now: T0, rng });
+  const co = new Company(null, { now: T0, rng, devTools: true });
   co.meta.clockOffset = 3600e3;
   co.meta.settings.dev = true;
-  const again = new Company(JSON.parse(co.serialize()), { now: T0 + 3600e3, rng });
+  const again = new Company(JSON.parse(co.serialize()), { now: T0 + 3600e3, rng, devTools: true });
   assert.equal(again.meta.clockOffset, 3600e3);
   assert.equal(again.meta.settings.dev, true);
   again.canTranscend = () => true;
