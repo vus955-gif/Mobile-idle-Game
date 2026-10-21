@@ -2,7 +2,7 @@
 
 Kopia rejestru wykonawcy (`.superpowers/sdd/2026-10-19-oprawa-2-dioramy/progress.md`) zachowana po zakończeniu planu. Linie `Ruling:` to decyzje podjęte w trakcie, z kosztem, jeśli były złe; `minor (deferred)` to drobne uwagi z przeglądu odłożone na później.
 
-- Spec: docs/superpowers/specs/2026-10-17-oprawa-wizualna-design.md (read). Branch: claude/oprawa-wizualna. Plan commit: 4289390. Repo root: D:/ClaudeCode/Krzemowe-Imperium (no worktree; same checkout as part 1, not main).
+- Spec: docs/superpowers/specs/2026-10-17-oprawa-wizualna-design.md (read). Branch: claude/oprawa-wizualna. Plan commit: 4289390. Repo root: the repository root (no worktree; same checkout as part 1, not main).
 
 ## Pre-flight
 
@@ -71,7 +71,7 @@ Kopia rejestru wykonawcy (`.superpowers/sdd/2026-10-19-oprawa-2-dioramy/progress
 - Task 3: minor (deferred): aerostat half() lost stroke-linejoin="round"; parts.shade now throws on non-#rrggbb/rgb()/array input (scene.js keeps its own hex-only shade until T6).
 - Task 3: minor (deferred): PALETTES.space.ground covers only LEO/L2 platform; rocky worlds use per-view TOP colours.
 - Task 3: complete (commits 4289390..fae7d1a, review clean after 1 fix round) — note: Task 3 range starts at b918201
-- Task 4: Ruling: subagent appended 3 glossary entries (viewBox, Bounding box, Aspect ratio) to D:/Codex/Dokszłatcanie AI/Nauka/SLOWNIK.md under the user's global CLAUDE.md rule — checked: format correct, no duplicates; kept; later dispatches forbid edits outside the repo (glossary is the controller's job at the summary) — cost if wrong: user removes 3 lines.
+- Task 4: Ruling: subagent appended 3 glossary entries (viewBox, Bounding box, Aspect ratio) to the owner's glossary (słowniczek właściciela, poza repo) under the owner's global rule — checked: format correct, no duplicates; kept; later dispatches forbid edits outside the repo (glossary is the controller's job at the summary) — cost if wrong: user removes 3 lines.
 - Task 4: minor (deferred): frame test doesn't assert horizontal centring or viewBoxAttr output; base-gap assertion partly holds by construction (tests/diorama.test.mjs:87-89).
 - Task 4: minor (deferred): no guards for inverted bbox / negative margin (no caller can produce them).
 - Task 4: complete (commits fae7d1a..c060d43, review clean)
@@ -145,3 +145,10 @@ Kopia rejestru wykonawcy (`.superpowers/sdd/2026-10-19-oprawa-2-dioramy/progress
 - Task 12: minor (deferred → iPhone check): first cross-SVG url(#d-mote) reference (def in front, motes also in frontAnim) — standard SVG, verified in Chrome only; check on iOS Safari.
 - Task 12: minor (deferred): spark detected by r.h === coreFoot(1).h (magic coupling); cosmologists' window signal weak (3/4 lit tier 0 vs 5); motes small (~3–4 px on SE, faint on edge); universe.js 11.65 kB; budget clamp untested.
 - Task 12: complete (commits 13efa1b..496901e, review clean after 1 fix round)
+- Task 13: minor (deferred): scene.js env functions (phaseFor, seasonFor, holidayFor, isNewYear, weatherFor, envFor) stay exported with 0 importers outside scene.js (pre-existing API); unknown stage id throws at art.coreFoot (never happens in-game); window-seed fix meets its test but per-stage lit share still noisy (~42 windows; stratified draw would fix); extra removal of dead .screen/flicker CSS in style.css (verified dead); Playwright side files in the controller session's working folder (outside repo, pre-existing folder).
+- Task 13: fix round 1/5 (5 addressed — README StageArt contract moved after dev-mode paragraph, contract wording, live STAGE_ART test, register H1, hidden-window caveat; commits d5c8b45..a49d032)
+- Task 13: complete (commits 496901e..a49d032, review clean after 1 fix round; whole oprawa +178,637 B of +200 kB; render max Earth 9.9 / Space 6.6 / Galaxy 6.7 / Universe 5.0 ms visible Chromium)
+- Final review (opus, da2d8c7..a49d032, 2026-10-21): 0 Critical, 2 Important (I1 Earth i18n strings still promise "nowe piętro budynku"; I2 floor-new growth consumed by renders while the scene is paused — never visible in unlock → hire → back to Office), 7 Minor (M1 mast lamps blink over emblem rims; M2 public register leaks local paths + lacks T13 lines; M3 README:29/:54 outdated descriptions; M4 unguarded backdrop.resize() can block reframe; M5 emblem radius defined in 3 places; M6 stage helpers duplicated 4×; M7 latent throw in galaxy spot); verdict "With fixes"; 40,068-config sweep clean; npm test 187/187.
+- Final: Ruling: fix wave includes I2 (not deferred to part 3) — it is a correctness bug in the growth mechanism this part rebuilt and Review Focus 4 owns it; part 3 (new effects) stays unstarted per the parent/Piotr — cost if wrong: a few lines in scene.js that part 3 may reshape.
+- Final: Ruling: no CACHE bump in the fix wave — v15 never left the branch; the parent's merge resolves CACHE and should bump it after merging — cost if wrong: one stale reload on a device.
+- Final: Ruling: iPhone-only items (cross-SVG url(#d-mote) in WebKit, SE emblem legibility, scrolling smoothness, Europa astronauts, render timing with real CPU) handed to the parent session's PC/iOS test pass — no device here — cost if wrong: a defect found later on device.
