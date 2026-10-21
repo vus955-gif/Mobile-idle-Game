@@ -4,7 +4,7 @@ import { UI } from './ui.js';
 import { setLang, detectLang } from './i18n.js';
 import { startMusic, stopMusic } from './music.js';
 
-export const VERSION = '2.5.0';
+export const VERSION = '2.6.0';
 // Tryb deweloperski w ustawieniach (mnożnik przychodu, przewijanie czasu). Przed wydaniem w sklepach: false.
 export const DEV_TOOLS = true;
 const SAVE_KEY = 'krzemowe-imperium-save';

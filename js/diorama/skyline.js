@@ -5,7 +5,7 @@ import { shade } from './parts.js';
 import { css, n as r1 } from './iso.js';
 
 // Okna nocą: siatka co 5 × every, świeci co trzecie.
-export function rectWin(x, y, w, h, night, color, every = 8) {
+function rectWin(x, y, w, h, night, color, every = 8) {
   if (!night) return '';
   let out = '';
   for (let wy = y + 5; wy < y + h - 4; wy += every) {
@@ -14,7 +14,7 @@ export function rectWin(x, y, w, h, night, color, every = 8) {
   return out;
 }
 
-export const LANDMARKS = {
+const LANDMARKS = {
   palace(x, g, c, n, win) { // Pałac Kultury i Nauki
     return `<rect x="${x - 26}" y="${g - 30}" width="52" height="30" fill="${c}"/><rect x="${x - 15}" y="${g - 82}" width="30" height="52" fill="${c}"/><rect x="${x - 11}" y="${g - 104}" width="22" height="22" fill="${c}"/><rect x="${x - 7}" y="${g - 120}" width="14" height="16" fill="${c}"/><rect x="${x - 4}" y="${g - 130}" width="8" height="10" fill="${c}"/><rect x="${x - 1}" y="${g - 158}" width="2" height="28" fill="${c}"/><circle cx="${x}" cy="${g - 112}" r="3" fill="${n ? win : '#e8edf7'}" opacity=".8"/>${rectWin(x - 15, g - 82, 30, 52, n, win)}${rectWin(x - 26, g - 30, 52, 30, n, win)}`;
   },
@@ -102,7 +102,7 @@ export const LANDMARKS = {
   },
 };
 
-export const CITY_VIEWS = {
+const CITY_VIEWS = {
   waw: { left: 'palace', right: 'varso' },
   ber: { left: 'fernsehturm', right: 'towers' },
   tyo: { left: 'tokyoTower', right: 'towers' },

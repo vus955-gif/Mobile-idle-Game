@@ -8,7 +8,7 @@ import { PALETTES, assemble, emblem, emblemCenter, ER, SEATS, tierFor, CREW, MAX
 import { PLACES, island, groundTone, SNOW } from '../js/diorama/island.js';
 import { SE, SE_INSETS, frameFor, viewBoxAttr, MIN_EMBLEM_PX, MIN_LOT_PX } from '../js/diorama/frame.js';
 import { SLOTS, layout, LOT_MAX_H } from '../js/diorama/layout.js';
-import { modelFor, newIds, buildDiorama, STAGE_ART, GENERIC } from '../js/diorama/index.js';
+import { modelFor, newIds, buildDiorama, STAGE_ART } from '../js/diorama/index.js';
 import { EARTH_ART } from '../js/diorama/earth.js';
 import { Company } from '../js/engine.js';
 import { LAYERS, LAYER_ORDER } from '../js/layers.js';
@@ -58,6 +58,21 @@ test('iso: pudełko, cień przeciwnie do światła i okna świecące tylko nocą
   // Próg włącznie: przy ambient = NIGHT_AMBIENT okna już świecą (klucze orion, pleiades, omega), tuż powyżej jeszcze nie.
   const at = (a) => windows(b, 'left', { rows: 3, cols: 2, lit: 1, seed: 1 }, L([0.6, -0.8], a));
   assert.ok(at(NIGHT_AMBIENT).includes(WIN_GLOW) && !at(NIGHT_AMBIENT + 0.01).includes(WIN_GLOW));
+});
+
+test('iso: okna — udział świecących idzie za lit także przy 4 oknach i sąsiednich ziarnach budynków', () => {
+  // Sąsiednie ziarna dawały prawie liniowe pierwsze losowania, więc przy małym lit całe budynki gasły albo świeciły razem.
+  const b = { gx: 0, gy: 0, w: 2, d: 1, h: 2 }, night = L([0.6, -0.8], NIGHT_AMBIENT - 0.15);
+  const lit = (share, seed) => {
+    const glow = new RegExp(`d="([^"]*)" fill="${WIN_GLOW}"`).exec(windows(b, 'left', { rows: 2, cols: 2, lit: share, seed }, night));
+    return glow ? glow[1].split('M').length - 1 : 0;
+  };
+  for (const from of [1, 1000, 12345, 500000]) {
+    const seeds = Array.from({ length: 40 }, (_, i) => from + i);
+    const mean = seeds.reduce((a, s) => a + lit(0.15, s) / 4, 0) / seeds.length;
+    assert.ok(Math.abs(mean - 0.15) <= 0.08, `ziarna od ${from}: średni udział ${mean.toFixed(3)} przy lit 0,15`);
+    assert.ok(seeds.every((s) => lit(1, s) === 4 && lit(0, s) === 0), `ziarna od ${from}: lit 1 → wszystkie świecą, lit 0 → żadne`);
+  }
 });
 
 test('helpers: checkSvg łapie złe wartości i niezamknięte grupy, lum liczy luminancję względną', () => {
@@ -455,11 +470,13 @@ test('island: barwa podłoża w paletach etapów to ta, którą rysuje wyspa', (
 function extent(svg) {
   const e = [Infinity, Infinity, -Infinity, -Infinity];
   const add = (x, y, h) => { e[0] = Math.min(e[0], x - h); e[1] = Math.min(e[1], y - h); e[2] = Math.max(e[2], x + h); e[3] = Math.max(e[3], y + h); };
-  for (const m of svg.matchAll(/<path d="([^"]*)"([^>]*)>/g)) {
-    const w = /stroke-width="([\d.]+)"/.exec(m[2]), h = w ? w[1] / 2 : 0, dy = +(/translate\(0 ([\d.]+)\)/.exec(m[2])?.[1] ?? 0);
+  for (const p of svg.matchAll(/<path\b([^>]*)>/g)) {
+    // Atrybuty w dowolnej kolejności: ścieżki z transform przed d (down() w island.js) też wchodzą do zasięgu.
+    const attrs = p[1], d = /(?:^|\s)d="([^"]*)"/.exec(attrs)?.[1] ?? '';
+    const w = /stroke-width="([\d.]+)"/.exec(attrs), h = w ? w[1] / 2 : 0, dy = +(/translate\(0 ([\d.]+)\)/.exec(attrs)?.[1] ?? 0);
     let x = 0, y = 0, x0 = 0, y0 = 0;
     const put = (px, py) => { x = px; y = py; add(x, y + dy, h); };
-    for (const [, c, args] of m[1].matchAll(/([MLHVAQZmlhvaqz])([^MLHVAQZmlhvaqz]*)/g)) {
+    for (const [, c, args] of d.matchAll(/([MLHVAQZmlhvaqz])([^MLHVAQZmlhvaqz]*)/g)) {
       const a = (args.match(/-?\d*\.?\d+/g) || []).map(Number), rel = c === c.toLowerCase(), C = c.toUpperCase();
       if (C === 'Z') { x = x0; y = y0; } else if (C === 'H') put(rel ? x + a[0] : a[0], y); else if (C === 'V') put(x, rel ? y + a[0] : a[0]);
       else if (C === 'A') {
@@ -476,6 +493,11 @@ function extent(svg) {
   }
   return e;
 }
+
+test('island: pomocnik extent liczy też ścieżki z transform przed d i z d przed transform', () => {
+  assert.deepEqual(extent('<path transform="translate(0 5)" d="M0 0L10 2"/>'), [0, 5, 10, 7]);
+  assert.deepEqual(extent('<path d="M0 0L10 2" transform="translate(0 5)"/>'), [0, 5, 10, 7]);
+});
 
 test('island: cała geometria (kreski, światła, dysze, balustrada) mieści się w bbox dla każdego widoku i rozmiaru', () => {
   for (const view of VIEW_IDS) for (const size of [1, 4, 7, 10, 12]) {
@@ -504,7 +526,7 @@ test('frame: większa diorama oddala kamerę, mała nie jest powiększana ponad 
   assert.equal(frameFor([-40, -60, 40, 10], { w: 300, h: 40 }, SE_INSETS), null);
 });
 
-// --- Model, układ działek i dioramy zastępcze (Zadanie 5) ---
+// --- Model i układ działek (Zadanie 5) ---
 
 function maxModel(stage, extra = {}) {
   const S = LAYERS[stage];
@@ -606,6 +628,11 @@ test('diorama: budżety elementów i animacji, poprawny i powtarzalny SVG, wyras
     const one = buildDiorama({ ...m, depts: m.depts.map((x, i) => ({ ...x, isNew: i === 2 })) });
     assert.equal(one.front.split('class="floor-new"').length - 1, 1, `${stage}: wyrasta tylko trzeci dział`);
   }
+});
+
+test('diorama: żaden etap nie używa zastępczej dioramy', () => {
+  assert.ok(LAYER_ORDER.every((s) => !STAGE_ART[s].placeholder));
+  for (const s of LAYER_ORDER) for (const d of LAYERS[s].DEPTS.slice(1)) assert.ok(Array.isArray(STAGE_ART[s].depts[d.id]), `${s}/${d.id}: archetyp działu`);
 });
 
 test('diorama: każdy dział ma emblemat z własną ikoną i kolorem', () => {
@@ -720,11 +747,6 @@ test('earth: tabliczki rdzenia są escapowane i skracane na każdym etapie rozwo
     assert.ok(texts.length === 1 && texts[0].endsWith('…'), `n=${n}: ${texts}`);
     assert.ok(front.includes('◆ &lt;b&gt;Ala'), `n=${n}: neon z pierwszym słowem nazwy`);
   }
-});
-
-test('earth: brak zastępczego rdzenia', () => {
-  assert.ok(!STAGE_ART.earth.placeholder);
-  assert.ok(!EARTH_ART.placeholder);
 });
 
 // --- Ziemia: budynki działów, pory roku, święta i ruch (Zadanie 9) ---
@@ -855,12 +877,6 @@ test('space: ozdoby rund', () => {
   for (const n of [1, 3, 9]) assert.equal(new Set([0, 1, 2, 3, 5, 8].map((rounds) => buildDiorama(spaceModel(n, { rounds })).front)).size, 6, `n=${n}`);
 });
 
-test('space: brak zastępczej dioramy', () => {
-  assert.ok(!SP().placeholder);
-  for (const d of LAYERS.space.DEPTS.slice(1)) assert.notEqual(SP().depts[d.id], GENERIC.space.depts[d.id], d.id);
-  assert.notEqual(SP().core, GENERIC.space.core);
-});
-
 test('space: tabliczka „◆ NAZWA” na każdym etapie, escapowana i skracana do 24 znaków', () => {
   const name = '<b>Ala & "Kot"</b> 🚀 sp. z o.o. — bardzo długa nazwa';
   for (const n of [1, 3, 6, 9]) {
@@ -964,12 +980,6 @@ test('galaxy: ozdoby rund', () => {
   for (const n of [1, 3, 6]) assert.equal(orn(8, n).length, 5, `n=${n}`);
   // Każdy próg rund coś dokłada do obrazu (także przy promie).
   for (const n of [1, 3, 9]) assert.equal(new Set([0, 1, 2, 3, 5, 8].map((rounds) => buildDiorama(galaxyModel(n, { rounds })).front)).size, 6, `n=${n}`);
-});
-
-test('galaxy: brak zastępczej dioramy', () => {
-  assert.ok(!GX().placeholder);
-  for (const d of LAYERS.galaxy.DEPTS.slice(1)) assert.notEqual(GX().depts[d.id], GENERIC.galaxy.depts[d.id], d.id);
-  assert.notEqual(GX().core, GENERIC.galaxy.core);
 });
 
 test('galaxy: promy wzdłuż krawędzi doku, załoga w mundurach w barwie palety, każdy widok czytelny na SE', () => {
@@ -1114,12 +1124,6 @@ test('universe: ozdoby rund', () => {
     const flat = (r) => universeCore(n, r).filter((p) => p[0] === 'ring' && p[6] === 'flat').length;
     assert.deepEqual([flat(1) - flat(0), flat(2) - flat(0)], [1, 2], `n=${n}: halo2 i halo3 to pierścienie`);
   }
-});
-
-test('universe: brak zastępczej dioramy', () => {
-  assert.ok(!UV().placeholder);
-  for (const d of LAYERS.universe.DEPTS.slice(1)) assert.notEqual(UV().depts[d.id], GENERIC.universe.depts[d.id], d.id);
-  assert.notEqual(UV().core, GENERIC.universe.core);
 });
 
 test('universe: świetliste drobiny zamiast ludzi, tabliczka „◆ NAZWA” na odłamku, każdy widok czytelny na SE', () => {

@@ -234,7 +234,7 @@ Reskin bez zmiany układu i logiki:
 - Interfejs bez zacięć: główny wątek nie dostaje zadań dłuższych niż ~50 ms.
 - Animowana warstwa tła ≤ 30 fps. Wszystkie animacje stoją poza Biurem, gdy aplikacja jest w tle i w trybie oszczędnym.
 - Pamięć podręczna teł: najwyżej ~6 obrazów. Tła liczone przy gęstości pikseli ≤ 2 (są miękkie, więcej nie widać).
-- Rozmiar kodu oprawy: + ≤ 150 kB nieskompresowanego JS/CSS.
+- Rozmiar kodu oprawy: + ≤ 200 kB nieskompresowanego JS/CSS (limit podniesiony z 150 kB 20.10.2026, decyzja Piotra).
 
 **Ustawienia** (PL/EN): *Jakość grafiki*: **Pełna** (domyślnie) albo **Oszczędna** (bez animowanych teł i rozmycia szkła, mniej cząstek).
 

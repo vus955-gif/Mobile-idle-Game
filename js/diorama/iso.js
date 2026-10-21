@@ -207,7 +207,8 @@ export function windows(b, face, { rows, cols, lit, seed }, light) {
   const at = face === 'left'
     ? (u, v) => iso(gx + u * w, gy + d, gz + v * h)
     : (u, v) => iso(gx + w, gy + u * d, gz + v * h);
-  const night = light.ambient <= NIGHT_AMBIENT, r = rng(seed);
+  // Ziarno mieszane: sąsiednie dają w rng prawie liniowe pierwsze losowania, a przy kilku oknach budynek gaśnie lub świeci cały.
+  const m = Math.imul(seed, 2654435761), night = light.ambient <= NIGHT_AMBIENT, r = rng(m ^ (m >>> 15));
   const cu = 0.8 / cols, cv = 0.76 / rows; // komórka siatki w ułamkach ściany (margines 10% z boków, 12% u góry i u dołu)
   let glass = '', glow = '';
   for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {

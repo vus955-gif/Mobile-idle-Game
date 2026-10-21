@@ -11,7 +11,7 @@ const GALAXY = [-2.6, -2, -1.4, -0.8, -0.2, 0.4, 1, 1.6].map((gx, i) => ({ gx, g
 
 export const SLOTS = { earth: EARTH, space: SMALL, galaxy: GALAXY, universe: SMALL };
 // Środek obrysu rdzenia.
-export const CORE_AT = { earth: { gx: -1, gy: -1 }, space: { gx: -1.5, gy: -1.5 }, galaxy: { gx: 0, gy: -0.225 }, universe: { gx: -1.5, gy: -1.5 } };
+const CORE_AT = { earth: { gx: -1, gy: -1 }, space: { gx: -1.5, gy: -1.5 }, galaxy: { gx: 0, gy: -0.225 }, universe: { gx: -1.5, gy: -1.5 } };
 export const LOT_MAX_H = { earth: 3, space: 3, galaxy: 3, universe: 3 };
 
 const MARGIN = 0.25; // trawa między obrysem a brzegiem wyspy

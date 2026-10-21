@@ -1,5 +1,6 @@
 // Części brył dioram: palety etapów, składanie listy Part w SVG, emblemat, obsada, budżet animacji, pojazdy i drobna
-// grafika przeniesiona ze sceny. Czysty JS bez DOM. W Part środek (x, y) mają cyl, dome, ring, dish, glow, mast; reszta róg.
+// grafika przeniesiona ze sceny. Czysty JS bez DOM. W Part środek (x, y) mają cyl, dome, ring, dish, glow, mast i okrągły shadow,
+// punktem są label, sign i początek strut, a rogiem — box, pyr, gable, panel i prostokątny shadow.
 import { TW, LV, RX, iso, tones, box, pyr, gable, cyl, dome, ring, shadow, windows, mixRgb, css, rgb, n as r1 } from './iso.js'; // r1: zaokrąglenie do 0,1 bez „-0”
 
 export function seeded(seed) {
@@ -62,7 +63,7 @@ export function assemble(parts, ctx) {
   // Okna widocznych ścian (faces: 'l', 'r'): rows = floor(h), świecą w udziale ctx.lit, osobne ziarno na ścianę.
   const wins = (b, i, faces = 'lr') => ['left', 'right'].map((face, f) => {
     const rows = Math.floor(b.h), len = face === 'left' ? b.w : b.d;
-    return rows < 1 || !faces.includes(face[0]) ? '' : windows(b, face, { rows, cols: Math.max(1, Math.round(len * 2)), lit: ctx.lit, seed: Math.imul(seed * 64 + i * 2 + f + 1, 2654435761) }, light);
+    return rows < 1 || !faces.includes(face[0]) ? '' : windows(b, face, { rows, cols: Math.max(1, Math.round(len * 2)), lit: ctx.lit, seed: seed * 64 + i * 2 + f + 1 }, light);
   }).join('');
 
   for (const [i, part] of parts.entries()) {

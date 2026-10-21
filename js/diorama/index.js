@@ -1,9 +1,9 @@
-// Diorama etapu: model ze stanu gry, dioramy zastępcze i budowa warstw SVG (statycznej i animowanej).
+// Diorama etapu: model ze stanu gry i budowa warstw SVG (statycznej i animowanej) z oprawy etapu.
 import { TW, iso } from './iso.js';
-import { PALETTES, CREW, MAX_ANIM, tierFor, budget, assemble, emblem, emblemCenter, person, pumpkin, xmasTree, stringLights, seeded } from './parts.js';
+import { CREW, MAX_ANIM, tierFor, budget, assemble, emblem, emblemCenter, person, pumpkin, xmasTree, stringLights, seeded } from './parts.js';
 import { PLACES, island } from './island.js';
-import { layout, LOT_MAX_H } from './layout.js';
-import { LAYERS, LAYER_ORDER } from '../layers.js';
+import { layout } from './layout.js';
+import { LAYERS } from '../layers.js';
 import { EARTH_ART } from './earth.js';
 import { SPACE_ART } from './space.js';
 import { GALAXY_ART } from './galaxy.js';
@@ -25,22 +25,6 @@ export function newIds(known, stage, ids) {
   known.set(stage, new Set(list));
   return new Set(prev ? list.filter((id) => !prev.has(id)) : []);
 }
-
-// Dioramy zastępcze: rdzeń 2×2 rośnie z liczbą działów, dział to pudełko z oknami i dachem w kolorze akcentu.
-const coreH = (n) => 2 + Math.floor(n / 5);
-export const GENERIC = Object.fromEntries(LAYER_ORDER.map((id) => {
-  const H = LOT_MAX_H[id], dept = [['box', 0, 0, 0, 1, 1, H - 0.3, 'wall', 'win'], ['box', 0, 0, H - 0.3, 1, 1, 0.3, 'accent'], ['sign', 0.5, 0.5, H]];
-  return [id, {
-    id, placeholder: true, palette: PALETTES[id],
-    coreForm: () => 'box',
-    coreFoot: (n) => ({ w: 2, d: 2, h: coreH(n) }),
-    core: (m) => {
-      const h = coreH(m.depts.length);
-      return { parts: [['box', 0, 0, 0, 2, 2, h, 'wall', 'win'], ['label', 2, 2, h - 0.7, 2, 12], ['sign', 1, 1, h]], ornaments: [] };
-    },
-    depts: Object.fromEntries(LAYERS[id].DEPTS.slice(1).map((d) => [d.id, dept])),
-  }];
-}));
 
 // Oprawa etapów.
 export const STAGE_ART = { earth: EARTH_ART, space: SPACE_ART, galaxy: GALAXY_ART, universe: UNIVERSE_ART };

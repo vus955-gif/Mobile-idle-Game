@@ -84,9 +84,23 @@ Za budynkiem, stacją, statkiem i cytadelą jest malowane proceduralnie tło na 
 
 - Obraz liczy się raz w Web Workerze (`OffscreenCanvas`) i trafia do pamięci podręcznej (6 ostatnich obrazów); bez workera liczy się w połowie rozdzielczości w głównym wątku. Do czasu policzenia widać gradient w kolorach widoku, potem obraz pojawia się płynnie.
 - Kilka widoków ma lekką animację na osobnej warstwie (≤ 30 kl./s): rój Dysona, pulsar, czarna dziura, dżet M87, zorza w Reykjavíku (tylko nocą). Animacja staje, gdy Biuro jest niewidoczne, a w *Ustawienia → Jakość grafiki → Oszczędna* nie działa wcale.
-- Każdy przepis eksportuje klucz światła (kolor, kierunek, jasność otoczenia), z którego skorzystają dioramy w kolejnej części oprawy.
+- Każdy przepis eksportuje klucz światła (kolor, kierunek, jasność otoczenia), z którego korzystają dioramy (sekcja *Dioramy*): bryły, cienie i okna biorą barwę i kierunek światła z tła.
 
 **Galeria** (tylko w trybie deweloperskim, link w *Firma → Ustawienia*): `tools/gallery.html` pokazuje wszystkie widoki z czasem liczenia (mediana z 3 prób, na czerwono powyżej 125 ms), z wyborem pory dnia i pogody dla Ziemi. `?stage=earth|space|galaxy|universe` zawęża do jednego etapu. `?size=SZERxWYS` liczy kadry w rozmiarze telefonu, np. `704x640` (iPhone SE), `658x911` (iPhone 16 Pro Max po limicie pikseli) albo `529x1133` (tryb zen) — tak widać kompozycję i czasy przy prawdziwych proporcjach. Do pracy nad tłami uruchamiaj `node tools/serve.mjs 8090` — ten serwer wyłącza pamięć podręczną przeglądarki, więc po każdej zmianie widać świeży kod.
+
+## 🏝️ Dioramy
+
+Na scenie Biura stoi **diorama firmy**: wyspa albo platforma w rzucie izometrycznym 2:1, narysowana w SVG nad tłem Canvas (`js/diorama/`). Bryły mają trzy tony (jasna góra, średni bok od strony światła, ciemny drugi bok) z klucza światła widoku, miękki cień pada na własną wyspę, a okna świecą nocą. Grafika jest jednym zestawem kształtów, bez plików graficznych.
+
+**Jak diorama rośnie**
+- **Dział to budynek (moduł, pokład, krąg) z emblematem** w kolorze działu. Pierwszy dział to rdzeń, który zmienia formę z liczbą działów: garaż, biuro, wieżowiec, kampus na Ziemi; kapsuła, węzeł, stacja w kosmosie; prom, potem statek-matka w galaktyce; iskra, iglica, cytadela we wszechświecie. Każdy następny dział ma stałą działkę, wyznaczoną jego miejscem na liście działów, więc odblokowanie dowolnego działu niczego nie przesuwa; nowy budynek wyrasta jednorazową animacją. Ziemia ma rdzeń i 12 budynków, pozostałe etapy rdzeń i 8 modułów, pokładów albo kręgów.
+- **Obsada to progi `SEATS`** (1 / 5 / 15 / 40 / 100 osób). Pokazuje ją gęstość świateł w oknach (nocą), ludzi i pojazdów, a nie liczba biurek; dokładne liczby zostają w zakładce Zespół. Na Ziemi to ludzie przy budynkach, auta i drony, w kosmosie astronauci w kombinezonach i łaziki, w galaktyce załoga pokładów i promy, a we wszechświecie świetliste drobiny zamiast ludzi.
+- **Rundy to ozdoby** (liczone jako `min(prestigeCount, 8)`, kolejne pojawiają się od rundy 1, 2, 3, 5 i 8): na Ziemi panele słoneczne, neon z nazwą firmy, lądowisko, antena i rakieta; w kosmosie rakiety, skrzydła paneli i pierścień; w galaktyce pierścień, radiolatarnie, eskorta, gondole i drony; we wszechświecie kolejne halo, kule, odłamki i drugi portal. Rundy nie powiększają wyspy.
+- **Wyspy i platformy według widoku:** 18 miast i sześć światów z powierzchnią (Księżyc, Merkury, Ceres, Europa, Mars, Tytan) to latające wyspy o fakturze trawy, regolitu, skały, lodu, rdzy albo wydm; stacja na orbicie i punkt L2 to metalowa platforma; Wenus to aerostat z pokładem; układy i gromady galaktyki to dok kosmiczny; węzły kosmicznej sieci we wszechświecie to odłamek kryształu. Pory roku, pogoda i święta (choinka, lampki, dynie) działają jak dawniej.
+
+**Reguła czytelności na iPhonie SE.** Punkt odniesienia to zainstalowana aplikacja z paskiem stanu 20 px: scena ma wtedy **341×273** px CSS, a pas dioramy zaczyna się 48 px od góry i kończy 6 px nad dolną krawędzią. Przy maksymalnej dioramie każdego etapu emblemat działu ma średnicę **≥ 16 px**, a działka szerokość **≥ 28 px**; emblematy nie nachodzą na siebie. Pilnuje tego test (każdy etap, każda liczba działów, rundy 0 i 8) i galeria dioram.
+
+**Galeria dioram** (`tools/dioramas.html`, tryb deweloperski; link „Dioramy →” w nagłówku `tools/gallery.html`): każdy etap na sześciu poziomach rozwoju (1, 2, 4 i 7 działów, wszystkie działy, wszystkie w święta, zimą i nocą) w rozmiarze sceny iPhone'a SE, nad tłem Canvas, z granicami pasa. Podpis kafla pokazuje skalę, najmniejszy emblemat i działkę w px, liczbę elementów SVG i animacji oraz czas budowy; na czerwono wchodzi emblemat < 16 px, działka < 28 px, ponad 1200 elementów albo ponad 40 animacji. `?size=SZERxWYS` zmienia rozmiar sceny (domyślnie `341x273`), `?stage=earth|space|galaxy|universe` zawęża do jednego etapu; listy rozwijane wybierają widok, porę dnia, pogodę, porę roku i święto.
 
 ## 🔋 Wydajność
 
@@ -94,7 +108,18 @@ Ruchome elementy sceny (chmury, auta, część pracowników) są w osobnych wars
 
 Obraz tła liczy się w rozmiarze sceny (×2 dla ekranów Retina), ale najwyżej 0,6 Mpx — większe sceny (iPhone 16 Pro Max ok. 658×911, tryb zen ok. 529×1133) liczą się w mniejszej rozdzielczości o tych samych proporcjach i są skalowane w górę. Tło jest z natury miękkie, a czas liczenia nie rośnie z wielkością ekranu.
 
-Pomiar teł (PC deweloperski, 18–19.10.2026, mediana z 5 prób po rozgrzewce): w Chromium przy kadrze 600×800 wszystkie 45 widoków mieści się w budżecie 125 ms (najdłużej Sagittarius A* 104 ms, Gromada w Herkulesie 87 ms, Mgławica Oriona 85 ms, Plejady 83 ms; miasta najwyżej 59 ms w dzień i 93 ms nocą). Przy rozmiarach z telefonów (Node, płótno testowe — wynik zawyżony o ok. 20–25%, bo kopiowanie pikseli idzie w JS): iPhone SE 704×640 — najdłużej Sagittarius A* ok. 139 ms, reszta ≤ 104 ms; iPhone 16 Pro Max (limit 0,6 Mpx) — Sagittarius A* ok. 155 ms, Herkules i Zurych nocą ok. 125 ms, reszta ≤ 102 ms. Po przeliczeniu na przeglądarkę Sagittarius A* jest na granicy budżetu (ok. 115–125 ms), pozostałe widoki poniżej. Tło liczy się w workerze, więc dłuższy czas oznacza tylko dłużej widoczny gradient, nie przycięcie gry. Pomiary w karcie w tle (ukryte okno) potrafią wyjść o 30–80% wyżej i nie nadają się do oceny. Kod teł (`js/art/`) ma ok. 120 kB, w tym 5 kB galerii. **Do sprawdzenia na iPhonie** (przez Wi-Fi: `node tools/serve.mjs 8090` na PC i adres PC w Safari): czas od otwarcia Biura do gotowego tła, płynność przewijania listy Produktów przy animowanym widoku Sagittarius A* oraz start zainstalowanej aplikacji w trybie samolotowym (czy worker tła ładuje się offline).
+Pomiar teł (PC deweloperski, 18–19.10.2026, mediana z 5 prób po rozgrzewce): w Chromium przy kadrze 600×800 wszystkie 45 widoków mieści się w budżecie 125 ms (najdłużej Sagittarius A* 104 ms, Gromada w Herkulesie 87 ms, Mgławica Oriona 85 ms, Plejady 83 ms; miasta najwyżej 59 ms w dzień i 93 ms nocą). Przy rozmiarach z telefonów (Node, płótno testowe — wynik zawyżony o ok. 20–25%, bo kopiowanie pikseli idzie w JS): iPhone SE 704×640 — najdłużej Sagittarius A* ok. 139 ms, reszta ≤ 104 ms; iPhone 16 Pro Max (limit 0,6 Mpx) — Sagittarius A* ok. 155 ms, Herkules i Zurych nocą ok. 125 ms, reszta ≤ 102 ms. Po przeliczeniu na przeglądarkę Sagittarius A* jest na granicy budżetu (ok. 115–125 ms), pozostałe widoki poniżej. Tło liczy się w workerze, więc dłuższy czas oznacza tylko dłużej widoczny gradient, nie przycięcie gry. Pomiary w karcie w tle (ukryte okno) potrafią wyjść o 30–80% wyżej i nie nadają się do oceny. Kod teł (`js/art/`) ma ok. 120 kB, w tym 5 kB galerii. **Do sprawdzenia na iPhonie** (przez Wi-Fi: `node tools/serve.mjs 8090` na PC i adres PC w Safari): czas od otwarcia Biura do gotowego tła, płynność przewijania listy Produktów przy animowanym widoku Sagittarius A* oraz start zainstalowanej aplikacji w trybie samolotowym (czy worker tła ładuje się offline). Dla dioram dodatkowo: czytelność emblematów działów na SE (zainstalowana aplikacja, maksymalna diorama każdego etapu), płynność przewijania listy przy dioramie z animacjami (ludzie, auta, drony, migające światła) oraz odwołanie między warstwami SVG `url(#d-mote)` w WebKit (drobiny obsady Wszechświata rysuje gradient zdefiniowany w warstwie statycznej, a użyty także w animowanej; sprawdzone tylko w Chromium).
+
+Pomiar dioram (PC deweloperski, 21.10.2026, Chromium, okno 375×667 z `--safe-top: 20px`, scena 342×275 px, maksymalna diorama każdego etapu: wszystkie działy, 100 osób w każdym, 8 rund; budżet `Scene.render` ≤ 12 ms, ≈ 50 ms przy 4× wolniejszym procesorze). Mediana z 5 przerysowań (`render(game, true)`) tuż po przełączeniu etapu: Ziemia 9,9 ms, Kosmos 6,6 ms, Galaktyka 6,7 ms, Wszechświat 5,0 ms; po rozgrzewce (mediana z 8 serii) 9,0 / 6,2 / 6,5 / 4,6 ms. W ukrytym oknie podglądu ten sam pomiar dał dla Ziemi 12,6 ms w pierwszej serii i 8,1 ms po rozgrzewce — ukryte okno zawyża czasy, więc liczy się pomiar w widocznym oknie. Poniżej galeria dioram przy rozmiarze SE 341×273 (maksymalna diorama, dzień, lato; budowa to `buildDiorama` w Node, mediana z 9 serii po 50 budów; w święta, zimą i nocą elementów jest o 5–31 więcej, animacji o 0–4 więcej):
+
+| Etap | skala | emblemat min | działka min | elementy SVG | animacje | budowa |
+|---|---|---|---|---|---|---|
+| Ziemia | 0,75 | 18,1 px | 30,1 px | 737 | 34 | 2,1 ms |
+| Kosmos | 0,75 | 18,0 px | 30,1 px | 592 | 22 | 1,4 ms |
+| Galaktyka | 0,86 | 20,7 px | 34,6 px | 532 | 40 | 1,3 ms |
+| Wszechświat | 0,78 | 18,6 px | 31,0 px | 417 | 30 | 1,0 ms |
+
+Elementy i animacje mieszczą się w budżetach (≤ 1200 i ≤ 40) we wszystkich 24 kaflach galerii, żaden nie jest na czerwono; rozmycia (≤ 8) pilnuje test. **Rozmiar kodu** (JS i CSS w `js/` i `css/` bez galerii, bajty z gita): przed oprawą 751 316 B, po części 1 858 109 B, po części 2 929 953 B. Część 2 to +71 844 B, cała oprawa +178 637 B przy limicie +200 kB (limit podniesiony ze 150 kB 20.10.2026, decyzja Piotra), więc na część 3 zostaje ok. 21 kB.
 
 ## 🛠️ Rozwój
 
@@ -113,9 +138,13 @@ js/i18n.js            teksty interfejsu PL/EN, wybór języka, odmiana liczebnik
 js/text.js            nazwy i opisy w bieżącym języku
 js/engine.js          logika gry (bez DOM): Game (jeden etap) i Company (całe imperium, zasilanie, zapis v3)
 js/ui.js              interfejs, zakładki, modale
-js/scene.js           ilustracja w SVG: budynek na Ziemi (pory roku, pogoda, budowle miast), stacja w kosmosie, statek-matka w galaktyce i cytadela we wszechświecie
+js/scene.js           koordynator sceny: podpis stanu, warstwy SVG, kadr dioramy, niebo, pogoda i święta
+js/diorama/           dioramy firmy (SVG): iso.js (rzut 2:1, tony, okna), parts.js (bryły z listy Part, emblemat, obsada, pojazdy),
+                      island.js (wyspy i platformy), frame.js (kadr i progi czytelności SE), layout.js (działki), index.js (model, budowa),
+                      earth.js, space.js, galaxy.js, universe.js (oprawa etapów), skyline.js (budowle miast na horyzoncie), gallery.js (galeria)
 js/art/               tła na Canvas: szum i płótna, klocki (kit/), 45 przepisów widoków (views/), zarządca tła i worker
 tools/gallery.html    galeria wszystkich teł z czasem liczenia (tryb deweloperski)
+tools/dioramas.html   galeria dioram na sześciu poziomach rozwoju z pomiarem czytelności i budżetów (tryb deweloperski)
 tools/serve.mjs       serwer deweloperski bez pamięci podręcznej
 js/worldmap.js        kropkowa mapa świata (generowana z Natural Earth)
 js/avatar.js          awatary członków zarządu
@@ -129,6 +158,44 @@ tools/make-icons.mjs  generator ikon PNG z icons/icon.svg
 tools/make-worldmap.mjs generator mapy świata (jednorazowo, wymaga world-atlas)
 tests/                testy silnika (node:test)
 ```
+
+### Kontrakt oprawy etapu (`StageArt`)
+
+Każdy etap eksportuje z `js/diorama/{earth,space,galaxy,universe}.js` oprawę, którą `buildDiorama` (`js/diorama/index.js`) składa w dwie warstwy SVG (statyczną i animowaną). Model to `{ stage, view, depts: [{ id, icon, color, tier, isNew }], firstHeads, rounds, company, env, light }`.
+
+```
+StageArt = {
+  id, palette, suit?,                  // palette: wall, wall2, glass, roof, metal, dark, crystal, green, ground
+  coreForm(n), coreFoot(n, rounds),    // forma rdzenia i jego obrys { w, d, h } w kafelkach i poziomach
+  core(model, lay) → { parts, ornaments, people?, lights? },
+  depts: { [deptId]: Part[] },         // archetyp każdego działu poza pierwszym (rdzeń to pierwszy dział)
+  extras?(model, lay, marks) → { svg, back?, anim, decor, vehicles, people, box? },
+  spot?(r, j, k) → [gx, gy] | [gx, gy, gz],
+  figure?(x, y, rnd, s, delay, suit),
+  maxAnim?,                            // niższy limit animacji, przycinany do MAX_ANIM = 40
+}
+```
+
+- `core`: `lay` to układ `{ size, core, lots }`; `ornaments` to ozdoby rund (idą do statystyk), `people` zastępuje obsadę z `CREW` w rdzeniu (garaż), a `lights` to łamane `[[u, v, z], …]` względem obrysu rdzenia, wzdłuż których w grudniu wiszą lampki (domyślnie przednia krawędź dachu).
+- `extras`: `back` leży pod budynkami, `svg` nad nimi, `anim` trafia do warstwy animowanej przed postaciami (w ramach budżetu), `decor`, `vehicles` i `people` liczą się w statystykach, `box` powiększa kadr; `marks` to koła emblematów `{ id, x, y, r }`, których drony i drobiny omijają. `lay.lots` zawiera też działki działów jeszcze zamkniętych, więc filtruj po `model.depts`.
+- `spot`: miejsce j-tej z k postaci na działce r; dwie liczby oznaczają wysokość działki (`r.gz`), trzy — gz bezwzględne. Domyślnie postacie stoją na ścieżce przed przednimi ścianami. `figure` zastępuje postać (drobiny Wszechświata), `suit` to barwa kombinezonu (astronauci, załoga).
+- Kolejność rysowania: działki rosnąco po `gz` (najpierw niżej), w obrębie jednego poziomu od tyłu ku przodowi.
+
+**Słownik `Part`** (x, y w kafelkach, z w poziomach, od rogu obrysu działki; `mat` to `wall`, `wall2`, `glass`, `roof`, `metal`, `dark`, `crystal`, `green` albo `accent`, czyli barwa działu):
+
+```
+['box',  x, y, z, w, d, h, mat, flags?]   ['pyr', x, y, z, w, d, h, mat, flags?]   ['gable', x, y, z, w, d, h, mat, 'x'|'y']
+['cyl',  x, y, z, r, h, mat, flags?]      ['dome', x, y, z, r, mat, flags?]
+['ring', x, y, z, r, mat, 'flat'|'upright', { u, v }?]   ['strut', x, y, z, x2, y2, z2, mat, grubość?]
+['dish', x, y, z, r]   ['panel', x, y, z, w, d]   ['mast', x, y, z, h]   ['glow', x, y, z, r, mat]
+['label', x, y, z, w, max, tekst?, barwa?]   ['sign', x, y, z]   ['shadow', x, y, z, r, h] | ['shadow', x, y, z, w, h, d]
+```
+
+- Środek (x, y) mają `cyl`, `dome`, `ring`, `dish`, `glow`, `mast` i okrągły `shadow`; róg `box`, `pyr`, `gable`, `panel` i prostokątny `shadow`; punkt `label`, `sign` i początek `strut`. `sign` to kotwica emblematu, dokładnie jeden na archetyp.
+- Flagi to słowa oddzielone spacją: `win` (okna na widocznych ścianach, `box` i `cyl`), `ledge` (gzyms, `box`), `flush` (detal na ścianie albo zawieszony kształt bez własnego cienia; dla `box` cieńszego niż 0,05 rysuje się tylko widoczna ściana, a przy `cyl` i `dome` oznacza pas albo kulę bez cienia). `pyr` z flagą `x` leży bokiem (np. `'x flush'` to dziób statku).
+- `ring`: `flat` leży na gruncie (krąg, halo), `upright` stoi w płaszczyźnie x–z (portal). Opcje `{ u: -1, v }` kładą stojący pierścień w płaszczyźnie y–z (obręcz wokół kadłuba wzdłuż x), a `v` to jego pionowa półoś w jednostkach rysunku.
+- `shadow` rysuje sam cień bryły o wysokości h na poziomie z: okrągły (promień r) albo prostokątny od rogu (kolejność w, h, d, inna niż w `box`). `glow` z r < 0,06 to dioda bez gradientu. `label`: tekst to domyślnie nazwa firmy (skracana w punktach kodowych do `max` i escapowana), barwa to ramka i napis neonu.
+- Części rysują się w kolejności listy, więc podawaj je od tyłu. Działka z `gz > 0` (pokłady statku na kadłubie) ma wysokość bezwzględną, a części samej działki mają `z` względem jej poziomu.
 
 ```bash
 npm start            # serwer lokalny: http://localhost:8080
