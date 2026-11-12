@@ -55,8 +55,14 @@ const ASSETS = [
   './icons/favicon-32.png',
 ];
 
+// Komplet plików prosto z sieci: `cache: 'reload'` omija pamięć HTTP przeglądarki, która mogłaby
+// podsunąć starą kopię modułu do nowej wersji cache.
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  event.waitUntil(
+    caches.open(CACHE)
+      .then((c) => c.addAll(ASSETS.map((url) => new Request(url, { cache: 'reload' }))))
+      .then(() => self.skipWaiting()),
+  );
 });
 
 self.addEventListener('activate', (event) => {
