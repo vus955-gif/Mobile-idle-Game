@@ -55,3 +55,39 @@ test('kopia zapasowa: start z kopii (uszkodzony zapis główny) i nowa gra bez z
   assert.equal(fresh.co.g.s.cash, 0);
   assert.equal(fresh.storage.has(BACKUP_KEY), false, 'nowa gra nie tworzy pustej kopii');
 });
+
+// Błąd silnika przy wczytaniu konkretnego zapisu (np. zapis, którego dana wersja nie przewidziała).
+// Sanityzacja zapisu jest odporna na zwykłe uszkodzenia, więc wyjątek symulujemy podmianą Company.load.
+const UNREADABLE_KEY = 'krzemowe-imperium-unreadable';
+function breakLoadFor(t, cash) {
+  const load = Company.prototype.load;
+  t.mock.method(Company.prototype, 'load', function (raw, now) {
+    if (raw?.layers?.earth?.cash === cash) throw new Error('błąd silnika przy wczytaniu');
+    return load.call(this, raw, now);
+  });
+}
+
+test('start: wyjątek silnika przy zapisie głównym → gra startuje z kopii zapasowej', async (t) => {
+  breakLoadFor(t, 666);
+  const brokenRaw = saveWithCash(666);
+  const backupRaw = saveWithCash(300);
+  const storage = new Map([[SAVE_KEY, brokenRaw], [BACKUP_KEY, backupRaw]]);
+  const run = await runMain(t, { storage });
+  assert.equal(run.co.g.s.cash, 300);
+  assert.equal(storage.get(BACKUP_KEY), backupRaw, 'kopia zostaje kopią, z której gra wystartowała');
+  assert.equal(storage.get(UNREADABLE_KEY), brokenRaw, 'nieczytelny zapis nie przepada po autozapisie');
+  run.ui.hooks.save();
+  assert.equal(JSON.parse(storage.get(SAVE_KEY)).layers.earth.cash, 300);
+  assert.equal(storage.get(UNREADABLE_KEY), brokenRaw);
+});
+
+test('start: wyjątek silnika przy obu zapisach → nowa gra zamiast pustego ekranu, zapis zachowany', async (t) => {
+  breakLoadFor(t, 666);
+  const brokenRaw = saveWithCash(666);
+  const storage = new Map([[SAVE_KEY, brokenRaw], [BACKUP_KEY, brokenRaw]]);
+  const run = await runMain(t, { storage });
+  assert.equal(run.co.g.s.cash, 0);
+  assert.equal(storage.get(UNREADABLE_KEY), brokenRaw);
+  run.ui.hooks.save();
+  assert.equal(storage.get(UNREADABLE_KEY), brokenRaw, 'autozapis nowej gry nie kasuje nieczytelnego zapisu');
+});
