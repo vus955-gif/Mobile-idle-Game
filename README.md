@@ -8,13 +8,15 @@ Gra jest **po polsku i po angielsku**: język dobiera się sam według ustawień
 
 Gra to **PWA** (Progressive Web App) — instalujesz ją z Safari na ekran początkowy, uruchamia się na pełnym ekranie jak zwykła aplikacja, działa offline i **nie wymaga App Store, Maca ani konta deweloperskiego**.
 
-## 📲 Instalacja na iPhonie
+## 📲 Uruchomienie
 
-1. **Włącz GitHub Pages** (jednorazowo): w repozytorium wejdź w *Settings → Pages*, w sekcji *Build and deployment* wybierz *Source: Deploy from a branch*, gałąź `main` i folder `/ (root)`, zapisz.
-   Po minucie gra będzie pod adresem `https://vus955-gif.github.io/Mobile-idle-Game/`.
-2. Otwórz ten adres w **Safari** na iPhonie.
-3. Stuknij **Udostępnij** (kwadrat ze strzałką) → **Do ekranu początk.** → **Dodaj**.
-4. Uruchamiaj grę z ikony. Postęp zapisuje się automatycznie na urządzeniu.
+Gra nie ma publicznego adresu w internecie (GitHub Pages w tym repozytorium jest wyłączone). Uruchomisz ją lokalnie:
+
+1. Na komputerze z Node.js, w katalogu repozytorium: `node tools/serve.mjs 8090`, potem w przeglądarce `http://localhost:8090`.
+2. Na iPhonie w tej samej sieci Wi-Fi otwórz w **Safari** adres komputera, np. `http://192.168.1.20:8090`.
+3. Ikona na ekranie: **Udostępnij** (kwadrat ze strzałką) → **Do ekranu początk.** → **Dodaj**. Postęp zapisuje się automatycznie na urządzeniu.
+
+Tryb offline (service worker) przeglądarka włącza tylko pod adresem HTTPS albo `localhost`. Ze zwykłego `http://` w sieci lokalnej gra działa, ale bez pracy offline.
 
 > Wskazówka: raz na jakiś czas zrób kopię zapasową w *Firma → Ustawienia → Eksport zapisu* i wklej ją do Notatek.
 
