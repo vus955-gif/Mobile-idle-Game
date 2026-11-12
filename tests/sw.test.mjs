@@ -2,8 +2,12 @@
 // To test logiki zdarzeń install/activate/fetch, nie test prawdziwej przeglądarki.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import vm from 'node:vm';
+import { ROOT, computeCacheName, stamp } from '../tools/sw-version.mjs';
 
 const ORIGIN = 'https://gra.example';
 const SOURCE = readFileSync(new URL('../sw.js', import.meta.url), 'utf8');
@@ -117,4 +121,75 @@ test('sw: instalacja nie rusza starej wersji, aktywacja usuwa ją w całości i 
   assert.equal(sw.log.claim, 1);
   const res = await sw.fire('fetch', { request: new FakeRequest('./js/engine.js') });
   assert.equal(res.body, 'sieć:/js/engine.js', 'po aktywacji cały komplet z nowej instalacji');
+});
+
+// ---------- wersja cache i lista plików ----------
+
+test('wersja cache w sw.js odpowiada treści plików gry (npm run sw:version)', () => {
+  assert.equal(CACHE, computeCacheName(),
+    'Pliki gry zmieniły się, a nazwa CACHE w sw.js nie. Uruchom: npm run sw:version');
+});
+
+test('sw:version: zmiana pliku zmienia wersję, końce linii CRLF/LF nie; stamp wpisuje ją do sw.js', async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'ki-sw-'));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  await mkdir(path.join(dir, 'js'));
+  await writeFile(path.join(dir, 'sw.js'), "const CACHE = 'krzemowe-imperium-v1';\r\nconst ASSETS = [\r\n  './',\r\n  './index.html',\r\n  './js/a.js',\r\n];\r\n");
+  await writeFile(path.join(dir, 'index.html'), '<p>gra</p>\n');
+  await writeFile(path.join(dir, 'js/a.js'), 'export const A = 1;\nexport const B = 2;\n');
+  const v1 = computeCacheName(dir);
+  assert.match(v1, /^krzemowe-imperium-[0-9a-f]{12}$/);
+  await writeFile(path.join(dir, 'js/a.js'), 'export const A = 1;\r\nexport const B = 2;\r\n');
+  assert.equal(computeCacheName(dir), v1, 'checkout na Windows i CI dają tę samą wersję');
+  await writeFile(path.join(dir, 'js/a.js'), 'export const A = 1;\nexport const B = 3;\n');
+  const v2 = computeCacheName(dir);
+  assert.notEqual(v2, v1, 'każda zmiana pliku gry to nowa wersja');
+  assert.deepEqual(stamp(dir), { name: v2, changed: true });
+  const sw = await readFile(path.join(dir, 'sw.js'), 'utf8');
+  assert.ok(sw.startsWith(`const CACHE = '${v2}';\r\n`), 'reszta pliku i końce linii bez zmian');
+  assert.deepEqual(stamp(dir), { name: v2, changed: false });
+});
+
+// Moduły osiągalne z js/main.js: import/export … from, import(), new URL('./x.js', import.meta.url) (worker).
+function moduleGraph(entry) {
+  const seen = new Set();
+  const visit = (rel) => {
+    if (seen.has(rel)) return;
+    seen.add(rel);
+    const src = readFileSync(path.join(ROOT, rel), 'utf8');
+    const refs = [
+      ...src.matchAll(/(?:import|export)\s[^'"]*?from\s*['"](\.{1,2}\/[^'"]+)['"]/g),
+      ...src.matchAll(/import\s*['"](\.{1,2}\/[^'"]+)['"]/g),
+      ...src.matchAll(/import\(\s*['"](\.{1,2}\/[^'"]+)['"]\s*\)/g),
+      ...src.matchAll(/new URL\(\s*['"](\.{1,2}\/[^'"]+)['"]\s*,\s*import\.meta\.url/g),
+    ];
+    for (const m of refs) visit(path.posix.join(path.posix.dirname(rel), m[1]));
+  };
+  visit(entry);
+  return [...seen];
+}
+const walk = (dir) => readdirSync(path.join(ROOT, dir), { withFileTypes: true })
+  .flatMap((e) => (e.isDirectory() ? walk(`${dir}/${e.name}`) : [`${dir}/${e.name}`]));
+// Pliki tylko dla narzędzi deweloperskich (tools/*.html), których gra nie ładuje.
+const DEV_ONLY = ['js/art/gallery.js', 'js/diorama/gallery.js'];
+
+test('precache obejmuje każdy plik JS gry (cały graf importów z js/main.js, z workerem)', () => {
+  const graph = moduleGraph('js/main.js');
+  assert.ok(graph.includes('js/art/worker.js'), 'worker tła wykryty w grafie');
+  assert.ok(graph.length > 40);
+  for (const file of graph) assert.ok(ASSETS.includes(`./${file}`), `brak w ASSETS (sw.js): ./${file}`);
+  for (const file of walk('js').filter((f) => f.endsWith('.js'))) {
+    assert.ok(ASSETS.includes(`./${file}`) || DEV_ONLY.includes(file),
+      `nowy plik JS spoza listy precache: ./${file} — dopisz go do ASSETS w sw.js (albo do DEV_ONLY, jeśli gra go nie ładuje)`);
+  }
+  for (const file of DEV_ONLY) assert.ok(!graph.includes(file), `${file} jest ładowany przez grę, więc musi być w ASSETS`);
+});
+
+test('precache: każdy plik z ASSETS istnieje, a zasoby z index.html są na liście', () => {
+  // brak jednego pliku wywraca całą instalację (addAll jest atomowe), więc gra nie działałaby offline
+  for (const url of ASSETS) assert.ok(url === './' || existsSync(path.join(ROOT, url)), `brak pliku: ${url}`);
+  const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+  const local = [...html.matchAll(/(?:src|href)="([^"#:]+)"/g)].map((m) => `./${m[1]}`);
+  assert.ok(local.includes('./js/main.js'));
+  for (const url of local) assert.ok(ASSETS.includes(url), `index.html używa ${url}, którego nie ma w ASSETS`);
 });
