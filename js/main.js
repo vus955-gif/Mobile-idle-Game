@@ -136,6 +136,17 @@ window.addEventListener('pagehide', save);
 window.addEventListener('beforeunload', save);
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  // Nowa wersja gry przejmuje stronę od razu (sw.js). Jedno przeładowanie uruchamia ją w całości,
+  // zamiast łączyć moduły już wczytane do pamięci z nowymi z cache. Strona bez kontrolera to pierwsza
+  // instalacja (ten sam kod), więc wtedy nie przeładowujemy.
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;
+    reloading = true;
+    save();
+    location.reload();
+  });
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   });

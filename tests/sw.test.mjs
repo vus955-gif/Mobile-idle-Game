@@ -79,3 +79,42 @@ test('sw install: każdy plik z ASSETS pobierany z pominięciem pamięci HTTP (c
   assert.deepEqual(Array.from(reqs, (r) => r.url), ASSETS.map(abs));
   assert.equal(sw.store.get(CACHE).size, ASSETS.length);
 });
+
+test('sw fetch: plik gry tylko z cache bieżącej wersji, bez sieci i bez dopisywania w tle', async () => {
+  const sw = loadSW({ caches: { [CACHE]: { './js/main.js': 'main v2', './index.html': 'index v2' } } });
+  const res = await sw.fire('fetch', { request: new FakeRequest('./js/main.js?v=1') });
+  assert.equal(res.body, 'main v2', 'ignoreSearch: zapytanie w adresie nie omija cache');
+  assert.equal((await sw.fire('fetch', { request: new FakeRequest('./index.html') })).body, 'index v2');
+  // dawniej każde trafienie w cache pobierało też plik z sieci i podmieniało go pojedynczo
+  assert.deepEqual(sw.log.fetch, []);
+  assert.deepEqual(sw.log.put, []);
+});
+
+test('sw fetch: plik spoza cache idzie z sieci i nie trafia do cache wersji', async () => {
+  const sw = loadSW({ caches: { [CACHE]: {} } });
+  const res = await sw.fire('fetch', { request: new FakeRequest('./tools/gallery.html') });
+  assert.equal(res.body, 'sieć:/tools/gallery.html');
+  assert.deepEqual(sw.log.put, []);
+  assert.equal(sw.store.get(CACHE).size, 0);
+});
+
+test('sw fetch: inne domeny i metody inne niż GET zostają poza service workerem', async () => {
+  const sw = loadSW({ caches: { [CACHE]: {} } });
+  assert.equal(await sw.fire('fetch', { request: new FakeRequest('https://inna.example/x.js') }), undefined);
+  assert.equal(await sw.fire('fetch', { request: new FakeRequest('./index.html', { method: 'POST' }) }), undefined);
+  assert.deepEqual(sw.log.fetch, []);
+});
+
+test('sw: instalacja nie rusza starej wersji, aktywacja usuwa ją w całości i przejmuje strony', async () => {
+  const sw = loadSW({ caches: { 'krzemowe-imperium-stara': { './js/main.js': 'main v1', './js/engine.js': 'engine v1' } } });
+  await sw.fire('install');
+  // do aktywacji stara strona nadal dostaje komplet starych plików
+  assert.equal(sw.store.get('krzemowe-imperium-stara').get(abs('./js/engine.js')).body, 'engine v1');
+  assert.equal(sw.log.skipWaiting, 1);
+  await sw.fire('activate');
+  assert.deepEqual(sw.log.deleted, ['krzemowe-imperium-stara']);
+  assert.deepEqual([...sw.store.keys()], [CACHE]);
+  assert.equal(sw.log.claim, 1);
+  const res = await sw.fire('fetch', { request: new FakeRequest('./js/engine.js') });
+  assert.equal(res.body, 'sieć:/js/engine.js', 'po aktywacji cały komplet z nowej instalacji');
+});

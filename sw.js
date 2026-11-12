@@ -1,4 +1,4 @@
-// Service worker: gra działa offline. Najpierw cache, w tle pobiera nowszą wersję.
+// Service worker: gra działa offline z jednej, spójnej wersji plików (nazwa CACHE).
 const CACHE = 'krzemowe-imperium-v16';
 const ASSETS = [
   './',
@@ -65,6 +65,8 @@ self.addEventListener('install', (event) => {
   );
 });
 
+// Nowa wersja przejmuje otwarte strony od razu (skipWaiting + claim), a js/main.js przeładowuje wtedy
+// stronę raz, żeby cała gra działała na nowym kodzie. Stare wersje cache znikają dopiero tutaj.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
@@ -73,19 +75,15 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Pliki gry tylko z cache bieżącej wersji. Nic nie odświeża ich pojedynczo w tle: dawniej pierwsze
+// uruchomienie po wdrożeniu szło na starym kodzie, a następne mogło złożyć nowy moduł ze starym.
+// Nowa wersja przychodzi w całości przez nowy sw.js (inna nazwa CACHE). Spoza ASSETS — prosto z sieci.
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
   event.respondWith(
-    caches.open(CACHE).then(async (cache) => {
-      const cached = await cache.match(req, { ignoreSearch: true });
-      const network = fetch(req)
-        .then((res) => {
-          if (res && res.ok) cache.put(req, res.clone());
-          return res;
-        })
-        .catch(() => cached);
-      return cached || network;
-    }),
+    caches.open(CACHE)
+      .then((cache) => cache.match(req, { ignoreSearch: true }))
+      .then((cached) => cached || fetch(req)),
   );
 });
