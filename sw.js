@@ -1,7 +1,7 @@
 // Service worker: gra działa offline z jednej, spójnej wersji plików (nazwa CACHE).
 // CACHE to skrót treści plików z ASSETS. Nie edytuj go ręcznie: po zmianie plików gry uruchom
 // `npm run sw:version` (tests/sw.test.mjs pada, gdy nazwa jest nieaktualna).
-const CACHE = 'krzemowe-imperium-4a157c29a0c9';
+const CACHE = 'krzemowe-imperium-57637ac1a6f0';
 const ASSETS = [
   './',
   './index.html',

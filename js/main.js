@@ -23,13 +23,14 @@ function readSave() {
     try {
       const raw = localStorage.getItem(key);
       const data = raw ? JSON.parse(raw) : null;
-      if (isGameSave(data)) return data;
+      if (isGameSave(data)) return { raw, data };
     } catch { /* uszkodzony zapis główny nie blokuje odczytu kopii */ }
   }
   return null;
 }
 
-const saved = readSave();
+const loaded = readSave();
+const saved = loaded ? loaded.data : null;
 // Język: zapisany w grze (v3: w meta, starsze zapisy: na wierzchu), a przy pierwszym uruchomieniu — język telefonu.
 const savedLang = (s) => s?.meta?.settings?.lang || s?.settings?.lang;
 setLang(savedLang(saved) || detectLang());
@@ -39,6 +40,11 @@ setLang(savedLang(saved) || detectLang());
 const co = new Company(saved, { now: Date.now() + clockOffsetOf(saved), devTools: DEV_TOOLS });
 const clock = () => Date.now() + (co.meta.clockOffset || 0);
 let lastSaveJson = '';
+// Kopia wczytanego zapisu od razu przy starcie. Pierwszy autozapis sesji nie ma jeszcze poprzedniej
+// wersji w pamięci (lastSaveJson), więc bez tego stan sprzed sesji nie trafiłby do kopii zapasowej.
+if (loaded) {
+  try { localStorage.setItem(BACKUP_KEY, loaded.raw); } catch { /* brak miejsca — gra działa dalej */ }
+}
 
 function save() {
   try {
