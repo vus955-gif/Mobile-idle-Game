@@ -9,6 +9,7 @@ export const VERSION = '2.6.0';
 export { DEV_TOOLS } from './config.js';
 const SAVE_KEY = 'krzemowe-imperium-save';
 const BACKUP_KEY = 'krzemowe-imperium-backup';
+const UNREADABLE_KEY = 'krzemowe-imperium-unreadable';
 
 const isRecord = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 function isGameSave(data) {
@@ -18,27 +19,56 @@ function isGameSave(data) {
   return typeof data.cash === 'number' || data.cash === null;
 }
 
-function readSave() {
+// Zapisy, które wyglądają na grę: najpierw główny, potem kopia zapasowa.
+function readSaves() {
+  const found = [];
   for (const key of [SAVE_KEY, BACKUP_KEY]) {
     try {
       const raw = localStorage.getItem(key);
       const data = raw ? JSON.parse(raw) : null;
-      if (isGameSave(data)) return data;
+      if (isGameSave(data)) found.push({ raw, data });
     } catch { /* uszkodzony zapis główny nie blokuje odczytu kopii */ }
   }
-  return null;
+  return found;
 }
 
-const saved = readSave();
 // Język: zapisany w grze (v3: w meta, starsze zapisy: na wierzchu), a przy pierwszym uruchomieniu — język telefonu.
 const savedLang = (s) => s?.meta?.settings?.lang || s?.settings?.lang;
-setLang(savedLang(saved) || detectLang());
 // Zegar gry: czas rzeczywisty plus przesunięcie po „przewinięciu czasu” w trybie deweloperskim
 // (przesunięcie jest w zapisie, bo znaczniki czasu w stanie gry już je uwzględniają).
-// Firma ze wszystkimi warstwami (Ziemia, Kosmos…); co.g to warstwa na ekranie.
-const co = new Company(saved, { now: Date.now() + clockOffsetOf(saved), devTools: DEV_TOOLS });
+const startOpts = (data) => ({ now: Date.now() + clockOffsetOf(data), devTools: DEV_TOOLS });
+
+// Firma ze wszystkimi warstwami (Ziemia, Kosmos…); co.g to warstwa na ekranie. Zapis, przy którym silnik
+// rzuca wyjątek, nie blokuje startu: gra sięga po kopię zapasową, a gdy i ta zawiedzie, zaczyna od nowa.
+// Pierwszy (najnowszy) nieczytelny zapis zostaje pod UNREADABLE_KEY, bo inaczej nadpisałby go pierwszy
+// autozapis; poprawiona wersja gry albo pomoc techniczna mogą go jeszcze odzyskać.
+function startCompany() {
+  let failed = null;
+  for (const entry of readSaves()) {
+    if (failed && entry.raw === failed.raw) continue;
+    setLang(savedLang(entry.data) || detectLang());
+    try {
+      return { co: new Company(entry.data, startOpts(entry.data)), loaded: entry };
+    } catch {
+      if (!failed) {
+        failed = entry;
+        try { localStorage.setItem(UNREADABLE_KEY, entry.raw); } catch { /* brak miejsca */ }
+      }
+    }
+  }
+  setLang(detectLang());
+  return { co: new Company(null, startOpts(null)), loaded: null };
+}
+
+const { co, loaded } = startCompany();
+const saved = loaded ? loaded.data : null;
 const clock = () => Date.now() + (co.meta.clockOffset || 0);
 let lastSaveJson = '';
+// Kopia wczytanego zapisu od razu przy starcie. Pierwszy autozapis sesji nie ma jeszcze poprzedniej
+// wersji w pamięci (lastSaveJson), więc bez tego stan sprzed sesji nie trafiłby do kopii zapasowej.
+if (loaded) {
+  try { localStorage.setItem(BACKUP_KEY, loaded.raw); } catch { /* brak miejsca — gra działa dalej */ }
+}
 
 function save() {
   try {
@@ -136,6 +166,17 @@ window.addEventListener('pagehide', save);
 window.addEventListener('beforeunload', save);
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  // Nowa wersja gry przejmuje stronę od razu (sw.js). Jedno przeładowanie uruchamia ją w całości,
+  // zamiast łączyć moduły już wczytane do pamięci z nowymi z cache. Strona bez kontrolera to pierwsza
+  // instalacja (ten sam kod), więc wtedy nie przeładowujemy.
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloading) return;
+    reloading = true;
+    save();
+    location.reload();
+  });
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   });

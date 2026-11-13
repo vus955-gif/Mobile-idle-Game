@@ -9,6 +9,8 @@
     "test": "node --test tests/*.test.mjs",
     "sim": "node tools/simulate.mjs casual 21",
     "sim:active": "node tools/simulate.mjs active 0.2",
-    "icons": "node tools/make-icons.mjs"
+    "icons": "node tools/make-icons.mjs",
+    "release-check": "node tools/release-check.mjs",
+    "sw:version": "node tools/sw-version.mjs"
   }
 }

@@ -1,5 +1,7 @@
-// Service worker: gra działa offline. Najpierw cache, w tle pobiera nowszą wersję.
-const CACHE = 'krzemowe-imperium-v16';
+// Service worker: gra działa offline z jednej, spójnej wersji plików (nazwa CACHE).
+// CACHE to skrót treści plików z ASSETS. Nie edytuj go ręcznie: po zmianie plików gry uruchom
+// `npm run sw:version` (tests/sw.test.mjs pada, gdy nazwa jest nieaktualna).
+const CACHE = 'krzemowe-imperium-5f7ea882a6a7';
 const ASSETS = [
   './',
   './index.html',
@@ -55,10 +57,18 @@ const ASSETS = [
   './icons/favicon-32.png',
 ];
 
+// Komplet plików prosto z sieci: `cache: 'reload'` omija pamięć HTTP przeglądarki, która mogłaby
+// podsunąć starą kopię modułu do nowej wersji cache.
 self.addEventListener('install', (event) => {
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  event.waitUntil(
+    caches.open(CACHE)
+      .then((c) => c.addAll(ASSETS.map((url) => new Request(url, { cache: 'reload' }))))
+      .then(() => self.skipWaiting()),
+  );
 });
 
+// Nowa wersja przejmuje otwarte strony od razu (skipWaiting + claim), a js/main.js przeładowuje wtedy
+// stronę raz, żeby cała gra działała na nowym kodzie. Stare wersje cache znikają dopiero tutaj.
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
@@ -67,19 +77,15 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Pliki gry tylko z cache bieżącej wersji. Nic nie odświeża ich pojedynczo w tle: dawniej pierwsze
+// uruchomienie po wdrożeniu szło na starym kodzie, a następne mogło złożyć nowy moduł ze starym.
+// Nowa wersja przychodzi w całości przez nowy sw.js (inna nazwa CACHE). Spoza ASSETS — prosto z sieci.
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
   event.respondWith(
-    caches.open(CACHE).then(async (cache) => {
-      const cached = await cache.match(req, { ignoreSearch: true });
-      const network = fetch(req)
-        .then((res) => {
-          if (res && res.ok) cache.put(req, res.clone());
-          return res;
-        })
-        .catch(() => cached);
-      return cached || network;
-    }),
+    caches.open(CACHE)
+      .then((cache) => cache.match(req, { ignoreSearch: true }))
+      .then((cached) => cached || fetch(req)),
   );
 });

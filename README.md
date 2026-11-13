@@ -8,13 +8,15 @@ Gra jest **po polsku i po angielsku**: język dobiera się sam według ustawień
 
 Gra to **PWA** (Progressive Web App) — instalujesz ją z Safari na ekran początkowy, uruchamia się na pełnym ekranie jak zwykła aplikacja, działa offline i **nie wymaga App Store, Maca ani konta deweloperskiego**.
 
-## 📲 Instalacja na iPhonie
+## 📲 Uruchomienie
 
-1. **Włącz GitHub Pages** (jednorazowo): w repozytorium wejdź w *Settings → Pages*, w sekcji *Build and deployment* wybierz *Source: Deploy from a branch*, gałąź `main` i folder `/ (root)`, zapisz.
-   Po minucie gra będzie pod adresem `https://vus955-gif.github.io/Mobile-idle-Game/`.
-2. Otwórz ten adres w **Safari** na iPhonie.
-3. Stuknij **Udostępnij** (kwadrat ze strzałką) → **Do ekranu początk.** → **Dodaj**.
-4. Uruchamiaj grę z ikony. Postęp zapisuje się automatycznie na urządzeniu.
+Gra nie ma publicznego adresu w internecie (GitHub Pages w tym repozytorium jest wyłączone). Uruchomisz ją lokalnie:
+
+1. Na komputerze z Node.js, w katalogu repozytorium: `node tools/serve.mjs 8090`, potem w przeglądarce `http://localhost:8090`.
+2. Na iPhonie w tej samej sieci Wi-Fi otwórz w **Safari** adres komputera, np. `http://192.168.1.20:8090`.
+3. Ikona na ekranie: **Udostępnij** (kwadrat ze strzałką) → **Do ekranu początk.** → **Dodaj**. Postęp zapisuje się automatycznie na urządzeniu.
+
+Tryb offline (service worker) przeglądarka włącza tylko pod adresem HTTPS albo `localhost`. Ze zwykłego `http://` w sieci lokalnej gra działa, ale bez pracy offline.
 
 > Wskazówka: raz na jakiś czas zrób kopię zapasową w *Firma → Ustawienia → Eksport zapisu* i wklej ją do Notatek.
 
@@ -172,15 +174,15 @@ LOAD_STATE=st-7.json node tools/simulate.mjs casual 0 --chal=galaxy           # 
 node tools/ladder.mjs earth                  # drabinka produktów Ziemi
 ```
 
-Po zmianie plików gry podbij `CACHE` w `sw.js`, żeby zainstalowana aplikacja pobrała nową wersję.
+Po zmianie plików gry uruchom `npm run sw:version`: nazwa `CACHE` w `sw.js` to skrót treści wszystkich plików z listy `ASSETS`, więc zainstalowana aplikacja pobierze nową wersję w całości. `npm test` pada, gdy nazwa jest nieaktualna albo gdy plik JS ładowany przez grę nie trafił do `ASSETS`. Service worker podaje pliki gry wyłącznie z cache bieżącej wersji (bez odświeżania pojedynczych plików w tle), a po przejęciu strony przez nową wersję gra zapisuje stan i przeładowuje się raz.
 
-**Tryb deweloperski** (*Firma → Ustawienia*, na dole): mnożnik przychodu ×10/×100/×1000 działający już po nasyceniu rynku (szczyty zarobków, od których liczą się ceny lobbingu i hamulca, mierzą grę bez mnożnika) oraz przewijanie czasu o 10 min / 1 h / 8 h, które gra liczy jak prawdziwą przerwę (limit i wydajność offline, kontrakty). Gdy tryb jest włączony, w nagłówku widać czerwone „DEV ×N”. Przewinięcie przesuwa zegar gry na stałe w tym zapisie. Flaga wydania znajduje się w `js/config.js` i w tej wersji ma wartość `DEV_TOOLS = true`, więc narzędzia są dostępne w ustawieniach. Nowa gra zaczyna z wyłączonym DEV. Włączenie przełącznika uruchamia wybrany mnożnik, a wyłączenie natychmiast przywraca ×1 we wszystkich warstwach i blokuje dalsze przewijanie czasu; zmiana jest od razu zapisywana. Wydanie bez narzędzi można przygotować przez ustawienie `DEV_TOOLS = false`. Silnik i UI używają tej samej polityki; zapis gry nie może jej włączyć. Testy silnika mogą jawnie przekazać opcję konstruktora `{ devTools: true }` (to opcja programu, nie pole zapisu).
+**Tryb deweloperski** (*Firma → Ustawienia*, na dole): mnożnik przychodu ×10/×100/×1000 działający już po nasyceniu rynku (szczyty zarobków, od których liczą się ceny lobbingu i hamulca, mierzą grę bez mnożnika) oraz przewijanie czasu o 10 min / 1 h / 8 h, które gra liczy jak prawdziwą przerwę (limit i wydajność offline, kontrakty). Gdy tryb jest włączony, w nagłówku widać czerwone „DEV ×N”. Przewinięcie przesuwa zegar gry na stałe w tym zapisie. Flaga wydania znajduje się w `js/config.js` i w tej wersji ma wartość `DEV_TOOLS = true`, więc narzędzia są dostępne w ustawieniach. Nowa gra zaczyna z wyłączonym DEV. Włączenie przełącznika uruchamia wybrany mnożnik, a wyłączenie natychmiast przywraca ×1 we wszystkich warstwach i blokuje dalsze przewijanie czasu; zmiana jest od razu zapisywana. Wydanie bez narzędzi można przygotować przez ustawienie `DEV_TOOLS = false`. Pilnuje tego `npm run release-check`: kończy się błędem, dopóki `DEV_TOOLS` nie jest `false`. Na GitHubie uruchamia go workflow „Kontrola wydania” po wypchnięciu tagu `v*` albo ręcznie (*Actions → Kontrola wydania → Run workflow*); na zwykłych PR-ach nie biegnie, bo na co dzień narzędzia są włączone celowo. Silnik i UI używają tej samej polityki; zapis gry nie może jej włączyć. Testy silnika mogą jawnie przekazać opcję konstruktora `{ devTools: true }` (to opcja programu, nie pole zapisu).
 
 Przy wczytaniu/importowaniu zapisu do wydania z `DEV_TOOLS = false` `dev` jest zerowane, a `devMult` wraca do 1, zanim zostaną przeliczone dochody i offline. Poprawne `clockOffset` zostaje: cofnięcie go bez przeliczenia wszystkich terminów zatrzymałoby grę do czasu dogonienia zegara. Pełne „Zacznij od nowa” zeruje zarówno przesunięcie, jak i terminy; runda finansowania i transcendencja zachowują oś czasu. Niepoprawne przesunięcia (`null`, tekst, liczby nieskończone lub poza zakresem zegara) są odrzucane.
 
 Wyłączenie DEV zatrzymuje przyszłe mnożenie zarobków. Nie cofa gotówki, badań, osiągnięć ani już ustalonych wypłat kontraktów i decyzji. Nowe odroczone wypłaty zapisują osobno kwotę bez DEV do pomiaru szczytów. Stare wypłaty bez tej informacji nadal są wypłacane, lecz jednorazowo pomijane w pomiarze szczytów, aby nie zgadywać dawnego mnożnika. Już zawyżonych szczytów i postępu nie można wiarygodnie odtworzyć bez starszej kopii zapisu. Osobna piaskownica `cap=false` nadal zachowuje dotychczasowe działanie.
 
-`npm test` obejmuje wyłączenie DEV w produkcji, v1/v2/v3, import/eksport KI1, reset, transcendencję, czas offline, transfery między warstwami, szczyty przy zmianie mnożnika i opóźnionych wypłatach. Test `main-save` uruchamia prawdziwe callbacki `main.js` z obiema wartościami `DEV_TOOLS` (true/false), ale podstawia DOM/renderowanie; nie zastępuje sprawdzenia Safari/PWA na iPhonie. Przy zmianie flagi wydania trzeba też zmienić nazwę cache w `sw.js`, aby zainstalowane PWA pobrały spójną wersję.
+`npm test` obejmuje wyłączenie DEV w produkcji, v1/v2/v3, import/eksport KI1, reset, transcendencję, czas offline, transfery między warstwami, szczyty przy zmianie mnożnika i opóźnionych wypłatach. Test `main-save` uruchamia prawdziwe callbacki `main.js` z obiema wartościami `DEV_TOOLS` (true/false), ale podstawia DOM/renderowanie; nie zastępuje sprawdzenia Safari/PWA na iPhonie. Zmiana flagi wydania zmienia `js/config.js`, więc wymaga `npm run sw:version` jak każda zmiana plików gry.
 
 ### Kontrakt oprawy etapu (`StageArt`)
 
