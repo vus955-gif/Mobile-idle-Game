@@ -5,7 +5,7 @@ import { UI } from './ui.js';
 import { setLang, detectLang } from './i18n.js';
 import { startMusic, stopMusic } from './music.js';
 
-export const VERSION = '2.4.0';
+export const VERSION = '2.6.0';
 export { DEV_TOOLS } from './config.js';
 const SAVE_KEY = 'krzemowe-imperium-save';
 const BACKUP_KEY = 'krzemowe-imperium-backup';
@@ -143,4 +143,6 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 
 // Dostęp do gry z konsoli (debug): __game to warstwa na ekranie, __co cała firma.
 window.__co = co;
+// Scena do pomiarów (lastMs, warstwy) tylko w trybie deweloperskim.
+if (DEV_TOOLS) window.__scene = ui.scene;
 Object.defineProperty(window, '__game', { get: () => co.g });

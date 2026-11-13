@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Galeria dioram — Krzemowe Imperium</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #0c0b14; color: #e8e6f5; font-family: ui-rounded, "SF Pro Rounded", system-ui, "Segoe UI", sans-serif; }
+    header { position: sticky; top: 0; z-index: 2; background: rgba(12, 11, 20, .92); backdrop-filter: blur(8px); border-bottom: 1px solid rgba(255, 255, 255, .08); padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+    h1 { font-size: 18px; margin: 0; }
+    header a { font-size: 13px; color: #9db4ff; text-decoration: none; }
+    header a:hover { text-decoration: underline; }
+    label { font-size: 13px; color: #a7a3c4; }
+    select { margin-left: 6px; background: #1b1930; color: #fff; border: 1px solid #3a3660; border-radius: 8px; padding: 4px 8px; font: inherit; }
+    input[type="checkbox"] { margin-right: 6px; vertical-align: -2px; }
+    #summary { font-size: 13px; color: #7dffb6; font-family: ui-monospace, monospace; }
+    #summary.bad { color: #ff7a7a; }
+    .legend { margin: 10px 16px 0; font-size: 12px; color: #8a86a8; max-width: 1100px; }
+    .sec { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; margin: 22px 16px 4px; }
+    h2 { font-size: 16px; margin: 0; }
+    .grid { display: flex; flex-wrap: wrap; gap: 18px 16px; padding: 10px 16px 8px; }
+    figure { margin: 0; }
+    /* kafel w rozmiarze sceny (domyślnie iPhone SE): tło Canvas, budowle miasta, dwie warstwy dioramy i granice pasa */
+    .tile { position: relative; border-radius: 18px; overflow: hidden; background: #000; box-shadow: 0 10px 26px rgba(0, 0, 0, .5); }
+    .tile canvas, .tile svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    .tile svg { pointer-events: none; }
+    .band line.shade { stroke: rgba(0, 0, 0, .6); stroke-width: 2.5; stroke-dasharray: 5 4; }
+    .band line.edge { stroke: rgba(255, 255, 255, .95); stroke-width: 1; stroke-dasharray: 5 4; }
+    figcaption { margin-top: 6px; font-size: 13px; color: #a7a3c4; line-height: 1.5; }
+    figcaption b { color: #fff; }
+    .t1 { display: flex; flex-wrap: wrap; gap: 0 8px; align-items: baseline; }
+    .tag { font-size: 11px; color: #ffd36e; }
+    .t2, .t3 { font-family: ui-monospace, monospace; font-size: 12px; }
+    .t3 { color: #6f6b8f; }
+    .t2 { display: flex; flex-wrap: wrap; gap: 0 10px; }
+    .t2 span { white-space: nowrap; }
+    .bad { color: #ff7a7a; font-weight: 700; }
+    /* animacje sceny skopiowane z css/style.css (klasy dioramy: person, blink, car, floor-new) */
+    .person { animation: bob 1.6s ease-in-out infinite; transform-box: fill-box; }
+    @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1.4px); } }
+    .blink { animation: blink 1.4s steps(2) infinite; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: .15; } }
+    .car { animation: car linear infinite; }
+    @keyframes car { from { transform: translateX(-80px); } to { transform: translateX(480px); } }
+    .floor-new { animation: floorIn .8s cubic-bezier(.2, .9, .3, 1.3); transform-box: fill-box; transform-origin: center bottom; }
+    @keyframes floorIn { from { transform: scaleY(0); opacity: 0; } to { transform: none; opacity: 1; } }
+    body.paused * { animation-play-state: paused !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Galeria dioram</h1>
+    <a href="gallery.html">← Widoki</a>
+    <label>Pora dnia (Ziemia)<select id="phase"><option value="night">noc</option><option value="dawn">świt</option><option value="day" selected>dzień</option><option value="dusk">zmierzch</option></select></label>
+    <label>Pogoda (Ziemia)<select id="weather"><option value="clear" selected>bezchmurnie</option><option value="cloudy">pochmurno</option><option value="rain">deszcz</option><option value="snow">śnieg</option><option value="fog">mgła</option></select></label>
+    <label>Pora roku (Ziemia)<select id="season"><option value="spring">wiosna</option><option value="summer" selected>lato</option><option value="autumn">jesień</option><option value="winter">zima</option></select></label>
+    <label>Święto<select id="holiday"><option value="" selected>brak</option><option value="halloween">Halloween (Ziemia)</option><option value="xmas">Boże Narodzenie</option></select></label>
+    <label><input type="checkbox" id="anim" checked>Animacje</label>
+    <span id="summary">liczę…</span>
+  </header>
+  <p class="legend" id="legend"></p>
+  <main id="sections"></main>
+  <script type="module" src="../js/diorama/gallery.js"></script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 // Testy zmian pod gracza-człowieka: budżet badań „Auto”, tryb deweloperski i zegar gry.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Company, Game, DEV_MULTS } from '../js/engine.js';
+import { Company, Game, DEV_MULTS, createMeta, sanitizeMeta } from '../js/engine.js';
 import { setLang } from '../js/i18n.js';
 
 setLang('pl');
@@ -71,4 +71,20 @@ test('zegar gry: przesunięcie po przewinięciu czasu zostaje w zapisie i po tra
   assert.equal(bad.meta.clockOffset, 0);
   assert.equal(bad.meta.settings.dev, false);
   assert.equal(bad.meta.settings.devMult, 1);
+});
+
+test('gfx: domyślnie pełna, nieznana wartość wraca do pełnej, wybór przechodzi przez zapis', () => {
+  assert.equal(createMeta().settings.gfx, 'full');
+  assert.equal(sanitizeMeta({ settings: { gfx: 'ultra' } }).settings.gfx, 'full');
+  const co = new Company(null, { now: T0, rng });
+  co.meta.settings.gfx = 'eco';
+  const again = new Company(JSON.parse(co.serialize()), { now: T0, rng });
+  assert.equal(again.meta.settings.gfx, 'eco');
+});
+
+test('gfx: reset gry (Company.reset) zachowuje wybraną jakość grafiki', () => {
+  const co = new Company(null, { now: 1e12 });
+  co.meta.settings.gfx = 'eco';
+  co.reset(1e12 + 1000);
+  assert.equal(co.meta.settings.gfx, 'eco');
 });

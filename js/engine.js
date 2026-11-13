@@ -146,7 +146,7 @@ export function createMeta(now = Date.now()) {
     // ile razy firma przeszła całą grę i zaczęła od zera (transcendencja)
     transcend: 0,
     stats: { zenTime: 0, musicTime: 0 },
-    settings: { sound: false, music: false, buyAmount: 1, lang: getLang(), layer: 'earth', cap: true, dev: false, devMult: 1 },
+    settings: { sound: false, music: false, buyAmount: 1, lang: getLang(), layer: 'earth', cap: true, dev: false, devMult: 1, gfx: 'full' },
     // przesunięcie zegara gry (ms) po „przewinięciu czasu” w trybie deweloperskim; zostaje w zapisie,
     // bo znaczniki czasu w stanie są już przesunięte
     clockOffset: 0,
@@ -242,6 +242,8 @@ export function sanitizeMeta(raw, now = Date.now(), devTools = DEV_TOOLS) {
   if (!LAYERS[m.settings.layer] || !m.unlocked[m.settings.layer]) m.settings.layer = 'earth';
   m.settings.cap = m.settings.cap !== false;
   sanitizeDevSettings(m.settings, devTools === true);
+  // jakość grafiki: pełna (animowane tła) albo oszczędna
+  if (m.settings.gfx !== 'eco') m.settings.gfx = 'full';
   m.clockOffset = sanitizeClockOffset(raw.clockOffset);
   const ap = isObj(raw.autopilot) ? raw.autopilot : {};
   m.autopilot = { owned: isObj(ap.owned) ? { ...ap.owned } : {}, off: isObj(ap.off) ? { ...ap.off } : {} };
@@ -2017,9 +2019,9 @@ export class Company {
   }
   // Pełny reset: ustawienia zostają, ale zegar i wszystkie terminy zaczynają się od nowa.
   reset(now = Date.now()) {
-    const { sound, music, lang, cap, buyAmount, dev, devMult } = this.meta.settings;
+    const { sound, music, lang, cap, buyAmount, dev, devMult, gfx } = this.meta.settings;
     this.load(null, now);
-    Object.assign(this.meta.settings, { sound, music, lang, cap, buyAmount, dev, devMult });
+    Object.assign(this.meta.settings, { sound, music, lang, cap, buyAmount, dev, devMult, gfx });
     sanitizeDevSettings(this.meta.settings, this.devTools);
     this.recalc();
   }

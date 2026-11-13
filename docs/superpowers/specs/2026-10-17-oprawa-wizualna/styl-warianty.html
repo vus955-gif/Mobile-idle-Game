@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Krzemowe Imperium — kierunki stylu</title>
+<style>
+  :root { --page: #e9e6f2; --ink: #1d1b2c; --muted: #5f5b78; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink); font-family: ui-rounded, "SF Pro Rounded", system-ui, "Segoe UI", sans-serif; }
+  header.top { max-width: 1040px; margin: 0 auto; padding: 22px 16px 6px; }
+  header.top h1 { font-size: 22px; margin: 0 0 4px; }
+  header.top p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.5; }
+  .row { display: flex; flex-wrap: wrap; gap: 26px; justify-content: center; padding: 18px 12px 40px; }
+  .variant { width: 300px; }
+  .vhead { display: flex; align-items: baseline; gap: 8px; margin: 0 0 10px 4px; }
+  .vhead b { font-size: 26px; }
+  .vhead span { font-size: 17px; font-weight: 700; }
+  .phone { position: relative; width: 300px; height: 600px; border-radius: 38px; overflow: hidden; border: 8px solid #15131f; box-shadow: 0 18px 40px rgba(20, 16, 40, .28); }
+  .swatches { display: flex; gap: 8px; margin-top: 12px; }
+  .sw { flex: 1; border-radius: 14px; overflow: hidden; height: 92px; position: relative; box-shadow: 0 4px 10px rgba(0, 0, 0, .15); }
+  .sw svg { display: block; width: 100%; height: 100%; }
+  .sw i { position: absolute; left: 7px; bottom: 5px; font-style: normal; font-size: 10.5px; font-weight: 700; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+  .notes { font-size: 13px; line-height: 1.5; color: var(--muted); margin-top: 12px; }
+  .notes b { color: var(--ink); }
+  .notes div { margin-top: 5px; }
+  .meter { display: inline-block; letter-spacing: 2px; color: var(--ink); }
+  .pick { margin-top: 12px; width: 100%; padding: 10px; border-radius: 12px; border: 2px solid #15131f; background: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+  .pick.on { background: #15131f; color: #fff; }
+
+  /* ---------- A: diorama ---------- */
+  .A { background: linear-gradient(#ffe2c4, #cfe8ff 70%); font-family: ui-rounded, "SF Pro Rounded", system-ui, sans-serif; color: #2b2340; }
+  .A .hud { display: flex; justify-content: space-between; align-items: center; padding: 14px 14px 0; }
+  .A .chip { background: #fffaf2; border-radius: 14px; padding: 6px 10px; font-size: 12px; font-weight: 800; box-shadow: 0 3px 0 #e2c9a8; }
+  .A .money { text-align: center; margin-top: 6px; }
+  .A .money b { font-size: 30px; font-weight: 900; color: #2b2340; }
+  .A .money div { font-size: 12px; font-weight: 800; color: #3f9b54; }
+  .A .bottom { position: absolute; left: 0; right: 0; bottom: 0; height: 196px; background: #fffaf2; border-radius: 26px 26px 0 0; box-shadow: 0 -4px 0 #f1e2cc; }
+  .A .tap { position: absolute; left: 50%; top: 18px; transform: translateX(-50%); width: 118px; height: 108px; border-radius: 34px; background: #ff8a5c; box-shadow: 0 9px 0 #d9643a, 0 14px 18px rgba(217, 100, 58, .35); display: grid; place-items: center; animation: aBob 2.4s ease-in-out infinite; }
+  .A .tap svg { width: 54px; }
+  .A .side { position: absolute; top: 34px; font-size: 11px; font-weight: 800; color: #8a7f9e; }
+  .A .side b { display: block; font-size: 15px; color: #2b2340; }
+  .A .tabs { position: absolute; bottom: 10px; left: 10px; right: 10px; display: flex; justify-content: space-between; }
+  .A .tabs span { width: 40px; height: 40px; border-radius: 13px; background: #f3e8d6; box-shadow: 0 3px 0 #e2cfb3; }
+  .A .tabs span.on { background: #ffcf6e; box-shadow: 0 3px 0 #e0a83e; }
+  @keyframes aBob { 50% { transform: translateX(-50%) translateY(-3px); } }
+  .A .coin { position: absolute; width: 14px; height: 14px; border-radius: 50%; background: #ffd34d; box-shadow: inset -2px -2px 0 #e6a925; animation: aCoin 1.6s ease-out infinite; opacity: 0; }
+  @keyframes aCoin { 0% { transform: translate(0, 0) scale(.6); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(var(--dx), -70px) scale(1); opacity: 0; } }
+
+  /* ---------- B: warstwy i światło ---------- */
+  .B { color: #fff; font-family: system-ui, "Segoe UI", sans-serif; }
+  .B .scene { position: absolute; inset: 0; }
+  .B .glass { background: rgba(255, 255, 255, .13); border: 1px solid rgba(255, 255, 255, .25); -webkit-backdrop-filter: blur(14px) saturate(1.3); backdrop-filter: blur(14px) saturate(1.3); }
+  .B .hud { position: absolute; top: 12px; left: 12px; right: 12px; border-radius: 20px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
+  .B .hud small { font-size: 11px; opacity: .8; display: block; }
+  .B .hud b { font-size: 22px; font-weight: 300; letter-spacing: .3px; }
+  .B .hud .inc { font-size: 12px; color: #b8ffd2; text-align: right; }
+  .B .bottom { position: absolute; left: 10px; right: 10px; bottom: 10px; height: 168px; border-radius: 26px; }
+  .B .tap { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); width: 92px; height: 92px; border-radius: 50%; display: grid; place-items: center; background: radial-gradient(circle at 50% 40%, rgba(255, 236, 200, .55), rgba(255, 170, 120, .18) 60%, transparent 70%); border: 1.5px solid rgba(255, 240, 220, .8); animation: bGlow 3s ease-in-out infinite; }
+  .B .tap svg { width: 40px; }
+  @keyframes bGlow { 50% { box-shadow: 0 0 34px 6px rgba(255, 190, 140, .55); } }
+  .B .side { position: absolute; top: 34px; font-size: 10.5px; opacity: .85; }
+  .B .side b { display: block; font-size: 14px; font-weight: 500; opacity: 1; }
+  .B .tabs { position: absolute; bottom: 12px; left: 18px; right: 18px; display: flex; justify-content: space-between; }
+  .B .tabs span { width: 6px; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, .5); margin: 0 12px; }
+  .B .tabs span.on { background: #fff; width: 22px; border-radius: 4px; }
+  .B .mote { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: rgba(255, 230, 200, .85); animation: bMote 9s linear infinite; }
+  @keyframes bMote { from { transform: translate(0, 0); opacity: 0; } 20% { opacity: 1; } to { transform: translate(30px, -160px); opacity: 0; } }
+
+  /* ---------- C: neon ---------- */
+  .C { background: #0b0420; color: #e9f7ff; font-family: "Cascadia Code", "SF Mono", ui-monospace, monospace; }
+  .C .hud { display: flex; justify-content: space-between; align-items: center; padding: 14px 14px 0; }
+  .C .chip { border: 1px solid #ff3fd8; color: #ffb3f2; border-radius: 6px; padding: 4px 8px; font-size: 11px; box-shadow: 0 0 10px rgba(255, 63, 216, .5), inset 0 0 8px rgba(255, 63, 216, .3); }
+  .C .money { text-align: center; margin-top: 8px; }
+  .C .money b { font-size: 27px; color: #fff; text-shadow: 0 0 10px #22e6ff, 0 0 22px rgba(34, 230, 255, .6); }
+  .C .money div { font-size: 11px; color: #7dffb6; text-shadow: 0 0 8px rgba(125, 255, 182, .7); }
+  .C .bottom { position: absolute; left: 0; right: 0; bottom: 0; height: 190px; background: linear-gradient(rgba(11, 4, 32, 0), #0b0420 30%); border-top: 1px solid rgba(34, 230, 255, .35); }
+  .C .tap { position: absolute; left: 50%; top: 22px; transform: translateX(-50%); width: 98px; height: 98px; border-radius: 50%; border: 2px solid #22e6ff; display: grid; place-items: center; box-shadow: 0 0 16px #22e6ff, inset 0 0 16px rgba(34, 230, 255, .6); animation: cPulse 1.8s ease-in-out infinite; }
+  .C .tap::after { content: ''; position: absolute; inset: -10px; border-radius: 50%; border: 1px solid rgba(255, 63, 216, .6); animation: cRing 1.8s ease-out infinite; }
+  .C .tap svg { width: 44px; filter: drop-shadow(0 0 4px #22e6ff); }
+  @keyframes cPulse { 50% { box-shadow: 0 0 26px #22e6ff, inset 0 0 22px rgba(34, 230, 255, .8); } }
+  @keyframes cRing { from { transform: scale(.9); opacity: 1; } to { transform: scale(1.35); opacity: 0; } }
+  .C .side { position: absolute; top: 40px; font-size: 10px; color: #8f86c9; }
+  .C .side b { display: block; font-size: 13px; color: #fff; }
+  .C .tabs { position: absolute; bottom: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; }
+  .C .tabs span { width: 36px; height: 30px; border: 1px solid rgba(143, 134, 201, .5); border-radius: 6px; }
+  .C .tabs span.on { border-color: #ff3fd8; box-shadow: 0 0 10px rgba(255, 63, 216, .7); }
+  .C .scan { position: absolute; inset: 0; background: repeating-linear-gradient(rgba(255, 255, 255, .025) 0 1px, transparent 1px 3px); pointer-events: none; }
+
+  .cloud { animation: drift linear infinite; }
+  @keyframes drift { from { transform: translateX(-80px); } to { transform: translateX(340px); } }
+  .twinkle { animation: tw 3s ease-in-out infinite; }
+  @keyframes tw { 50% { opacity: .25; } }
+  .blink { animation: tw 2.2s steps(2) infinite; }
+  .carA { animation: carA 7s linear infinite; }
+  @keyframes carA { from { transform: translate(0, 0); } to { transform: translate(120px, -60px); } }
+  .trail { stroke-dasharray: 18 140; animation: trail 2.4s linear infinite; }
+  @keyframes trail { to { stroke-dashoffset: -158; } }
+  .bird { animation: bird 14s linear infinite; }
+  @keyframes bird { from { transform: translate(-30px, 0); } to { transform: translate(320px, -40px); } }
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Krzemowe Imperium — trzy kierunki oprawy</h1>
+  <p>Ten sam ekran (Biuro na Ziemi, środek gry) w trzech stylach. Pod telefonem: jak w tym stylu różniłyby się Kosmos, Galaktyka i Wszechświat. Wszystko to czysty SVG i CSS, bez obrazków, więc gra zostaje lekka. Animacje w makietach są poglądowe.</p>
+</header>
+
+<div class="row">
+
+  <!-- ===================== A ===================== -->
+  <section class="variant">
+    <div class="vhead"><b>A</b><span>Diorama — miniaturowy świat</span></div>
+    <div class="phone A">
+      <svg viewBox="0 0 300 600" style="position:absolute;inset:0" id="sceneA">
+        <defs>
+          <linearGradient id="aSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd8b5"/><stop offset=".75" stop-color="#cde7ff"/></linearGradient>
+          <radialGradient id="aShadow"><stop offset="0" stop-color="#7a6a9a" stop-opacity=".35"/><stop offset="1" stop-color="#7a6a9a" stop-opacity="0"/></radialGradient>
+        </defs>
+        <rect width="300" height="600" fill="url(#aSky)"/>
+        <g opacity=".9">
+          <g class="cloud" style="animation-duration:38s"><ellipse cx="40" cy="120" rx="26" ry="10" fill="#fff"/><ellipse cx="58" cy="114" rx="16" ry="10" fill="#fff"/></g>
+          <g class="cloud" style="animation-duration:52s;animation-delay:-20s"><ellipse cx="20" cy="175" rx="20" ry="8" fill="#fff"/><ellipse cx="34" cy="170" rx="12" ry="8" fill="#fff"/></g>
+        </g>
+        <ellipse cx="150" cy="392" rx="130" ry="26" fill="url(#aShadow)"/>
+        <!-- wyspa -->
+        <polygon points="35,300 150,242 265,300 150,358" fill="#92d68c"/>
+        <polygon points="35,300 150,358 150,392 35,334" fill="#c08457"/>
+        <polygon points="150,358 265,300 265,334 150,392" fill="#9a6440"/>
+        <polygon points="35,300 150,358 150,362 35,304" fill="#78bf72"/>
+        <!-- ścieżka -->
+        <polygon points="70,318 98,304 202,356 174,370" fill="#e9dcc4" opacity=".9" transform="translate(0,-14)"/>
+        <g id="aBuildings"></g>
+        <g class="carA"><polygon points="86,322 98,316 106,320 94,326" fill="#ff6f61"/><polygon points="94,326 106,320 106,324 94,330" fill="#c84b40"/></g>
+        <g id="aTrees"></g>
+      </svg>
+      <div class="hud" style="position:relative"><span class="chip">◆ Garażowy Startup</span><span class="chip">🔬 12,2 mln</span></div>
+      <div class="money" style="position:relative"><b>$238 bln</b><div>+39,6 bln/s</div></div>
+      <div class="bottom">
+        <div class="side" style="left:18px">Zespół<b>325 os.</b></div>
+        <div class="side" style="right:18px;text-align:right">Wycena<b>$2,85 tln</b></div>
+        <div class="tap"><svg viewBox="0 0 64 64"><rect x="10" y="14" width="44" height="28" rx="5" fill="#fff" opacity=".3" stroke="#fff" stroke-width="4"/><path d="M6 46h52l-4 7H10z" fill="#fff"/><path d="M26 23l-6 5 6 5M38 23l6 5-6 5" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <span class="coin" style="left:120px;top:40px;--dx:-30px"></span>
+        <span class="coin" style="left:160px;top:36px;--dx:24px;animation-delay:.5s"></span>
+        <span class="coin" style="left:140px;top:30px;--dx:4px;animation-delay:1s"></span>
+        <div class="tabs"><span class="on"></span><span></span><span></span><span></span><span></span><span></span></div>
+      </div>
+    </div>
+    <div class="swatches">
+      <div class="sw"><svg viewBox="0 0 90 92"><rect width="90" height="92" fill="#1b2350"/><circle cx="70" cy="18" r="22" fill="#5aa9ff" opacity=".35"/><polygon points="12,58 45,42 78,58 45,74" fill="#4a5590"/><polygon points="12,58 45,74 45,82 12,66" fill="#323b6e"/><polygon points="45,74 78,58 78,66 45,82" fill="#262d58"/><polygon points="30,52 45,45 60,52 45,59" fill="#e7ecff"/><polygon points="30,52 45,59 45,40 30,33" fill="#cfd6f5"/><polygon points="45,59 60,52 60,33 45,40" fill="#aab3e0"/><rect x="61" y="40" width="20" height="7" fill="#5aa9ff" transform="skewY(-26)"/></svg><i>Kosmos</i></div>
+      <div class="sw"><svg viewBox="0 0 90 92"><rect width="90" height="92" fill="#2a1240"/><circle cx="25" cy="25" r="26" fill="#c45bd6" opacity=".35"/><circle cx="68" cy="60" r="24" fill="#5b7cff" opacity=".25"/><polygon points="20,56 45,44 72,56 47,70" fill="#e8dcff"/><polygon points="20,56 47,70 47,76 20,62" fill="#b9a6e6"/><polygon points="47,70 72,56 72,62 47,76" fill="#8f7bc6"/><polygon points="38,50 45,40 54,50 45,56" fill="#ffd36e"/></svg><i>Galaktyka</i></div>
+      <div class="sw"><svg viewBox="0 0 90 92"><rect width="90" height="92" fill="#120c07"/><circle cx="45" cy="40" r="30" fill="#ffcf6e" opacity=".18"/><polygon points="15,62 45,48 75,62 45,76" fill="#3a2a16"/><polygon points="38,58 45,22 52,58 45,62" fill="#ffe7a8"/><polygon points="45,62 52,58 45,22" fill="#e8b85a"/><polygon points="26,60 30,40 34,60" fill="#ffd77e"/><polygon points="56,60 60,42 64,60" fill="#ffd77e"/></svg><i>Wszechświat</i></div>
+    </div>
+    <div class="notes">
+      <div><b>Charakter:</b> przytulna makieta na pływającej wyspie, jak zabawka na biurku. Ciepłe pastele, jasny interfejs z „klockowymi” przyciskami.</div>
+      <div><b>Efekty:</b> wyspa rośnie o nowe budynki, monety wyskakują z przycisku, auta i drony jeżdżą po makiecie.</div>
+      <div><b>Różnice między etapami:</b> każdy etap to inna wyspa (stacja na orbicie, statek w mgławicy, kryształowa cytadela).</div>
+      <div><b>Lekkość:</b> <span class="meter">●●●●○</span> &nbsp; <b>Nakład pracy:</b> <span class="meter">●●●●●</span> (wszystkie sceny od nowa)</div>
+    </div>
+    <button class="pick" data-v="A">Wybieram A</button>
+  </section>
+
+  <!-- ===================== B ===================== -->
+  <section class="variant">
+    <div class="vhead"><b>B</b><span>Warstwy i światło</span></div>
+    <div class="phone B">
+      <svg class="scene" viewBox="0 0 300 600" preserveAspectRatio="xMidYMid slice">
+        <defs>
+          <linearGradient id="bSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1c2257"/><stop offset=".38" stop-color="#6a3d8f"/><stop offset=".62" stop-color="#e2768a"/><stop offset=".78" stop-color="#ffb98a"/></linearGradient>
+          <radialGradient id="bSun"><stop offset="0" stop-color="#fff4d6"/><stop offset=".25" stop-color="#ffd59a" stop-opacity=".9"/><stop offset="1" stop-color="#ff9a7a" stop-opacity="0"/></radialGradient>
+          <linearGradient id="bTower" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#2a1d47"/><stop offset=".8" stop-color="#3a2a5f"/><stop offset="1" stop-color="#ff9f80"/></linearGradient>
+          <linearGradient id="bFloor" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1a1230"/><stop offset="1" stop-color="#0d0a1c"/></linearGradient>
+        </defs>
+        <rect width="300" height="600" fill="url(#bSky)"/>
+        <circle cx="205" cy="345" r="120" fill="url(#bSun)"/>
+        <circle cx="205" cy="345" r="22" fill="#fff1d0"/>
+        <g class="bird" style="animation-delay:-3s"><path d="M0 200 q5 -5 10 0 q5 -5 10 0" stroke="#3a2457" stroke-width="1.6" fill="none"/></g>
+        <g class="bird" style="animation-duration:18s"><path d="M0 230 q4 -4 8 0 q4 -4 8 0" stroke="#3a2457" stroke-width="1.4" fill="none"/></g>
+        <g opacity=".55"><g class="cloud" style="animation-duration:60s"><ellipse cx="60" cy="260" rx="50" ry="6" fill="#ffd2c0"/></g><g class="cloud" style="animation-duration:80s;animation-delay:-40s"><ellipse cx="30" cy="300" rx="40" ry="5" fill="#ffcfb0"/></g></g>
+        <path id="bL1" fill="#b77aa7" opacity=".55"/>
+        <path id="bL2" fill="#7d4f8e" opacity=".75"/>
+        <path id="bL3" fill="#45306b"/>
+        <!-- wieżowiec gracza -->
+        <rect x="104" y="250" width="92" height="230" fill="url(#bTower)"/>
+        <rect x="194" y="250" width="2" height="230" fill="#ffc9a8" opacity=".9"/>
+        <rect x="118" y="236" width="64" height="16" fill="#2a1d47"/><rect x="146" y="214" width="3" height="24" fill="#2a1d47"/><circle cx="147.5" cy="212" r="2.5" fill="#ff5d6c" class="blink"/>
+        <g id="bWin"></g>
+        <path d="M0 470 L300 470 L300 600 L0 600Z" fill="url(#bFloor)"/>
+        <g id="bTrees"></g>
+        <g id="bMotes"></g>
+      </svg>
+      <div class="hud glass"><div><small>Garażowy Startup · Wieżowiec</small><b>$238 bln</b></div><div class="inc">+39,6 bln/s<br><span style="color:#e3d5ff">🔬 12,2 mln</span></div></div>
+      <div class="bottom glass">
+        <div class="side" style="left:16px">Zespół<b>325 os.</b></div>
+        <div class="side" style="right:16px;text-align:right">Wycena<b>$2,85 tln</b></div>
+        <div class="tap"><svg viewBox="0 0 64 64"><rect x="10" y="14" width="44" height="28" rx="5" fill="none" stroke="#fff" stroke-width="3"/><path d="M6 46h52l-4 6H10z" fill="#fff"/><path d="M26 23l-6 5 6 5M38 23l6 5-6 5" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div class="tabs"><span class="on"></span><span></span><span></span><span></span><span></span><span></span></div>
+      </div>
+    </div>
+    <div class="swatches">
+      <div class="sw"><svg viewBox="0 0 90 92"><defs><linearGradient id="s1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#030816"/><stop offset="1" stop-color="#0f2b55"/></linearGradient></defs><rect width="90" height="92" fill="url(#s1)"/><path d="M0 40 q45 -25 90 0 v8 q-45 -22 -90 0z" fill="#3cf0b0" opacity=".35"/><path d="M-20 92 q65 -70 130 0z" fill="#2c6fc8"/><path d="M-20 92 q65 -66 130 0" stroke="#9fd8ff" stroke-width="2" fill="none"/><rect x="40" y="30" width="10" height="22" rx="3" fill="#dfe8ff"/><rect x="28" y="38" width="34" height="3" fill="#9fb3e0"/></svg><i>Kosmos</i></div>
+      <div class="sw"><svg viewBox="0 0 90 92"><rect width="90" height="92" fill="#12071f"/><ellipse cx="30" cy="40" rx="40" ry="18" fill="#7a2d8f" opacity=".6"/><ellipse cx="60" cy="58" rx="40" ry="16" fill="#c14e8a" opacity=".45"/><ellipse cx="45" cy="72" rx="50" ry="12" fill="#ff9a6e" opacity=".3"/><path d="M28 50 l34 -6 l-6 8 z" fill="#efe6ff"/><circle cx="70" cy="22" r="1.5" fill="#fff"/><circle cx="14" cy="16" r="1" fill="#fff"/></svg><i>Galaktyka</i></div>
+      <div class="sw"><svg viewBox="0 0 90 92"><rect width="90" height="92" fill="#06050a"/><path d="M0 70 C20 40 40 60 60 30 S90 20 90 10" stroke="#ffd98a" stroke-width="1.2" fill="none" opacity=".7"/><path d="M0 40 C25 55 45 20 70 50 S90 70 90 80" stroke="#c9a7ff" stroke-width="1" fill="none" opacity=".6"/><circle cx="60" cy="30" r="3" fill="#fff2c6"/><circle cx="45" cy="50" r="10" fill="#ffd98a" opacity=".2"/><polygon points="40,62 45,40 50,62" fill="#fff2c6"/></svg><i>Wszechświat</i></div>
+    </div>
+    <div class="notes">
+      <div><b>Charakter:</b> spokojna ilustracja z głębią: kilka planów jak w grach typu Alto, niebo i światło grają główną rolę. Interfejs to matowe szkło nad sceną, a scena zajmuje cały ekran.</div>
+      <div><b>Efekty:</b> pora dnia i pogoda (gra już je ma) zmieniają światło całej sceny, kurz w promieniach słońca, ptaki, poświata przycisku.</div>
+      <div><b>Różnice między etapami:</b> każdy etap ma własny horyzont i paletę (zorza nad planetą, mgławice, nici kosmicznej sieci).</div>
+      <div><b>Lekkość:</b> <span class="meter">●●●○○</span> (rozmycie szkła kosztuje na starszych iPhone'ach) &nbsp; <b>Nakład pracy:</b> <span class="meter">●●●○○</span></div>
+    </div>
+    <button class="pick" data-v="B">Wybieram B</button>
+  </section>
+
+  <!-- ===================== C ===================== -->
+  <section class="variant">
+    <div class="vhead"><b>C</b><span>Neonowy retrofuturyzm</span></div>
+    <div class="phone C">
+      <svg viewBox="0 0 300 600" style="position:absolute;inset:0">
+        <defs>
+          <linearGradient id="cSun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe45c"/><stop offset=".55" stop-color="#ff5fa2"/><stop offset="1" stop-color="#b13cff"/></linearGradient>
+          <linearGradient id="cSky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b0420"/><stop offset="1" stop-color="#2b0b4f"/></linearGradient>
+          <radialGradient id="cGlow"><stop offset="0" stop-color="#ff5fa2" stop-opacity=".45"/><stop offset="1" stop-color="#ff5fa2" stop-opacity="0"/></radialGradient>
+        </defs>
+        <rect width="300" height="380" fill="url(#cSky)"/>
+        <g id="cStars"></g>
+        <circle cx="150" cy="300" r="120" fill="url(#cGlow)"/>
+        <circle cx="150" cy="300" r="70" fill="url(#cSun)"/>
+        <g fill="#2b0b4f"><rect x="70" y="300" width="160" height="4"/><rect x="70" y="314" width="160" height="6"/><rect x="70" y="330" width="160" height="8"/><rect x="70" y="348" width="160" height="12"/></g>
+        <rect y="360" width="300" height="240" fill="#0b0420"/>
+        <g id="cGrid" stroke="#ff3fd8" stroke-width="1" opacity=".55"></g>
+        <!-- wieżowiec gracza: obrys neonu -->
+        <g>
+          <rect x="112" y="186" width="76" height="176" fill="#120731"/>
+          <rect x="112" y="186" width="76" height="176" fill="none" stroke="#22e6ff" stroke-width="5" opacity=".25"/>
+          <rect x="112" y="186" width="76" height="176" fill="none" stroke="#22e6ff" stroke-width="1.6"/>
+          <path d="M126 186 L150 158 L174 186" fill="none" stroke="#22e6ff" stroke-width="1.6"/>
+          <g id="cWin"></g>
+        </g>
+        <path d="M0 470 L300 455" stroke="#22e6ff" stroke-width="2" class="trail"/>
+        <path d="M300 480 L0 492" stroke="#ff3fd8" stroke-width="2" class="trail" style="animation-delay:-1.2s"/>
+      </svg>
+      <div class="scan"></div>
+      <div class="hud" style="position:relative"><span class="chip">GARAŻOWY_STARTUP</span><span class="chip" style="border-color:#22e6ff;color:#bff8ff;box-shadow:0 0 10px rgba(34,230,255,.5)">RP 12.2M</span></div>
+      <div class="money" style="position:relative"><b>$238 bln</b><div>▲ 39,6 bln/s</div></div>
+      <div class="bottom">
+        <div class="side" style="left:16px">ZESPÓŁ<b>325</b></div>
+        <div class="side" style="right:16px;text-align:right">WYCENA<b>$2,85T</b></div>
+        <div class="tap"><svg viewBox="0 0 64 64"><rect x="10" y="14" width="44" height="28" rx="2" fill="none" stroke="#bff8ff" stroke-width="3"/><path d="M6 46h52l-4 6H10z" fill="#bff8ff"/><path d="M26 23l-6 5 6 5M38 23l6 5-6 5" stroke="#bff8ff" stroke-width="3" fill="none" stroke-linecap="round"/></svg></div>
+        <div class="tabs"><span class="on"></span><span></span><span></span><span></span><span></span><span></span></div>
+      </div>
+    </div>
+    <div class="swatches">
+      <div class="sw"><svg viewBox="0 0 90 92"><rect width="90" height="92" fill="#020a1a"/><circle cx="45" cy="100" r="50" fill="none" stroke="#22e6ff" stroke-width="1.5"/><circle cx="45" cy="100" r="50" fill="none" stroke="#22e6ff" stroke-width="5" opacity=".2"/><rect x="38" y="20" width="14" height="26" fill="none" stroke="#22e6ff" stroke-width="1.4"/><line x1="20" y1="32" x2="70" y2="32" stroke="#7dffb6" stroke-width="1.4"/></svg><i>Kosmos</i></div>
+      <div class="sw"><svg viewBox="0 0 90 92"><rect width="90" height="92" fill="#14031f"/><ellipse cx="45" cy="46" rx="34" ry="12" fill="none" stroke="#ff3fd8" stroke-width="1.4" transform="rotate(-18 45 46)"/><ellipse cx="45" cy="46" rx="34" ry="12" fill="none" stroke="#ff3fd8" stroke-width="5" opacity=".2" transform="rotate(-18 45 46)"/><path d="M30 52 l30 -14 l-8 12z" fill="none" stroke="#ffe45c" stroke-width="1.4"/></svg><i>Galaktyka</i></div>
+      <div class="sw"><svg viewBox="0 0 90 92"><rect width="90" height="92" fill="#100a00"/><polygon points="45,14 72,46 45,78 18,46" fill="none" stroke="#ffd25c" stroke-width="1.4"/><polygon points="45,14 72,46 45,78 18,46" fill="none" stroke="#ffd25c" stroke-width="6" opacity=".18"/><circle cx="45" cy="46" r="6" fill="#ffd25c"/></svg><i>Wszechświat</i></div>
+    </div>
+    <div class="notes">
+      <div><b>Charakter:</b> ciemny, energetyczny „synthwave”: neonowe obrysy, siatka horyzontu, zachód słońca w paski. Liczby jak na terminalu.</div>
+      <div><b>Efekty:</b> pulsujący przycisk z falą, smugi świateł aut, migające okna, linie skanowania.</div>
+      <div><b>Różnice między etapami:</b> każdy etap ma własny kolor neonu (cyjan, magenta, złoto) i własną bryłę.</div>
+      <div><b>Lekkość:</b> <span class="meter">●●●●○</span> &nbsp; <b>Nakład pracy:</b> <span class="meter">●●●○○</span> &nbsp; <b>Uwaga:</b> mniej relaksujący, łatwo o przesyt.</div>
+    </div>
+    <button class="pick" data-v="C">Wybieram C</button>
+  </section>
+
+</div>
+
+<script>
+const NS = 'http://www.w3.org/2000/svg';
+const el = (tag, attrs, parent) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); parent.appendChild(e); return e; };
+let seed = 7; const rnd = () => (seed = (seed * 9301 + 49297) % 233280) / 233280;
+
+// ---------- A: budynki izometryczne ----------
+function isoBox(g, cx, cy, hw, hh, h, col, win) {
+  const L = [cx - hw, cy], F = [cx, cy + hh], R = [cx + hw, cy], B = [cx, cy - hh];
+  const up = (p) => [p[0], p[1] - h];
+  const pts = (...ps) => ps.map((p) => p.join(',')).join(' ');
+  el('polygon', { points: pts(L, F, up(F), up(L)), fill: col[0] }, g);
+  el('polygon', { points: pts(F, R, up(R), up(F)), fill: col[1] }, g);
+  el('polygon', { points: pts(up(L), up(F), up(R), up(B)), fill: col[2] }, g);
+  if (!win) return;
+  for (let y = 10; y < h - 8; y += 13) {
+    for (const [a, b, face] of [[L, F, 0], [F, R, 1]]) {
+      for (let u = 0.12; u < 0.85; u += 0.26) {
+        const P = (t, v) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t - v];
+        const lit = rnd() > 0.25;
+        el('polygon', { points: pts(P(u, y), P(u + 0.16, y), P(u + 0.16, y + 7), P(u, y + 7)), fill: lit ? (face ? '#ffd87a' : '#ffe9a8') : (face ? '#8fa5c9' : '#b7c6e2'), class: lit && rnd() > 0.85 ? 'blink' : '' }, g);
+      }
+    }
+  }
+}
+const aB = document.getElementById('aBuildings');
+isoBox(aB, 196, 296, 26, 13, 46, ['#e9e3f6', '#c9bfe2', '#f7f3ff'], true);
+isoBox(aB, 150, 300, 34, 17, 150, ['#fff6ea', '#e6d3bd', '#fffdf8'], true);
+isoBox(aB, 150, 150, 20, 10, 14, ['#ff9a6b', '#e07548', '#ffb38c'], false);
+isoBox(aB, 104, 312, 22, 11, 30, ['#ffe3e0', '#f2c0bb', '#fff2f0'], true);
+const aT = document.getElementById('aTrees');
+for (const [x, y, s] of [[60, 304, 1], [74, 296, 0.8], [236, 304, 1.1], [222, 316, 0.8], [176, 340, 0.9], [92, 336, 0.9]]) {
+  el('rect', { x: x - 1.5, y: y - 4, width: 3, height: 6, fill: '#8a5a3a' }, aT);
+  el('polygon', { points: `${x},${y - 26 * s} ${x - 10 * s},${y - 2} ${x},${y + 2}`, fill: '#5fb36a' }, aT);
+  el('polygon', { points: `${x},${y - 26 * s} ${x + 10 * s},${y - 2} ${x},${y + 2}`, fill: '#3f9150' }, aT);
+}
+
+// ---------- B: warstwy miasta ----------
+function skyline(id, base, minH, maxH, step, s) {
+  seed = s; let d = `M0 600 L0 ${base}`; let x = 0;
+  while (x < 300) { const w = step * (0.6 + rnd() * 0.9); const h = minH + rnd() * (maxH - minH); d += ` L${x} ${base - h} L${x + w} ${base - h}`; x += w; }
+  d += ` L300 ${base} L300 600Z`; document.getElementById(id).setAttribute('d', d);
+}
+skyline('bL1', 410, 20, 70, 26, 3);
+skyline('bL2', 440, 30, 110, 22, 11);
+skyline('bL3', 470, 20, 90, 30, 23);
+const bW = document.getElementById('bWin'); seed = 5;
+for (let y = 262; y < 470; y += 14) for (let x = 112; x < 190; x += 13) {
+  const lit = rnd() > 0.35;
+  el('rect', { x, y, width: 7, height: 8, rx: 1, fill: lit ? '#ffcf8a' : '#3b2c63', opacity: lit ? (0.7 + rnd() * 0.3) : 1 }, bW);
+}
+const bT = document.getElementById('bTrees');
+for (const x of [20, 46, 248, 276]) { el('circle', { cx: x, cy: 466, r: 14, fill: '#120c24' }, bT); el('circle', { cx: x + 10, cy: 470, r: 10, fill: '#120c24' }, bT); }
+const bM = document.getElementById('bMotes').parentNode.parentNode;
+for (let i = 0; i < 9; i++) { const m = document.createElement('span'); m.className = 'mote'; m.style.left = (150 + Math.random() * 120) + 'px'; m.style.top = (300 + Math.random() * 140) + 'px'; m.style.animationDelay = (-Math.random() * 9) + 's'; bM.appendChild(m); }
+
+// ---------- C: siatka, gwiazdy, okna ----------
+const cG = document.getElementById('cGrid');
+for (let i = -10; i <= 10; i++) el('line', { x1: 150 + i * 12, y1: 362, x2: 150 + i * 70, y2: 600 }, cG);
+for (let k = 0; k < 9; k++) { const y = 362 + Math.pow(k / 8, 2) * 238; el('line', { x1: 0, y1: y, x2: 300, y2: y }, cG); }
+const cS = document.getElementById('cStars'); seed = 9;
+for (let i = 0; i < 40; i++) el('circle', { cx: rnd() * 300, cy: rnd() * 230, r: rnd() * 1.2 + 0.3, fill: '#fff', class: rnd() > 0.6 ? 'twinkle' : '', style: `animation-delay:${-rnd() * 3}s` }, cS);
+const cW = document.getElementById('cWin'); seed = 2;
+for (let y = 198; y < 356; y += 12) for (let x = 120; x < 182; x += 12) {
+  const r = rnd(); if (r < 0.3) continue;
+  el('rect', { x, y, width: 7, height: 5, fill: r > 0.75 ? '#ff3fd8' : '#22e6ff', opacity: 0.85, class: r > 0.93 ? 'blink' : '' }, cW);
+}
+
+for (const b of document.querySelectorAll('.pick')) b.addEventListener('click', () => {
+  for (const o of document.querySelectorAll('.pick')) o.classList.toggle('on', o === b);
+  document.title = 'Wybrano: ' + b.dataset.v;
+});
+</script>
+</body>
+</html>
